@@ -1,11 +1,37 @@
+---
+doc: ROADMAP
+layer: roadmap
+version: 0.3.1-triz
+language: bilingual
+status: stable
+audience: [agents, maintainers, early-adopters, anyone planning a feature]
+related: [ARCHITECT.md, UI.md, BACKLOG.md, ADR.md]
+depends_on: [ADR-015]
+invariants:
+  - {id: INV-RM-001, statement: "Each phase has exit criteria expressed as a measurable number, not a feeling", criticality: high, enforced_by: "caf report --metrics"}
+  - {id: INV-RM-002, statement: "Phase transitions require all exit criteria met + at least one external early adopter", criticality: medium, enforced_by: "manual review"}
+  - {id: INV-RM-003, statement: "FUTURE items must satisfy the 4 promotion criteria in §6.9 before leaving BACKLOG", criticality: high, enforced_by: "quarterly review"}
+agent_routing:
+  - {task: "Plan a release", see: [§7.3 Release strategy]}
+  - {task: "Decide phase transitions", see: [§8 Phase Transitions]}
+  - {task: "Promote a backlog item", see: [§6.9 Exit criteria for FUTURE items]}
+  - {task: "Estimate resourcing", see: [§9 Resourcing]}
+  - {task: "Track success metrics", see: [§12 Success Measurement]}
+trace_to_code:
+  - "(ROADMAP is product-planning; no direct code paths. Code is mapped via ARCHITECT.md trace matrix.)"
+ui_budgets_referenced: "UI.md §0.3 (universal performance budget)"
+---
+
 # CodeAuthorityFirst — ROADMAP.md
 
-> **Версия / Version:** 0.3 (80/20 prioritized, expanded agents, UI milestones)
+> **Версия / Version:** 0.3.1-triz (post-TRIZ pass: this file is no longer a byte-identical duplicate of ARCHITECT.md; content rewritten to focus on product roadmap — deliverables, milestones, exit criteria, adoption metrics. Architectural concerns moved to ARCHITECT.md; capability matrix now lives in ARCHITECT.md §1.)
 > **Формат фаз / Phase format:** MVP → ALPHA → BETA → PROD → FUTURE
-> **Принцип приоритезации / Prioritization principle:** 🔥 80/20 — 20% усилий даёт 80% ценности; high-leverage фичи получают приоритет
+> **Принцип приоритезации / Prioritization principle:** 🔥 80/20 — 20% усилий даёт 80% ценности; high-leverage фичи получают приоритет. See [ADR-015](./ADR.md#adr-015-8020-prioritization-principle).
 > **Язык / Language:** bilingual — Russian body, English summary per phase
-> **Аудитория / Audience:** tool maintainers + early adopters
+> **Аудитория / Audience:** tool maintainers + early adopters + anyone planning when a feature will ship
 > **Связанные документы:** [ARCHITECT.md](./ARCHITECT.md) · [UI.md](./UI.md) · [BACKLOG.md](./BACKLOG.md) · [ADR.md](./ADR.md)
+
+> **How this file relates to ARCHITECT.md.** ROADMAP answers "what product capabilities ship in each phase, by when, with what measurable exit criteria". ARCHITECT answers "what architectural layers and code contracts ship in each phase, what must remain invariant". The two files share the same 12-section structure (per user constraint v0.3.1-triz: preserve structure 1:1) but have different content flavor. ROADMAP focuses on user-facing deliverables, exit criteria, adoption metrics; ARCHITECT focuses on invariants, interfaces, code paths.
 
 ---
 
@@ -15,9 +41,9 @@
 
 Дорожная карта v0.3 построена на четырёх принципах:
 
-1. **🔥 80/20 priority.** Фичи помеченные `🔥 80/20` получают приоритет в ресурсах. Это фичи, дающие 80% ценности за 20% усилий. Перфекционизм на low-value фичах запрещён (см. ADR-015).
+1. **🔥 80/20 priority.** Фичи помеченные `🔥 80/20` получают приоритет в ресурсах. Это фичи, дающие 80% ценности за 20% усилий. Перфекционизм на low-value фичах запрещён (см. [ADR-015](./ADR.md#adr-015-8020-prioritization-principle)).
 
-2. **Self-sufficiency.** Каждая фаза добавляет ценность автономно. После MVP инструмент уже полезен, даже если development остановится.
+2. **Self-sufficiency.** Каждая фаза добавляет ценность автономно. После MVP инструмент уже полезен, даже если development остановится. После ALPHA — ещё полезнее. И так далее.
 
 3. **Universal before specific.** Сначала universal fallback (LSP, git hook, filesystem watcher) — покрывает ВСЕХ агентов сразу. Потом явные адаптеры для enhanced UX. Это обратно v0.2 подхода, где specific adapters were primary.
 
@@ -25,471 +51,375 @@
 
 ### 0.1 High-leverage features list (🔥 80/20)
 
-| # | Feature | Effort | Value | Why 80/20 |
-|---|---|---|---|---|
-| 1 | Universal pre-commit hook | ~1 день | enforcement для 25+ агентов | один shell script, agent-agnostic |
-| 2 | Auto-detect agents by config files | ~1 день | removes need for explicit `caf init --agent` | один config-driven matcher |
-| 3 | Universal LSP fallback | ~5 дней | мгновенная поддержка любого agent'а | покрывает long-tail агентов |
-| 4 | TUI dashboard | ~5 дней | заменяет web UI для v1 | bubbletea + lipgloss, well-trodden path |
-| 5 | `caf.first_person_explain` MCP | ~3 дня | killer feature, 80% perceived value | LLM paraphrase + ground truth |
-| 6 | Single Go binary | 0 (бесплатно) | zero-dependency distribution | Go gives this for free |
-| 7 | ASCII heatmap | ~2 дня | works in any terminal | no rendering overhead |
-| 8 | SM-2 algorithm | ~2 дня | proven, simple, no innovation risk | copied from Anki |
+| # | Feature | Effort | Value | Why 80/20 | Phase |
+|---|---------|--------|-------|-----------|-------|
+| 1 | Universal pre-commit hook | 2d | 90% coverage of agents | One hook fires for all 25+ agents | MVP |
+| 2 | Auto-detect (`caf init --auto-detect`) | 1d | 5min→30s onboarding | Removes friction; user has nothing to configure | MVP |
+| 3 | Universal LSP fallback (ADR-013) | 5d | Long-tail coverage | Zero-config support for all LSP languages | MVP |
+| 4 | TUI dashboard | 3d | Hub for all screens | Replaces 6 separate CLI commands | MVP |
+| 5 | `caf.first_person_explain` MCP tool | 5d | Killer feature for agents | LLM gets narrative-grade context | PROD |
+| 6 | Single Go binary | 1d | Zero-dep distribution | One file, no runtime | MVP |
+| 7 | ASCII heatmap | 1d | One-screen overview | Replaces 100-line text report | BETA |
+| 8 | SM-2 algorithm | 2d | Battle-tested SRS | Anki users recognize it immediately | BETA |
 
-**Итого:** 8 фич, ~20 дней effort, ~80% ценности. Это и есть MVP scope.
+**Итого:** 8 фич, ~20 дней effort, ~80% ценности. Это и есть MVP+ALPHA+BETA ядро. См. [ADR-015](./ADR.md#adr-015-8020-prioritization-principle).
 
 ---
 
 ## 1. Phase Overview (v0.3)
 
-| Phase | Duration (est.) | Primary goal | Modules live | Agents supported | UI screens | 🔥 80/20 features |
-|---|---|---|---|---|---|---|
-| MVP | 2-3 weeks | Universal provenance + dashboard | Provenance, context.md, dashboard | 25+ via universal LSP + Tier 1 (2 explicit) | dashboard, onboarding, adapters list | 1, 2, 3, 6 |
-| ALPHA | 4-6 weeks | Decision Log + TUI review | + Decision Log, TUI editor | + Tier 1 complete (5 explicit) | + decisions list, decisions editor | 4, 7 |
-| BETA | 6-8 weeks | Mental Model Reconstructor | + MMR (SM-2), single-repo graph | + Tier 2 (8 explicit) | + review session, heatmap, file tour | 8 |
-| PROD | 8-10 weeks | MCP server + cross-repo | + MCP, cross-repo sync, OryaAgent | + Tier 3 (12 explicit) | + reports view, settings | 5 |
-| FUTURE | open-ended | Multi-language, web UI, plugins | + language adapters, multi-user | extensibility via plugins | + web UI (visualizations only) | — |
+**EN summary.** v0.3 ships in five phases: MVP (2-3 wk, universal coverage), ALPHA (4-6 wk, decisions + autocomplete), BETA (6-8 wk, mental model + SRS), PROD (8-10 wk, MCP + cross-repo + LLM), FUTURE (open-ended, multi-user + web UI + plugins). The phase list is the same as in ARCHITECT.md §1 (by design — same 12-section structure); the difference is that ROADMAP §1 lists user-facing features per phase, while ARCHITECT §1 lists architectural components per phase.
 
-**🔥 Key shift from v0.2:** MVP теперь покрывает 25+ агентов через universal fallback, а не 2 явных адаптера. Это радикально расширяет initial coverage.
+| Phase | Duration (est.) | Primary goal | Modules live | Agents supported | UI screens | 🔥 80/20 features |
+|-------|-----------------|--------------|--------------|-------------------|------------|---------------------|
+| MVP | 2-3 wk | Universal coverage | Provenance, context.md, dashboard | 25+ via universal LSP + Tier 1 (2 explicit) | Dashboard, Onboarding, Adapters manager | Universal pre-commit hook, Auto-detect, LSP fallback, TUI dashboard, Single Go binary |
+| ALPHA | 4-6 wk | Decision Log + pre-commit validation | Decision Log, TUI decisions list/editor/detail, pre-commit validation, +3 Tier 1 adapters (Cursor, Cline, KiloCode) | 25+ via universal + 5 enhanced (Tier 1) | Decisions list, Decision detail, Decision editor | 80/20 autocomplete (90s→25s) |
+| BETA | 6-8 wk | Mental Model Reconstructor + SRS | MMR, SM-2 🔥, 3 card types, dependency graph, blindspots detection, TUI review 🔥, TUI heatmap, TUI file tour | 25+ via universal + 13 enhanced (+8 Tier 2) | Review session, Heatmap, File tour | SM-2 algorithm, ASCII heatmap, TUI review session |
+| PROD | 8-10 wk | MCP server + cross-repo sync + LLM | MCP server (5 tools + 3 prompts), cross-repo sync, TUI reports view, success metrics, `caf.first_person_explain` 🔥, +12 Tier 3 adapters | 25+ via universal + 25 enhanced (all explicit) | Reports view, Metrics report | `caf.first_person_explain` MCP tool, cross-repo sync |
+| FUTURE | open-ended | Extensibility + multi-user | Multi-user, Web UI (read-only), CRDT, Plugin API, IDE plugins, CI/CD integrations | (additive) | Web dashboard (read-only), VSCode/JetBrains/Neovim plugins | (per-item 4 promotion criteria — see §6.9) |
+
+> **🔥 Key shift from v0.2:** MVP теперь покрывает 25+ агентов через universal fallback, а не 2 явных адаптера. Это радикально расширяет initial coverage.
+
+> **Capability matrix** lives in [ARCHITECT.md §1 Capability matrix](./ARCHITECT.md#capability-matrix-first-class-artifact-referenced-from-adr-009-and-adr-013) — the canonical table showing which adapter is in which tier and which canonical events each supports natively vs via fallback.
 
 ---
 
 ## 2. Phase: MVP (2-3 weeks)
 
-**EN summary.** Deliver universal provenance for ALL agents (25+) via LSP fallback + 2 explicit Tier 1 adapters (opencode, Claude Code). After MVP, user can run `caf init` (zero args), universal pre-commit hook is installed, any AI agent automatically tracked. Dashboard TUI shows real-time metrics. Decision Log and Mental Model absent.
+**EN summary.** MVP delivers universal coverage: `.caf/` storage, fail-safe hooks (universal pre-commit fires for ALL 25+ agents), auto-detect, TUI dashboard, single Go binary. After MVP, any agent gets provenance + decisions infrastructure, even without an explicit adapter.
 
 ### 2.1 Scope
 
-**🔥 80/20 MVP scope:** maximum value, minimum effort.
+User-facing features in MVP:
 
-**Modules implemented:**
+- **Provenance Tracker (partial — without decision linking):** records who/when/what for each agent session, no manual `caf log` calls.
+- **`context.md` generator:** produces a markdown summary of recent sessions for agents to consume as context.
+- **🔥 Universal pre-commit hook:** one shell script in `.git/hooks/pre-commit`, fires for all 25+ agents.
+- **🔥 Universal LSP fallback adapter (Tier 4):** zero-config support for any LSP-supporting language (Go first via gopls).
+- **🔥 Auto-detect (`caf init --auto-detect`):** scans for installed agents, recommends with marker.
+- **opencode adapter (Tier 1 native):** explicit enhanced adapter for opencode.
+- **Claude Code adapter (Tier 1 native):** explicit enhanced adapter for Claude Code.
+- **🔥 TUI dashboard:** hub screen — Today widget (review queue, pending decisions, new blindspots), Authorship Score widget (ACS weekly avg, target ≥3.5, Recall %, Coverage %), Active Agents widget, Recent Decisions widget, Cross-repo widget (dependencies with stale-decision indicators).
+- **TUI onboarding wizard:** first-run experience, ~30 seconds, 4-step flow.
+- **TUI adapters manager:** lists installed + available adapters, health check view.
 
-- Provenance Tracker (partial — without decision linking)
-- `context.md` generator
-- Universal pre-commit hook (🔥 — works for any agent)
-- Universal LSP fallback adapter (🔥 — covers any agent)
-- Auto-detect (`caf init --auto-detect`, 🔥)
-- Adapter for **opencode** (Tier 1, native)
-- Adapter for **Claude Code** (Tier 1, native)
-- TUI dashboard (🔥, see UI.md §3)
-- TUI onboarding wizard (see UI.md §2)
-- TUI adapters manager (see UI.md §7)
+Adapters shipped (MVP):
+- Universal LSP fallback (Tier 4)
+- Universal pre-commit hook
+- opencode (Tier 1 native, all events)
+- Claude Code (Tier 1 native, all events)
 
-**Adapters shipped:**
+Coverage: 25+ agents covered (via universal fallback) + 2 enhanced (Tier 1).
 
-| Adapter | Tier | Status | Coverage mechanism |
-|---|---|---|---|
-| Universal LSP fallback 🔥 | 4 | ✓ | covers ANY agent |
-| Universal pre-commit hook 🔥 | n/a | ✓ | covers ANY agent |
-| opencode | 1 | ✓ native | enhanced UX (native pre-session injection) |
-| Claude Code | 1 | ✓ native | enhanced UX |
+CLI commands shipped (MVP):
+- `caf init` — interactive onboarding
+- `caf init --auto-detect` — auto-detect agents
+- `caf init --agent opencode` — install specific adapter
+- `caf dashboard` — TUI dashboard
+- `caf adapters list` — TUI adapters manager
+- `caf who <file:line>` — provenance for line
+- `caf when --pattern <regex> <dir>` — sessions by file pattern
+- `caf sessions --since 7d` — list sessions
+- `caf context` — generate `context.md`
+- `caf hook pre-session` — invoked by adapter on agent start
+- `caf hook post-edit` — invoked after non-trivial file changes
+- `caf hook pre-commit` 🔥 — universal, fires in `.git/hooks/pre-commit`
 
-**Coverage:** 25+ agents covered (via universal fallback) + 2 enhanced (via Tier 1 adapters).
-
-**CLI commands (MVP):**
-
-- `caf init` 🔥 — universal hook + LSP fallback (no args needed!)
-- `caf init --auto-detect` 🔥 — universal + auto-detected explicit adapters
-- `caf init --agent opencode` — universal + explicit
-- `caf dashboard` 🔥 — TUI dashboard
-- `caf adapters list` — TUI adapter manager
-- `caf who <file:line>` — provenance lookup
-- `caf when --pattern <regex> <dir>`
-- `caf sessions --since 7d`
-- `caf context` / `caf context --refresh`
-- `caf hook pre-session --repo <path> --agent <id>`
-- `caf hook post-edit --repo <path> --session <id> --agent <id>`
-- `caf hook pre-commit --repo <path>` (🔥 universal)
-
-**Hooks:**
-
-- `pre-session` — via Tier 1 adapter (native) or wrapper (Tier 2+) or LSP (Tier 4)
-- `post-edit` — via Tier 1 adapter (native) or filesystem watcher (Tier 2+)
-- `pre-commit` 🔥 — universal git hook, agent-agnostic
+Three hook types: pre-session, post-edit, pre-commit. See [ARCHITECT.md §2.1](./ARCHITECT.md#21-scope) for the architectural contract.
 
 ### 2.2 Deliverables
 
-- Working `caf` binary для Linux/macOS (Go build, single binary)
-- `.caf/` folder structure, созданная `caf init`
-- TUI dashboard with real-time metrics
-- TUI onboarding wizard
-- Universal LSP fallback (covers 25+ agents out of the box)
-- Universal pre-commit git hook
-- Документация: quick-start (5-min onboarding via `caf init`)
-- Pilot: 1-2 pet project репозиториев на dogfooding
-- CI pipeline: unit tests, snapshot tests for TUI
+User-visible deliverables in MVP:
+
+1. `caf` single binary for Linux/macOS/Windows.
+2. `.caf/` folder structure created by `caf init`.
+3. `.git/hooks/pre-commit` universal hook installed.
+4. TUI dashboard with 5 widgets.
+5. TUI onboarding wizard.
+6. TUI adapters manager with health check.
+7. `context.md` auto-generated.
+8. Two Tier 1 explicit adapters (opencode, Claude Code) + Universal LSP fallback.
 
 ### 2.3 Exit criteria
 
-1. Пилотный репо использует `caf` 7 дней подряд без ручных fallback'ов
-2. Universal pre-commit hook корректно срабатывает на нетривиальные коммиты от 3+ разных агентов
-3. Universal LSP fallback успешно строит symbol graph для Go репо до 1000 файлов
-4. TUI dashboard first paint <100ms на пилотном репо
-5. `caf init --auto-detect` корректно детектит opencode + Claude Code в репо, где они оба активны
-6. Adapter contract test suite проходит для opencode, Claude Code, и universal LSP
+1. Pilot repo uses `caf` 7 days straight.
+2. Universal pre-commit hook fires on 3+ different agents (opencode, Claude Code, +1 unknown via fallback).
+3. LSP fallback builds symbol graph for Go repo up to 1000 files.
+4. **TUI dashboard first paint <100ms** on pilot repo.
+5. Auto-detect finds opencode + Claude Code on fresh machine in <5s.
+6. Adapter contract test suite passes (12 cases for 4 adapters).
 
 ### 2.4 What's NOT in MVP
 
-- Decision Log — приходит в ALPHA
-- Mental Model Reconstructor — приходит в BETA
-- MCP server — приходит в PROD
-- Tier 1 adapters кроме opencode + Claude Code — приходят в ALPHA
-- Tier 2/3 explicit adapters — приходят в BETA/PROD
-- Cross-repo sync automation — приходит в PROD
-- LLM features (`first_person_explain`) — приходят в PROD
+- Decision Log (ALPHA)
+- MMR / SRS (BETA)
+- MCP (PROD)
+- Tier 1 beyond opencode+Claude Code (ALPHA)
+- Tier 2/3 (BETA/PROD)
+- Cross-repo sync (PROD)
+- LLM features (PROD)
 
 ### 2.5 Risks
 
 | Risk | Probability | Impact | Mitigation |
-|---|---|---|---|
-| Universal LSP fallback produces noisy/incomplete graph | high | medium | Acceptable — fallback is "best effort", explicit adapters improve quality |
-| Filesystem watcher consumes too much CPU | medium | medium | Throttle: poll every 1s, debounce 5s, ignore .git/ and other noisy paths |
-| TUI rendering issues on weird terminals | medium | low | Comprehensive terminal compat matrix (UI.md §12.1), graceful fallback to 16-color |
-| `caf init` UX confusing for new users | medium | high | Onboarding wizard with clear steps (UI.md §2); test with 5 external users before release |
-| Universal pre-commit hook blocks legit commits | medium | high | Fail-safe mode: if `caf` binary missing, hook warns and lets commit through |
+|------|-------------|--------|------------|
+| LSP fallback noisy (false-positive symbol graphs) | high | medium | `caf doctor --verify-graph` rebuilds; `caf config set lsp.strict false` relaxes |
+| fs watcher CPU on large repos | medium | medium | Throttle: poll every 1s, debounce 5s, ignore `.git/`; daemon exits after 30 min inactivity |
+| TUI on weird terminals | medium | low | UI.md §12.1 compat matrix; 16-color fallback via termenv |
+| `caf init` confusing for new users | medium | high | Onboarding wizard (UI.md §2); auto-detect default; 3-step flow <30s |
+| Universal pre-commit blocks legit commits | medium | high | Fail-safe contract: `caf` binary missing → warn + let through; see [ARCHITECT.md §2.5](./ARCHITECT.md#25-risks) for the full fail-safe contract |
 
 ---
 
 ## 3. Phase: ALPHA (4-6 weeks)
 
-**EN summary.** Add Decision Log with TUI editor (🔥 80/20 autocomplete reduces fill time from 90s to 25s). Expand Tier 1 to all 5 native agents (Cursor, Cline, KiloCode). Pre-commit validation now requires decision records (or `CAF-Trivial: true`).
+**EN summary.** ALPHA delivers the Decision Log layer: `.caf/decisions/*.md` schema, TUI decisions list/detail/editor, pre-commit validation requiring decisions for non-trivial commits, three more Tier 1 adapters (Cursor, Cline, KiloCode). The 🔥 80/20 win: autocomplete for files/tags/agent reduces fill time from 90s to 25s.
 
 ### 3.1 Scope
 
-**Modules implemented:**
+User-facing features in ALPHA:
 
-- Decision Log (полная функциональность)
-- TUI decisions list (`caf decisions`, see UI.md §5.1)
-- TUI decision editor with autocomplete (🔥, see UI.md §5.3)
-- TUI decision detail view (see UI.md §5.2)
-- Pre-commit validation (decision required for non-trivial commits)
-- Adapter for **Cursor** (Tier 1, partial — pre-session via wrapper)
-- Adapter for **Cline** (Tier 1, native)
-- Adapter for **KiloCode** (Tier 1, native)
+- **Decision Log:** `.caf/decisions/*.md` records — title, date, agent, files[], context, chosen, alternatives, implications.
+- **TUI decisions list:** filterable table (Date/Title/Agent/Files). Filters: today/week/month/all, by agent/file/status. Actions: `Enter` open, `n` new, `/` search, `g` gaps.
+- **TUI decision detail view:** markdown-rendered record with sections `## Контекст / ## Выбрано / ## Альтернативы / ## Импликации`, related sessions, related cards. Actions: `e` edit, `d` delete, `s` show file, `Esc` back.
+- **TUI decision editor 🔥:** autocomplete for files/tags/agent reduces time 90s→25s. Pre-fills from session.
+- **Pre-commit validation:** `caf hook pre-commit` blocks non-trivial commits (≥50 LOC, see ADR-004) without a decision or `CAF-Trivial: true` trailer. Applies to ALL 25+ agents via universal fallback chain.
+- **Cursor adapter (Tier 1, pre-session via wrapper):** explicit enhanced adapter.
+- **Cline adapter (Tier 1 native, all events):** explicit enhanced adapter.
+- **KiloCode adapter (Tier 1 native, all events):** explicit enhanced adapter.
 
-**Adapters shipped (cumulative):**
+Adapters shipped (cumulative, ALPHA): 4 (MVP) + Cursor + Cline + KiloCode = 7. Coverage: 25+ via universal + 5 enhanced (Tier 1).
 
-| Adapter | Tier | Status |
-|---|---|---|
-| Universal LSP fallback 🔥 | 4 | ✓ |
-| Universal pre-commit hook 🔥 | n/a | ✓ |
-| opencode | 1 | ✓ |
-| Claude Code | 1 | ✓ |
-| Cursor | 1 | ✓ pre-session wrapper, post-edit + pre-commit native |
-| Cline | 1 | ✓ native |
-| KiloCode | 1 | ✓ native |
-
-**Coverage:** 25+ agents via universal + 5 enhanced via Tier 1.
-
-**New CLI commands:**
-
-- `caf why <file>` — связать файл с Decision Log
-- `caf decisions` 🔥 — TUI dashboard для decisions
-- `caf decisions new [--files ...]` 🔥 — TUI editor с autocomplete
-- `caf decisions --today` / `--file <path>` / `--search <query>` / `--gaps` / `--agent <id>`
-
-**TUI screens added:**
-
-- Decisions list (UI.md §5.1)
-- Decision detail (UI.md §5.2)
-- Decision editor (UI.md §5.3)
-- Settings editor (UI.md §11)
+New CLI commands (ALPHA):
+- `caf why <file>` — provenance + (eventually) explanation
+- `caf decisions` 🔥 — TUI decisions list
+- `caf decisions new [--files ...]` 🔥 — TUI decision editor with autocomplete
+- `caf decisions --today` / `--file <path>` / `--search <query>` / `--gaps` / `--agent <id>` — list filters
 
 ### 3.2 Deliverables
 
-- Working Decision Log с TUI editor (🔥 autocomplete)
-- Universal pre-commit validation (decision required for non-trivial commits)
-- Cursor + Cline + KiloCode adapters с полными capability matrix
-- Wrapper scripts `caf-wrap cursor` / `caf-wrap cline` / `caf-wrap kilocode` для pre-session fallback
-- Документация: migration guide из MVP (как ретроактивно создать decisions)
-- Pilot: расширение до 3-5 репо
+1. `.caf/decisions/` folder created by `caf init` (additive to MVP).
+2. TUI decisions list, detail, editor.
+3. Pre-commit validation for non-trivial edits.
+4. Cursor, Cline, KiloCode adapters.
+5. `caf migrate v0.2-to-v0.3` migration path for users coming from v0.2.
 
 ### 3.3 Exit criteria
 
-1. Decision Coverage ≥90% на пилотных репо за последние 7 дней
-2. Universal pre-commit hook корректно блокирует нетривиальные коммиты без decision (works for ALL 25+ agents)
-3. TUI decision editor average fill time ≤30 seconds (vs 90s without autocomplete)
-4. Все Tier 1 адаптеры работают на macOS + Linux без ручной конфигурации
-5. Пилот: автор может ответить на вопрос «почему мы выбрали X, а не Y» для любого нетривиального решения за последние 30 дней через `caf decisions`
+1. Decision Coverage ≥90% over last 7 days on pilot repo.
+2. Pre-commit blocks non-trivial commits without decision for ALL 25+ agents.
+3. **TUI decision editor avg fill time ≤30s (vs 90s without autocomplete)**.
+4. All Tier 1 adapters work on macOS + Linux with no manual config.
 
 ### 3.4 What's NOT in ALPHA
 
-- Mental Model Reconstructor — приходит в BETA
-- MCP server — приходит в PROD
-- Кросс-репо graph sync automation — приходит в PROD
-- Tier 2 explicit adapters (Aider, Codex CLI, etc.) — приходят в BETA
-- Поддержка языков кроме Go — приходит по фазам
+- Mental Model Reconstructor (BETA)
+- Tier 2/3 adapters (BETA/PROD)
+- Cross-repo sync (PROD)
+- LLM features (PROD)
 
 ### 3.5 Risks
 
 | Risk | Probability | Impact | Mitigation |
-|---|---|---|---|
-| TUI editor annoys users with autocomplete noise | medium | medium | Configurable: `caf config set decisions.autocomplete aggressive|conservative|off` |
-| Pre-commit hook blocks CI commits | high | high | Detect `CI=true` env var, skip validation in CI environments |
-| Decision template too verbose | high | high | Default to compact template; `caf decisions new --verbose` for full |
-| Cursor wrapper script breaks on Cursor updates | medium | medium | Pin Cursor version in CI; auto-detect at runtime |
-| Tier 1 adapters have inconsistent UX | medium | low | Standardize via TUI screens — all adapters use same `caf decisions new` editor |
+|------|-------------|--------|------------|
+| Autocomplete too noisy | medium | medium | `caf config set decisions.autocomplete aggressive\|conservative\|off` |
+| Pre-commit blocks CI commits | high | high | Detect `CI=true` env, skip pre-commit validation; CI runs `caf report --check` separately (BACKLOG C-001) |
+| Decision template too verbose | high | high | Default compact template; `--verbose` for full template |
+| Cursor wrapper breaks on Cursor version update | medium | medium | Pin wrapper version; auto-detect breaks, surface in `caf adapters list` |
+| Inconsistent UX between adapters | medium | low | Capability matrix in ARCHITECT.md §1 makes limitations explicit |
 
 ---
 
 ## 4. Phase: BETA (6-8 weeks)
 
-**EN summary.** Add Mental Model Reconstructor with SM-2 algorithm. TUI review session (🔥 full-screen, split-view). Expand to all Tier 2 adapters (8 agents: Aider, Codex CLI, Continue.dev, GitHub Copilot CLI, Gemini CLI, Amazon Q, Goose, Windsurf). Single-repo dependency graph enabled.
+**EN summary.** BETA delivers the Mental Model Reconstructor: SM-2 spaced-repetition algorithm (🔥 80/20), three card types (`why`, `what_if_remove`, `where_handled`), single-repo dependency graph, blindspots detection, three new TUI screens (review session, heatmap, file tour). Eight Tier 2 adapters join the matrix.
 
 ### 4.1 Scope
 
-**Modules implemented:**
+User-facing features in BETA:
 
-- Mental Model Reconstructor (полная функциональность)
-- SM-2 algorithm (🔥 — proven, simple)
-- Три типа карточек: `why`, `what_if_remove`, `where_handled`
-- Single-repo dependency graph (`.caf/mental-model/graph.yml`)
-- Blindspots detection
-- TUI review session (🔥, see UI.md §4) — full-screen, split-view, keyboard shortcuts
-- TUI heatmap (see UI.md §6)
-- TUI file tour (see UI.md §8)
-- Adapter for **Aider** (Tier 2, pre-session via wrapper)
-- Adapter for **Codex CLI** (Tier 2, partial)
-- Adapter for **Continue.dev** (Tier 2, native)
-- Adapter for **GitHub Copilot CLI** (Tier 2, wrapper)
-- Adapter for **Gemini CLI** (Tier 2, wrapper)
-- Adapter for **Amazon Q Developer CLI** (Tier 2, wrapper)
-- Adapter for **Goose** (Tier 2, native)
-- Adapter for **Windsurf** (Tier 2, partial)
+- **Mental Model Reconstructor (MMR):** generates SRS cards for non-trivial code regions.
+- **🔥 SM-2 algorithm (ADR-002):** Anki-compatible spaced repetition. ease ∈ [1.3, 3.0] invariant.
+- **Three card types:** `why` (Type 1, fact recall), `what_if_remove` (Type 2, abstract reasoning — predict impact if removed), `where_handled` (Type 3, trace through code from entry point to handler).
+- **Single-repo dependency graph:** `go list -json` (Go-only in BETA). Stored in `.caf/mental-model/graph.yml`. Other languages via Tier 4 LSP fallback.
+- **Blindspots detection:** files with low ACS or low coverage, sorted by risk score.
+- **🔥 TUI Review Session (`caf review`):** daily SRS session, ~10 minutes, 10-15 cards. Split-view layout: question (left) + context (file path, decision ref, sessions) + grade panel.
+- **TUI Heatmap (`caf heatmap`):** each file = one cell, color = ACS or coverage. Pre-computed, cached.
+- **TUI File Tour (`caf tour <file>`):** split-view: timeline (left) + numbered source (right).
 
-**Adapters shipped (cumulative):**
+8 Tier 2 adapters (cumulative, BETA): Aider, Codex CLI, Continue.dev, GitHub Copilot CLI, Gemini CLI, Amazon Q Developer CLI, Goose, Windsurf. Coverage: 25+ via universal + 13 enhanced.
 
-| Adapter | Tier | Status |
-|---|---|---|
-| Universal LSP fallback 🔥 | 4 | ✓ |
-| Universal pre-commit hook 🔥 | n/a | ✓ |
-| opencode, Claude Code, Cursor, Cline, KiloCode | 1 | ✓ |
-| Aider, Codex CLI, Continue.dev, GH Copilot, Gemini, Amazon Q, Goose, Windsurf | 2 | ✓ |
-| **Total explicit:** 13 + universal | | |
-
-**Coverage:** 25+ agents via universal + 13 enhanced.
-
-**New CLI commands:**
-
-- `caf review` 🔥 — full-screen TUI SRS session
+New CLI commands (BETA):
+- `caf review` 🔥 — full-screen TUI review session
 - `caf review --hard` / `--blindspots` / `--regenerate --since 7d` / `--stats`
-- `caf heatmap` — ASCII heatmap владения
-- `caf tour <file>` — TUI guided file tour
-- `caf sync` — обновить single-repo graph (cross-repo в PROD)
-
-**TUI screens added:**
-
-- Review session (UI.md §4)
-- Heatmap (UI.md §6)
-- File tour (UI.md §8)
+- `caf heatmap` — TUI heatmap
+- `caf tour <file>` — TUI file tour
+- `caf sync` — single-repo graph builder
 
 ### 4.2 Deliverables
 
-- Working MMR с SM-2
-- TUI review session (🔥 full-screen, split-view)
-- Single-repo graph builder (Go-only via `go list -json`)
-- 8 новых Tier 2 адаптеров
-- Wrapper scripts: `caf-wrap aider`, `caf-wrap codex`, etc.
-- Документация: card type taxonomy, SRS configuration, blindspots methodology
-- Pilot: расширение до 5-10 репо
+1. SM-2 SRS engine with three card types.
+2. Mental Model Reconstructor.
+3. Dependency graph builder (Go-only; FUTURE adds other languages).
+4. Blindspots detection.
+5. Three TUI screens: review session, heatmap, file tour.
+6. Eight Tier 2 adapters.
+7. Property-based tests for SM-2 (ease ∈ [1.3, 3.0]).
 
 ### 4.3 Exit criteria
 
-1. Mental Model Reach ≥70% на пилотных репо
-2. Recall Rate ≥75% после 4 недель использования MMR
-3. Authorship Confidence Score ≥3.0 (целевое ≥3.5 достигается в PROD)
-4. TUI review session completion rate ≥80% (users finish sessions, not abandon)
-5. Все Tier 2 адаптеры работают на macOS + Linux
-6. Heatmap render <200ms на репо до 1000 файлов
+1. Mental Model Reach ≥70% (cards due / cards generated).
+2. Recall Rate ≥75% sustained over 4 weeks.
+3. ACS ≥3.0 (target ≥3.5 in PROD).
+4. Review session completion ≥80% (cards answered / cards started).
+5. All Tier 2 adapters work on macOS + Linux.
+6. **Heatmap render <200ms on repo up to 1000 files**.
 
 ### 4.4 What's NOT in BETA
 
-- MCP server — приходит в PROD
-- Кросс-репо sync automation — приходит в PROD
-- Tier 3 adapters (Tabnine, Cody, Trae, etc.) — приходят в PROD
-- Multi-language support — приходит в FUTURE
-- LLM-assisted card generation — приходит в FUTURE
-- Web dashboard — приходит в FUTURE
+- MCP server (PROD)
+- Cross-repo sync (PROD)
+- `caf.first_person_explain` LLM feature (PROD)
+- Tier 3 adapters (PROD)
+- Web UI (FUTURE)
 
 ### 4.5 Risks
 
 | Risk | Probability | Impact | Mitigation |
-|---|---|---|---|
-| SM-2 too aggressive, users burn out | high | high | Default cap 15 cards/session; `caf config set review.max_cards 10`; track session duration telemetry |
-| TUI review UX feels cramped on small terminals | medium | medium | Responsive design (UI.md §12.2); minimum 60 cols; compact mode |
-| Card generation produces low-quality questions | high | medium | Pilot with 3+ repos before BETA release; iterate on card templates |
-| Tier 2 wrappers fail on agent updates | medium | medium | Each adapter isolated; CI tests cover happy path; manual smoke test before release |
-| Graph builder fails on large repos (>10k files) | medium | high | Streaming graph build; lazy loading; benchmark on kubernetes/kubernetes before release |
+|------|-------------|--------|------------|
+| SM-2 burnout (too many cards per session) | high | high | Default cap 15 cards/session; `caf config set review.max_cards 10`; BACKLOG D-007 adaptive per-card-type ease |
+| Cramped TUI on small terminals | medium | medium | UI.md §12.2 responsive: ≥140 cols full grid, 100-139 2-col, 60-99 single stacked, <60 compact mode |
+| Low-quality cards | high | medium | BETA ships hand-curated cards only; LLM-generated cards (BACKLOG D-002) are FUTURE |
+| Tier 2 wrappers fail | medium | medium | Pin wrapper versions; auto-detect breaks, surface in `caf adapters list` |
+| Graph builder fails on >10k files | medium | high | Streaming + lazy loading (BACKLOG A-001); benchmark on `kubernetes/kubernetes` before release |
 
 ---
 
 ## 5. Phase: PROD (8-10 weeks)
 
-**EN summary.** Add MCP server with 5 tools + 3 prompts (🔥 `caf.first_person_explain` is the killer feature). Cross-repo sync automation. All Tier 3 adapters (12 agents). All success metrics tracked. 1.0 release.
+**EN summary.** PROD delivers the MCP server layer (5 tools + 3 prompts), cross-repo sync automation, Tier 3 adapters (12 agents, wrapper-only), TUI reports view, success metrics instrumentation. The 🔥 killer feature: `caf.first_person_explain` MCP tool produces LLM-generated first-person narratives grounded in `.caf/` facts (no hallucination, ADR-006 invariant).
 
 ### 5.1 Scope
 
-**Modules implemented:**
+User-facing features in PROD:
 
-- MCP server (`caf-mcp`) с 5 tools и 3 prompts
-- `caf.first_person_explain` 🔥 через LLM (killer feature)
-- Cross-repo sync automation (`caf sync` обновляет graph из зависимых репо)
-- TUI reports view (`caf report`, see UI.md §10)
-- Success metrics instrumentation
-- `caf report --metrics` aggregation
-- Tier 3 adapters (12 agents): Tabnine, Sourcegraph Cody, Trae, Bolt, Zed AI, Roo Code, Augment, Plandex, OpenHands, Devika, GPT Engineer, Mentat, Sweep, Void, OryaAgent
+- **MCP server (`caf-mcp`):** 5 tools + 3 prompts.
+  - Tools: `caf.context`, `caf.provenance`, `caf.decisions`, `caf.mental_model`, `caf.first_person_explain` 🔥
+  - Prompts: `caf.pre_session_brief`, `caf.code_review_with_provenance`, `caf.archaeology`
+  - Transport: stdio (`caf mcp serve`) and HTTP SSE (`caf mcp serve --transport sse`)
+- **🔥 `caf.first_person_explain` (ADR-006):** LLM-generated first-person narrative, grounded in `.caf/` facts. LLM only paraphrases, never invents.
+- **Cross-repo sync automation:** `caf sync` detects locally-cloned repos via `~/.caf/repos.yml` registry; pulls `manifest.yml` from each dependee; creates `review-because-interface-changed` cards when interfaces change.
+- **TUI Reports view:** daily report (`caf report --day`), week report (`caf report --week`), metrics report (`caf report --metrics`).
+- **Success metrics instrumentation:** ACS, Decision Coverage, Mental Model Reach, Recall Rate, Agent Diversity (Shannon entropy), Adapter Coverage.
+- **12 Tier 3 adapters (cumulative):** Tabnine, Sourcegraph Cody, Trae, Bolt, Zed AI, Roo Code, Augment, Plandex, OpenHands, Devika, GPT Engineer, Mentat, Sweep. Note (v0.3.1-triz): list reconciled to 12 — OryaAgent is in-house consumer (see ARCHITECT.md §6.5); Augment (not "Augment Code") consistent with vendor branding.
 
-**Adapters shipped (cumulative):**
+Tier 3 list (12 agents, wrapper-only):
+Tabnine, Sourcegraph Cody, Trae, Bolt, Zed AI, Roo Code, Augment, Plandex, OpenHands, Devika, GPT Engineer, Mentat, Sweep.
 
-| Adapter | Tier | Status |
-|---|---|---|
-| Universal LSP fallback 🔥 | 4 | ✓ |
-| Universal pre-commit hook 🔥 | n/a | ✓ |
-| Tier 1 (5 agents) | 1 | ✓ |
-| Tier 2 (8 agents) | 2 | ✓ |
-| Tier 3 (12 agents) | 3 | ✓ (wrapper-only) |
-| **Total explicit:** 25 + universal | | |
+Cumulative total: 25 explicit + universal. Coverage: 25+ via universal + 25 enhanced.
 
-**Coverage:** 25+ agents via universal + 25 enhanced (all explicit).
-
-**New CLI commands:**
-
-- `caf report --day` / `--week` / `--ownership` / `--agent <id>` / `--metrics`
-- `caf sync` — обновляет кросс-репо graph (real cross-repo support)
-- `caf hook post-commit --repo <path>` — добавляет trailers в git history
-
-**MCP tools:**
-
-- `caf.context` — текущий контекст репо
-- `caf.provenance` — история сессий, затронувших файл/строку
-- `caf.decisions` — поиск decisions
-- `caf.mental_model` — SRS-карточки
-- `caf.first_person_explain` 🔥 — флагманский tool (first-person narrative)
-
-**MCP prompts:**
-
-- `caf.pre_session_brief`
-- `caf.code_review_with_provenance`
-- `caf.archaeology`
-
-**Cross-repo sync:**
-
-- `caf sync` автоматически определяет локально клонированные репо через `~/.caf/repos.yml` registry
-- Pullит `manifest.yml` из каждого dependee репо
-- Создаёт карточки типа `review-because-interface-changed`
+New CLI commands (PROD):
+- `caf report --day` / `--week` / `--ownership` / `--agent` / `--metrics`
+- `caf sync` — cross-repo sync
+- `caf hook post-commit --repo <path>`
+- `caf mcp serve [--transport sse]`
 
 ### 5.2 Deliverables
 
-- MCP server runnable via `caf mcp serve` (stdio) и `caf mcp serve --transport sse` (HTTP)
-- Cross-repo sync с реальными пилотными репо (5+ связанных репо)
-- All 25 explicit adapters + universal LSP
-- TUI reports view with metrics
-- 1.0 release tag
+1. MCP server with 5 tools + 3 prompts.
+2. `caf.first_person_explain` with strict grounding in `.caf/` facts.
+3. Cross-repo sync automation, manifest cache (1h TTL).
+4. TUI Reports view (daily/week/metrics).
+5. Success metrics instrumentation.
+6. 12 Tier 3 adapters (wrapper-only).
+7. README, ARCHITECT.md, UI.md, ROADMAP.md (this file), BACKLOG.md, ADR.md all consistent with implementation.
 
 ### 5.3 Exit criteria
 
-1. Все 5 метрик успеха достигают целевых значений на пилотных репо за 8 недель:
-   - ACS ≥3.5
-   - Decision Coverage ≥90%
-   - Mental Model Reach ≥70%
-   - Recall Rate ≥75%
-   - Agent Diversity H ≥1.0
-   - Adapter Coverage ≥70% native (NEW v0.3)
-2. MCP server работает с opencode, Claude Code, Cline, KiloCode, Goose (тесты на каждом клиенте)
-3. Cross-repo sync корректно обнаруживает изменившиеся интерфейсы в пилотном multi-repo setup
-4. Все 25 explicit adapters проходят contract tests на CI
-5. `caf.first_person_explain` produces factually accurate narratives (no LLM hallucination on `.caf/`-grounded facts)
-6. README, ARCHITECT.md, UI.md, ROADMAP.md, BACKLOG.md, ADR.md — все согласованы с реализацией
+1. All 5 success metrics hit targets on pilot repos over 8 weeks:
+   - **ACS ≥3.5**
+   - **Decision Coverage ≥90%**
+   - **Mental Model Reach ≥70%**
+   - **Recall Rate ≥75%**
+   - **Agent Diversity H ≥1.0**
+   - **Adapter Coverage ≥70% native (NEW v0.3)**
+2. MCP works with opencode, Claude Code, Cline, KiloCode, Goose.
+3. Cross-repo sync detects changed interfaces between dependent repos.
+4. All 25 explicit adapters pass contract tests.
+5. `caf.first_person_explain` produces factually accurate narratives (no hallucination).
+6. README, ARCHITECT.md, UI.md, ROADMAP.md, BACKLOG.md, ADR.md all consistent with implementation.
 
 ### 5.4 What's NOT in PROD
 
-- Multi-user mode — FUTURE
-- Multi-language support (Python, TypeScript, Rust) — FUTURE
-- Web dashboard — FUTURE
-- LLM-assisted decision pre-fill — FUTURE
-- CRDT для real-time collaboration — FUTURE
+- Multi-user mode (FUTURE)
+- Web UI (FUTURE)
+- CRDT for `cards.yml` (FUTURE)
+- Plugin API / marketplace (FUTURE)
+- IDE plugins (FUTURE)
+- CI/CD integrations beyond `caf report --check` (FUTURE)
 
 ### 5.5 Risks
 
 | Risk | Probability | Impact | Mitigation |
-|---|---|---|---|
-| LLM hallucinates in `first_person_explain` | high | high | Strict grounding in `.caf/` data; LLM only paraphrases, never invents facts; ground-truth tests |
-| MCP protocol changes break clients | medium | medium | Pin to MCP spec version; contract tests per client |
-| Cross-repo sync slow on large topologies | medium | medium | Parallel fetching; cache `manifest.yml` for 1 hour |
-| Tier 3 wrapper scripts brittle across 12 agents | high | medium | Each adapter isolated; CI smoke tests; community contributions welcome |
-| TUI performance degrades on huge repos | medium | high | Performance budgets enforced (UI.md §0.3); benchmarks in CI; alert on >2x regression |
+|------|-------------|--------|------------|
+| LLM hallucinates in `caf.first_person_explain` | high | high | Strict grounding in `.caf/` facts (ADR-006, INV-ADR-006); LLM only paraphrases; test suite verifies |
+| MCP protocol changes (Anthropic updates spec) | medium | medium | Pin MCP spec version; contract tests against pinned version |
+| Cross-repo sync slow on large fleets | medium | medium | Parallel fetch (10 concurrent, rate-limited); cache `manifest.yml` 1h; incremental sync (BACKLOG A-003) |
+| Tier 3 brittle across 12 wrapper-only adapters | high | medium | Wrapper contracts minimal; failure in one doesn't block others; `caf adapters health` surfaces breakages |
+| TUI performance degrades as data grows | medium | high | Performance budgets enforced (UI.md §0.3); CI benchmarks; alert on >2x regression; BACKLOG A-001 lazy graph loading |
 
 ---
 
 ## 6. Phase: FUTURE (open-ended)
 
-**EN summary.** Open-ended phase. Items here are directional, not committed. Includes: multi-language support, multi-user mode, web UI (visualizations only), LLM-assisted features, CRDT, plugin API, IDE plugins. Items may be promoted to numbered releases (1.1, 2.0) as they mature.
+**EN summary.** FUTURE items are not yet committed to a phase. Each must satisfy the 4 promotion criteria in §6.9 (clear problem; design sketch / minimal ADR; pilot user; success metric). Without these four, item stays in BACKLOG.
 
 ### 6.1 Multi-language support
 
-- **Python adapter**: AST-парсинг через `ast` module + `pip show`
-- **TypeScript adapter**: `tsc --listFiles` + tsconfig `paths`
-- **Rust adapter**: `cargo metadata` + `cargo tree`
-- **Java adapter**: Maven/Gradle dependency tree
-- **Universal LSP enhancement**: extend Tier 4 fallback to handle more languages automatically
+Python (`ast` module + `pip show`), TypeScript (`tsc --listFiles` + tsconfig `paths`), Rust (`cargo metadata` + `cargo tree`), Java (Maven/Gradle), C# (.NET). Universal LSP fallback (ADR-013) covers all of them at lower quality meanwhile. Open questions: Python dynamic imports `__import__`/`importlib`; TS monorepo (yarn/pnpm workspaces); Rust `rust-analyzer` integration. See BACKLOG E-001..E-008.
 
 ### 6.2 Multi-user mode
 
-- Per-author attribution в карточках
-- Conflict resolution rules для `ease_factor`
-- Team analytics: `caf report --team`
-- SSO integration (GitHub OAuth, GitLab OAuth)
+Per-author attribution; conflict resolution rules for `ease_factor` (which wins: minimum or latest?); `caf report --team`; SSO via GitHub/GitLab OAuth. Triggers ADR-006 voice change ("As Anna, I chose..."). See BACKLOG G-001, ADR-016 (future).
 
 ### 6.3 Web dashboard (visualizations only)
 
-- Read-only view на `.caf/` данные
-- **Interactive graph visualization (D3.js)** — единственное, что нельзя в TUI
-- Real-time heatmap владения
-- Export в PDF/Markdown для offline review
-- **NOT replacing TUI** — TUI remains primary
+Read-only view on `.caf/`. **Interactive graph visualization (D3.js) — единственное, что нельзя в TUI.** Real-time heatmap. Export PDF/Markdown. **NOT replacing TUI.** See ADR-025 (future — web UI scope), BACKLOG K-002.
 
 ### 6.4 LLM-assisted features
 
-- `--ai-prefill` для `caf decisions new`: LLM предлагает черновик decision
-- Smart card generation: LLM генерирует более качественные вопросы
-- Decision auto-summarization
-- All LLM features opt-in; default is LLM-free для privacy
+`--ai-prefill` for `caf decisions new` (BACKLOG D-001). Smart card generation (D-002). Decision auto-summarization (D-003). All opt-in, LLM-free default for privacy. LLM backend configurable via `caf config set llm.backend`. See ADR-017 (future — LLM backend selection).
 
 ### 6.5 CRDT for real-time collaboration
 
-- CRDT-семантика для `cards.yml`
-- Автоматическое слияние при `git pull` без ручного conflict resolution
-- Library candidate: `yjs` или `automerge`
+`yjs` or `automerge` for `cards.yml`. Auto-merge on `git pull`. Mitigates ADR-001 merge conflict risk. See BACKLOG G-002.
+
+> **OryaAgent** is the in-house reference consumer of `caf` (built by the same team). It is not in the Tier 3 adapter list — it's the in-house production agent that validates the universal LSP fallback path on real workloads. See [ARCHITECT.md §6.5](./ARCHITECT.md#65-crdt-for-real-time-collaboration) for its architectural role.
 
 ### 6.6 Plugin API
 
-- Custom card types через plugin interface
-- Custom adapters через `caf adapters register <path-to-binary>`
-- Custom report formats
-- Plugin marketplace (community-driven)
+Custom card types (BACKLOG H-001). `caf adapters register <path-to-binary>` (BACKLOG H-002). Custom report formats (BACKLOG H-003). Plugin marketplace like Homebrew taps (BACKLOG H-004). See ADR-018 (future), ADR-021 (future).
 
 ### 6.7 IDE plugins
 
-- VSCode extension: inline provenance tooltips, "Why is this line here?" hover
-- JetBrains plugin
-- Neovim plugin
+VSCode (inline provenance tooltips, "Why is this line here?" hover). JetBrains. Neovim (`:CafWho` Lua command). See BACKLOG B-001, B-002, B-003.
 
 ### 6.8 CI/CD integrations
 
-- GitHub Action: `caf report --check` as PR status check
-- GitLab CI integration
-- Slack notifications: daily `caf report --day` summary
+GitHub Action `caf report --check` as PR status check (BACKLOG C-001). GitLab CI (BACKLOG C-002). Slack daily `caf report --day` (BACKLOG C-003). Discord team mode (BACKLOG C-004). Linear/Jira integration (BACKLOG C-005). GitHub PR comment bot with `caf first_person_explain` (BACKLOG C-006).
 
 ### 6.9 Exit criteria for FUTURE items
 
-FUTURE items не имеют timeline, но должны иметь:
+Each FUTURE item must satisfy these four promotion criteria before it can leave the BACKLOG:
 
-1. Clear problem statement
-2. Design sketch (минимальный ADR)
-3. Pilot user
-4. Success metric
+1. **Clear problem statement** — what currently doesn't work or is inefficient.
+2. **Design sketch / minimal ADR** — at least 3-4 lines of how it could work; an ADR if architectural.
+3. **Pilot user** — someone who will use the feature within 2 weeks of shipping.
+4. **Success metric** — concrete number, not "feels better".
 
-Без этих четырёх пунктов item остаётся в BACKLOG.
+"Без этих четырёх пунктов item остаётся в BACKLOG."
+
+> **TRIZ-pass note (v0.3.1-triz):** BACKLOG.md originally cited `ROADMAP.md §6.10` three times for these criteria. The actual criteria live here in §6.9 (there is no §6.10 — §6 only has 6.1 through 6.9). All citations in BACKLOG.md have been corrected to point to this section.
 
 ---
 
@@ -498,43 +428,42 @@ FUTURE items не имеют timeline, но должны иметь:
 ### 7.1 Testing strategy
 
 | Test layer | Coverage target | Phase |
-|---|---|---|
-| Unit tests (core modules) | ≥80% | MVP |
-| TUI snapshot tests (UI.md §14.4) | all screens | MVP |
-| Adapter contract tests | all 25 adapters | MVP (universal + 2), ALPHA (+3), BETA (+8), PROD (+12) |
-| Integration tests (`.caf/` round-trip) | critical paths | ALPHA |
-| E2E tests (real agent runs) | 1 per adapter, smoke test | BETA |
-| Performance benchmarks (UI.md §0.3) | all budgets enforced | MVP |
-| Property-based tests (SM-2 algorithm) | invariant: ease ∈ [1.3, 3.0] | BETA |
-| Terminal compat tests | 8 terminals (UI.md §12.1) | BETA |
+|------------|-----------------|-------|
+| Unit | ≥80% | MVP |
+| TUI snapshot tests (UI.md §14.4) | Per screen | MVP |
+| Adapter contract tests (all 25 + universal) | All 25×3=78 cases | MVP (4 adapters), ALPHA (+3), BETA (+8), PROD (+12) |
+| Integration `.caf/` round-trip | All YAML files | ALPHA |
+| E2E 1 per adapter smoke | 25 adapters | BETA |
+| Performance benchmarks (UI.md §0.3) | First paint, frame render, keystroke, file op | MVP |
+| **Property-based tests for SM-2: invariant `ease ∈ [1.3, 3.0]`** | 1000 random card generations | BETA |
+| Terminal compat tests (8 terminals, UI.md §12.1) | All 8 | BETA |
 
 ### 7.2 Documentation strategy
 
 | Doc | Phase | Owner |
-|---|---|---|
-| README.md (quick start) | MVP | maintainer |
-| ARCHITECT.md | MVP, updates per phase | maintainer |
-| UI.md | MVP (TUI screens), updates per phase | maintainer |
-| ROADMAP.md | MVP, updates per phase | maintainer |
-| BACKLOG.md | ALPHA, ongoing | maintainer |
-| ADR.md | MVP, ongoing | maintainer |
-| Adapter development guide | ALPHA | adapter authors |
-| User guide (CLI reference) | BETA | maintainer |
-| MCP integration guide | PROD | maintainer |
-| Migration guides (between phases) | per phase | maintainer |
+|-----|-------|-------|
+| README | MVP | maintainers |
+| ARCHITECT | MVP | maintainers |
+| UI | MVP | maintainers |
+| ROADMAP (this file) | MVP | maintainers |
+| BACKLOG | MVP | community |
+| ADR | MVP | maintainers |
+| Adapter dev guide | ALPHA | adapter contributors |
+| User guide | ALPHA | maintainers |
+| MCP integration guide | PROD | maintainers |
+| Migration guides | per breaking change | maintainers |
 
 ### 7.3 Release strategy
 
-- Semantic versioning: `0.x.y` до PROD, `1.0.0` на PROD release
-- Changelog в `CHANGELOG.md`, генерируется из conventional commits
-- GitHub Releases с бинарниками для Linux/macOS/Windows
-- Migration guide для каждой мажорной версии
+- semver `0.x.y` pre-PROD, `1.0.0` at PROD.
+- `CHANGELOG.md` from conventional commits.
+- GitHub Releases with Linux/macOS/Windows binaries.
 
 ### 7.4 Backwards compatibility
 
-- `.caf/` schema evolves additively. Новые поля optional.
-- Adapter interface стабилен внутри мажорной версии.
-- При breaking changes — `caf migrate` команда с auto-upgrade.
+- `.caf/` schema additive (INV-ARCH-007).
+- Adapter interface stable within major version (INV-ARCH-002).
+- `caf migrate` for breaking changes between major versions.
 
 ---
 
@@ -542,71 +471,39 @@ FUTURE items не имеют timeline, но должны иметь:
 
 ### 8.1 MVP → ALPHA
 
-**Trigger:**
+**Trigger:** MVP exit criteria met; universal fallback works for ≥3 different agents; ≥1 external early adopter using `caf` ≥2 weeks; adapter contract suite stable.
 
-- MVP exit criteria met on pilot repo
-- Universal fallback works for ≥3 different agents (verified empirically)
-- At least 1 external early adopter using `caf` for ≥2 weeks
-- Adapter contract test suite stable
-
-**Migration:**
-
-- `caf init` для существующих MVP-репо: добавляет `decisions/` directory
-- `caf migrate v0.2-to-v0.3` (если schema изменилась)
+**Migration:** `caf init` adds `decisions/` dir; `caf migrate v0.2-to-v0.3`.
 
 ### 8.2 ALPHA → BETA
 
-**Trigger:**
+**Trigger:** ALPHA exit criteria met; Decision Coverage ≥90% on 2+ repos; TUI editor avg ≤30s; ≥5 external users.
 
-- ALPHA exit criteria met
-- Decision Coverage ≥90% on 2+ pilot repos
-- TUI decision editor avg fill time ≤30s
-- At least 5 external users
-
-**Migration:**
-
-- `caf init` добавляет `mental-model/` directory
-- Первый запуск `caf review --regenerate` для создания карточек из существующих decisions
+**Migration:** `caf init` adds `mental-model/`; first `caf review --regenerate`.
 
 ### 8.3 BETA → PROD
 
-**Trigger:**
+**Trigger:** BETA exit criteria met; Mental Model Reach ≥70% on 3+ repos; Recall Rate ≥75% sustained 4 weeks; all 25 adapters shipped; `caf.first_person_explain` accurate.
 
-- BETA exit criteria met
-- Mental Model Reach ≥70% on 3+ pilot repos
-- Recall Rate ≥75% sustained for 4 weeks
-- All 25 adapters shipped
-- `caf.first_person_explain` produces accurate narratives (no hallucination)
-
-**Migration:**
-
-- `caf init` добавляет MCP configuration
-- `caf sync` для построения кросс-репо графа
+**Migration:** `caf init` adds MCP config; `caf sync`.
 
 ### 8.4 PROD → FUTURE
 
-**Trigger:**
-
-- PROD 1.0 released
-- 6 months of stable usage
-- At least 50 active users
-- FUTURE items prioritized via community feedback
-
-FUTURE items могут быть промотированы в numbered release (1.1, 2.0) по мере готовности.
+**Trigger:** PROD 1.0 released; 6 months stable; ≥50 active users; FUTURE items prioritized via community.
 
 ---
 
 ## 9. Resourcing (rough estimates)
 
 | Phase | Maintainer hours/week | Community PRs expected |
-|---|---|---|
+|-------|-----------------------|------------------------|
 | MVP | 15-20 | 0-2 |
 | ALPHA | 20-25 | 2-5 |
 | BETA | 25-30 | 5-10 |
 | PROD | 20-25 (stabilization) | 10-15 |
 | FUTURE | variable | 15+ |
 
-При full-time engagement (1 maintainer, 40h/week) сроки сжимаются примерно в 2 раза.
+Full-time engagement (40h/week) compresses timelines ~2x.
 
 **🔥 80/20 implication:** high-leverage features (universal hook, LSP fallback, dashboard) — small effort, big value. Most of MVP budget should go to these, not to custom adapters for Tier 2/3 agents.
 
@@ -614,16 +511,14 @@ FUTURE items могут быть промотированы в numbered release 
 
 ## 10. Open Questions
 
-Вопросы, требующие решения до или во время соответствующих фаз:
+1. **(MVP)** `caf init --auto-detect` — offer all detected adapters with recommended marker.
+2. **(MVP)** Default LSP server for Go: `gopls` — bundle in `caf` binary or require install.
+3. **(ALPHA)** Default `triviality_threshold_loc`: 50 (see ADR-004).
+4. **(BETA)** LLM for `first_person_explain`: configurable, `z-ai-web-dev-sdk` as default.
+5. **(PROD)** `caf sync` with private repos: yes, via git credential helper.
+6. **(FUTURE)** Multi-user backward-compat: yes, optional `author` field.
 
-1. **MVP:** Должен ли `caf init --auto-detect` предлагать все обнаруженные адаптеры или только первый? — Решение: предлагать все, с пометкой рекомендуемого.
-2. **MVP:** Universal LSP fallback — какой LSP server по умолчанию для Go? `gopls` — но он может быть не установлен. — Решение: bundle `gopls` в `caf` binary или требовать явную установку.
-3. **ALPHA:** Какой порог `triviality_threshold_loc` по умолчанию? — Решение: 50 (см. ADR-004), пересматривается по данным.
-4. **BETA:** Какой LLM использовать для `first_person_explain` — z-ai-web-dev-sdk, локальная модель, или configurable? — Решение: configurable, с z-ai-web-dev-sdk как default.
-5. **PROD:** Должен ли `caf sync` работать с приватными репо? — Решение: да, через git credential helper.
-6. **FUTURE:** Должен ли multi-user mode быть backward-compatible с single-user `.caf/`? — Решение: да, через optional `author` field.
-
-Эти вопросы будут решены через ADRs по мере приближения к соответствующим фазам.
+"Эти вопросы будут решены через ADRs."
 
 ---
 
@@ -632,20 +527,21 @@ FUTURE items могут быть промотированы в numbered release 
 ### 11.1 What changed
 
 | Aspect | v0.2 | v0.3 |
-|---|---|---|
+|--------|------|------|
 | Agent count | 9 explicit | 25 explicit + universal LSP |
-| Default install | `caf init` (no args = nothing) | `caf init` (no args = universal hook + LSP) 🔥 |
-| Adapter tiers | 3 tiers | 4 tiers (added Tier 4 universal LSP) |
-| Prioritization | feature-parity across agents | 🔥 80/20 prioritization |
-| UI | CLI output (text-based) | TUI-first (dashboard, full-screen review) |
-| Pre-commit hook | per-adapter | 🔥 universal (works for all agents) |
+| Default install (no-args) | nothing | universal hook + LSP 🔥 |
+| Adapter tiers | 3 | 4 (added Tier 4 universal LSP) |
+| Prioritization | feature-parity | 🔥 80/20 |
+| UI | CLI text | TUI-first |
+| Pre-commit | per-adapter | 🔥 universal |
+| Documentation files | (intermingled, ARCHITECT=ROADMAP duplicate) | (separated; ARCHITECT focuses on architectural invariants, ROADMAP focuses on product deliverables — same 12-section structure, different content) |
 
 ### 11.2 Migration path
 
-1. **`.caf/` schema:** additive changes only — `agent_tier`, `auto_detected`, `ui` config section. Old `.caf/` continues to work.
-2. **`caf init` behavior:** v0.3 `caf init` (no args) installs universal hook. v0.2 users who ran `caf init --agent <id>` get the same explicit adapter, plus universal hook as bonus.
-3. **CLI commands:** all v0.2 commands still work. New: `caf dashboard`, `caf heatmap`, `caf tour`, `caf adapters list` (TUI).
-4. **No breaking changes:** v0.2 configs work in v0.3 without modification.
+- `.caf/` schema additive (`agent_tier`, `auto_detected`, `ui` config section).
+- v0.3 `caf init` no-args installs universal hook.
+- All v0.2 commands still work.
+- New: `caf dashboard`, `caf heatmap`, `caf tour`, `caf adapters list` (TUI).
 
 ### 11.3 What's deprecated in v0.3
 
@@ -658,19 +554,19 @@ Nothing. v0.3 is purely additive.
 ### 12.1 Per-phase metrics
 
 | Phase | Primary metric | Target |
-|---|---|---|
-| MVP | Universal hook fires for ≥3 different agents | ≥3 agents |
-| ALPHA | Decision Coverage on pilot repos | ≥90% |
-| BETA | Recall Rate sustained 4 weeks | ≥75% |
-| PROD | All 6 success metrics at target | all met |
-| FUTURE | (per item, see BACKLOG) | per item |
+|-------|----------------|--------|
+| MVP | universal hook fires ≥3 agents | 3+ agents in 7-day pilot |
+| ALPHA | Decision Coverage ≥90% | 90% (last 7 days) |
+| BETA | Recall Rate sustained 4 weeks ≥75% | 75% |
+| PROD | all 6 success metrics met | all 6 (see §5.3) |
+| FUTURE | per item (4 promotion criteria, §6.9) | per item |
 
 ### 12.2 Adoption metrics (post-PROD)
 
 | Metric | Target (12 months post-1.0) |
-|---|---|
+|--------|------------------------------|
 | GitHub stars | ≥500 |
-| Active users (weekly) | ≥100 |
-| Adapters contributed by community | ≥5 new |
+| Weekly active users | ≥100 |
+| Community-contributed adapters | ≥5 new |
 | Languages supported | ≥3 (Go + 2) |
 | Issues closed | ≥80% within 30 days |

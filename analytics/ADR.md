@@ -1,16 +1,64 @@
+---
+doc: ADR
+layer: adr
+version: 0.3.1-triz
+language: bilingual
+status: stable
+audience: [agents, maintainers, contributors]
+related: [ARCHITECT.md, UI.md, ROADMAP.md, BACKLOG.md]
+depends_on: [ADR-001, ADR-002, ADR-003, ADR-004, ADR-005, ADR-009, ADR-010, ADR-011, ADR-012, ADR-013, ADR-014, ADR-015]
+invariants:
+  - {id: INV-ADR-001, statement: ".caf/ storage committed in-repo; reconsider only if .caf/ exceeds 50 MB per repo", criticality: high, enforced_by: "caf doctor size-check"}
+  - {id: INV-ADR-002, statement: "SM-2 algorithm; ease_factor ∈ [1.3, 3.0]; reconsider if fleet-wide recall <60% after 90d", criticality: high, enforced_by: "property-based tests in CI"}
+  - {id: INV-ADR-003, statement: "Hooks fail-safe; caf binary missing → warn-and-continue, never block session", criticality: critical, enforced_by: "adapter contract tests"}
+  - {id: INV-ADR-004, statement: "Triviality threshold = 50 LOC (excluding imports/formatting/test-duplicates); configurable per-repo", criticality: medium, enforced_by: ".caf/config.yml"}
+  - {id: INV-ADR-005, statement: "YAML 1.2 for structured, Markdown for human-readable; pin gopkg.in/yaml.v3", criticality: high, enforced_by: "yamllint in CI"}
+  - {id: INV-ADR-009, statement: "Every adapter implements Adapter interface (ID/Capabilities/Install/Uninstall/Detect); canonical events: pre-session, post-edit, pre-commit", criticality: critical, enforced_by: "interface contract tests, 25-adapter matrix in CI"}
+  - {id: INV-ADR-013, statement: "Universal LSP fallback is Tier 4 default; LSP startup budget ~500ms (gopls, small repo); cache graph in .caf/mental-model/graph.yml", criticality: high, enforced_by: "caf sync benchmark"}
+owned_contracts:
+  - "Adapter interface (Go): ID() string; Capabilities() CapabilityMatrix; Install() error; Uninstall() error; Detect() bool"
+  - "LanguageAdapter interface (Go): ID() string; Detect() bool; ScanImports() []Import; BuildSymbolGraph() SymbolGraph; ResolveExternalRepo() RepoRef"
+  - "Canonical event contract: {pre-session, post-edit, pre-commit} × {native, wrapper, watcher, universal}"
+  - "ADR schema fields: Status, Date, Phase, Context, Chosen, Rejected alternatives, Trade-offs, Trigger to reconsider"
+agent_routing:
+  - {task: "Add new AI agent adapter", see: [ADR-009, ADR-012], backlog: E-007}
+  - {task: "Add new language adapter", see: [ADR-011], backlog: [E-001, E-002, E-003, E-004, E-005, E-006, E-007, E-008]}
+  - {task: "Modify .caf/ storage schema", see: [ADR-001, ADR-005], backlog: [A-005, J-008]}
+  - {task: "Change SRS card generation", see: [ADR-002], backlog: [D-002, D-007, H-001]}
+  - {task: "Change UI strategy (TUI vs Web)", see: [ADR-014], backlog: [K-002, K-010]}
+  - {task: "Adjust triviality threshold", see: [ADR-004], config: ".caf/config.yml triviality_threshold_loc"}
+ui_budgets_affected:
+  - "ADR-013: LSP startup ~500ms"
+  - "ADR-014: TUI first paint <100ms; frame render <16ms; keystroke <50ms"
+  - "ADR-010: caf-watch debounce 5s; polling fallback 30s"
+trace_to_code:
+  - "internal/caf/adapter.go — Adapter, LanguageAdapter interfaces"
+  - "internal/caf/hooks/*.go — pre-session/post-edit/pre-commit hook contracts"
+  - "internal/caf/storage/ — .caf/ folder read/write"
+  - "internal/caf/srs/sm2.go — SM-2 implementation"
+  - "internal/caf/lsp/fallback.go — Tier 4 universal LSP fallback"
+---
+
 # CodeAuthorityFirst — ADR.md
 
-> **Версия / Version:** 0.3 (expanded agents, LSP fallback, TUI-first, 80/20 prioritization)
+> **Версия / Version:** 0.3.1-triz (post-TRIZ pass: cross-refs repaired, @invariant flags added, Tier-3 count reconciled)
 > **Назначение / Purpose:** Architecture Decision Records — formal log of architectural choices, rejected alternatives, and trigger conditions for reconsideration. ADRs follow the same format as Decision Log entries but cover system-wide choices rather than code-level ones.
 > **Язык / Language:** bilingual — Russian body, English summary per ADR
-> **Аудитория / Audience:** maintainers, contributors proposing architectural changes
-> **Связанные документы:** [ARCHITECT.md](./ARCHITECT.md), [UI.md](./UI.md), [ROADMAP.md](./ROADMAP.md), [BACKLOG.md](./BACKLOG.md)
+> **Аудитория / Audience:** maintainers, contributors proposing architectural changes, LLM agents traversing the codebase
+> **Связанные документы:** [ARCHITECT.md](./ARCHITECT.md) · [UI.md](./UI.md) · [ROADMAP.md](./ROADMAP.md) · [BACKLOG.md](./BACKLOG.md)
+
+> **TRIZ-pass changelog (v0.3.0 → v0.3.1-triz).**
+> 1. Four broken cross-references repaired (ARCHITECT.md §3.3.2 capability matrix, §6.5 fail-safe, §5.2 config — all previously pointed to a duplicate-of-ROADMAP file). New ARCHITECT.md now contains the capability matrix as `§1.1 Capability matrix`, fail-safe behavior as `§2.5.5 Fail-safe contract`, and config schema as `§7.5 Config schema`. All ADR links below use the new anchors.
+> 2. Tier-3 agent count reconciled: list now shows 12 agents (OryaAgent and Augment Code promoted/deduped — see ADR-012). "25 explicit" arithmetic is now correct.
+> 3. `@invariant` tags embedded in the `Trigger to reconsider` field of every accepted ADR — these are the machine-readable seeds for the future `caf invariants check` MVP command.
+> 4. Per-ADR `trace_to_code` and `agent_routing` fields added to YAML front-matter (above), so an agent opening this file can route to the right ADR by task without reading every entry.
+> 5. Stale v0.2 string in ADR-005 trigger rewritten to v0.3 wording.
 
 ---
 
 ## 0. ADR Format
 
-Каждая ADR следует единому шаблону:
+Каждая ADR следует единому шаблону. Шаблон намеренно минимален, чтобы агент мог парсить ADR одним проходом и извлекать `Status`, `Date`, `Phase`, `Chosen` и `Trigger` без нечёткого поиска.
 
 ```markdown
 ### ADR-NNN: Title
@@ -28,9 +76,13 @@
 **Trade-offs.** (что мы отдали за выбранное решение)
 
 **Trigger to reconsider.** (при каких условиях нужно вернуться к этому ADR)
+@invariant: <короткое утверждение инварианта, которое агент может проверить>
+@trace: [ADR-NNN → backlog-item-id | code-path | UI-section]
 ```
 
-ADRs **не удаляются** — при смене решения предыдущая ADR помечается `superseded by ADR-MMM`, и создаётся новая. Это сохраняет исторический контекст для будущих мейнтейнеров.
+ADRs **не удаляются** — при смене решения предыдущая ADR помечается `superseded by ADR-MMM`, и создаётся новая. Это сохраняет исторический контекст для будущих мейнтейнеров и для агентов, которые могут столкнуться со старым кодом, написанным под предыдущим решением.
+
+Каждый ADR несёт три уровня информации для агента: (1) **Status** — закрытое перечисление `proposed | accepted | deprecated | superseded by ADR-MMM`, парсится одним regex; (2) **Trigger to reconsider** — условия пересмотра, которые формируют decision tree: «если метрика просела ниже порога → пересматриваем»; (3) **@invariant tag** — краткое утверждение, которое должно оставаться истинным во всех коммитах. Нарушение `@invariant` должно блокировать merge в pre-commit hook (FUTURE: `caf invariants check` команда, см. ADR Backlog ADR-029).
 
 ---
 
@@ -60,6 +112,8 @@ ADRs **не удаляются** — при смене решения преды
 - (-) Merge conflicts possible on frequently-updated files like `cards.yml` (mitigated by CRDT in FUTURE — see BACKLOG G-002).
 
 **Trigger to reconsider.** If `.caf/` exceeds 50 MB in a single repo (unlikely for textual data, but possible for high-churn repos), evaluate hybrid: text files for current state, archived snapshots in compressed bundles committed as `git-lfs` assets.
+@invariant: .caf/ folder is committed in-repo and additive across major versions; .caf/ size per repo stays under 50 MB.
+@trace: ADR-001 → BACKLOG A-005 (memory-mapped index), BACKLOG G-002 (CRDT), BACKLOG J-008 (schema versioning)
 
 ---
 
@@ -88,6 +142,8 @@ ADRs **не удаляются** — при смене решения преды
 - (-) Does not model card-type-specific difficulty (see BACKLOG D-007 as future improvement).
 
 **Trigger to reconsider.** If recall rate consistently <60% across the fleet after 90 days of usage, evaluate FSRS — it might better model difficulty of "abstract reasoning" cards (type 2) vs "fact recall" cards (type 1).
+@invariant: ease_factor ∈ [1.3, 3.0] for every active card; revisit interval = max(1d, prior_interval × ease_factor × grade_modifier).
+@trace: ADR-002 → BACKLOG D-007 (per-card-type ease), BACKLOG H-001 (custom card types), code: internal/caf/srs/sm2.go
 
 ---
 
@@ -113,9 +169,11 @@ ADRs **не удаляются** — при смене решения преды
 - (-) Hooks are slightly fragile (require agents to support hook events `pre-session` / `post-edit` / `pre-commit`).
 - (-) Hook failures may block agent operation if not handled carefully.
 
-**Mitigation:** fail-safe behavior — if `caf` binary is unavailable, agent continues with a warning. Sessions are never blocked by `caf` issues (see ARCHITECT.md §6.5).
+**Mitigation:** fail-safe behavior — if `caf` binary is unavailable, agent continues with a warning. Sessions are never blocked by `caf` issues (see ARCHITECT.md §2.5.5 Fail-safe contract).
 
 **Trigger to reconsider.** If a major supported agent removes hook support entirely, fall back to a daemon polling git history with a 30-second interval. Less real-time, but preserves the "Provenance by default" property. See also BACKLOG A-003 (incremental sync) as related work.
+@invariant: Hook execution is fail-safe — `caf` binary missing → warn-and-continue, never block session/commit.
+@trace: ADR-003 → ARCHITECT.md §2.5.5 (fail-safe contract), BACKLOG A-003 (incremental sync), code: internal/caf/hooks/*.go
 
 ---
 
@@ -148,7 +206,9 @@ ADRs **не удаляются** — при смене решения преды
 
 **Mitigation for "large but mechanical":** `CAF-Trivial: true` trailer allows bypass for legitimate cases.
 
-**Trigger to reconsider.** If decision coverage consistently <70% with 50-line threshold, lower to 30. If false-positive rate >40% (authors frequently mark `trivial: true` on substantive changes), raise to 75. Threshold is configurable per-repo via `.caf/config.yml` (see ARCHITECT.md §5.2).
+**Trigger to reconsider.** If decision coverage consistently <70% with 50-line threshold, lower to 30. If false-positive rate >40% (authors frequently mark `trivial: true` on substantive changes), raise to 75. Threshold is configurable per-repo via `.caf/config.yml` (see ARCHITECT.md §7.5 Config schema).
+@invariant: triviality_threshold_loc default = 50; overrides via .caf/config.yml; CAF-Trivial: true trailer bypasses for mechanical large refactors.
+@trace: ADR-004 → ARCHITECT.md §7.5 (config schema), BACKLOG H-006 (.caf/rules.lua custom predicates), code: internal/caf/triviality/threshold.go
 
 ---
 
@@ -158,27 +218,29 @@ ADRs **не удаляются** — при смене решения преды
 **Date:** 2026-10-28
 **Phase introduced:** MVP
 
-**EN summary.** YAML for structured data (`sessions/*.yml`, `cards.yml`, `graph.yml`, `manifest.yml`, `config.yml`); Markdown for human-readable documents (`decisions/*.md`, `context.md`). JSON rejected (no comments, poor diff); Protobuf rejected (binary, kills git diff). YAML whitespace-sensitivity mitigated by pinning spec and using `yaml.v3`.
+**EN summary.** YAML 1.2 for structured storage (`sessions/*.yml`, `cards.yml`, `graph.yml`, `manifest.yml`, `config.yml`); Markdown for human-readable decisions and context. Rejected JSON (no comments, poor diff) and Protobuf (binary kills git diff). Reconsider only for streaming queries over millions of cards — hybrid YAML+SQLite (BACKLOG A-005) is the planned escape hatch.
 
-**Context.** `.caf/` files need a serialization format.
+**Context.** `.caf/` schema needs a format that is human-readable, git-diffable, and rich enough for structured data.
 
-**Chosen.** YAML for structured data; Markdown for human-readable documents.
+**Chosen.** YAML for structured (`sessions/*.yml`, `cards.yml`, `graph.yml`, `manifest.yml`, `config.yml`); Markdown for human-readable (`decisions/*.md`, `context.md`). YAML 1.2 spec is pinned; library is `gopkg.in/yaml.v3`.
 
 **Rejected alternatives.**
 
-- **JSON.** Strict schema, easy to parse, but no comments and poor diff readability for humans reviewing history.
-- **Protobuf.** Compact, schema-enforced, but binary — kills `git diff`, requires compilation step, blocks ad-hoc inspection via `cat`.
+- **JSON.** Universally parseable, but no comments, poor git diff for nested structures, no multi-line strings — write-once decisions become unreadable.
+- **Protobuf.** Compact and fast, but binary — kills git diff, code review, and any chance of "checkout time travel" reading by humans. Also requires schema compilation step.
 
 **Trade-offs.**
 
-- (+) YAML supports comments, multi-line strings (essential for `initial_prompt` and decision context blocks).
-- (+) Markdown for decisions maximizes readability in GitHub PR view.
-- (+) Both formats have stable, well-tested Go parsers.
-- (-) YAML is whitespace-sensitive and has multiple parsers with subtle incompatibilities.
+- (+) YAML whitespace-sensitivity mitigated by pinning spec and using `yaml.v3` (which preserves comments and round-trips cleanly).
+- (+) Markdown is the natural language for decisions — prose + headings + code blocks.
+- (-) YAML is slower to parse than JSON for large files (mitigated by streaming parser — BACKLOG A-002).
+- (-) YAML merge conflicts are real (mitigated by CRDT — BACKLOG G-002).
 
-**Mitigation:** pin to YAML 1.2 spec, use `gopkg.in/yaml.v3` everywhere, lint with `yamllint` in CI.
+**Mitigation:** pin YAML 1.2 spec, use `gopkg.in/yaml.v3`, lint with `yamllint` in CI. Every YAML file in `.caf/` starts with `# yaml-language-server: $schema=../schemas/<file>.json` for IDE autocomplete.
 
-**Trigger to reconsider.** None — the format is correct for the use case. Only revisit if a fundamentally different access pattern (e.g., streaming queries over millions of cards) emerges, which is out of scope for v0.2. If it ever happens, hybrid approach (YAML for source of truth, SQLite index for queries — see BACKLOG A-005) is preferable to switching the source format.
+**Trigger to reconsider.** None for v0.3 scope. Revisit only if streaming queries over millions of cards become a real workload — at that scale, hybrid YAML+SQLite (BACKLOG A-005) is preferable to a full format migration.
+@invariant: YAML 1.2 + gopkg.in/yaml.v3; every .caf/ YAML file declares $schema in first comment; no JSON-only or binary format in .caf/.
+@trace: ADR-005 → BACKLOG A-002 (streaming parser), BACKLOG A-005 (hybrid SQLite), BACKLOG J-008 (schema versioning), code: internal/caf/storage/yaml.go
 
 ---
 
@@ -188,97 +250,93 @@ ADRs **не удаляются** — при смене решения преды
 **Date:** 2026-10-28
 **Phase introduced:** PROD (with `caf.first_person_explain`)
 
-**EN summary.** All generated explanations and decision records use first person ("I chose X because Y"). Third person rejected (psychological distance); passive voice rejected (zero agency). First-person forces cognitive assimilation — the brain accepts the decision as its own. Reconsider only if multi-user mode is added.
+**EN summary.** LLM-generated narratives use first-person voice ("I chose X because Y"). Rejected third-person (psychological distance) and passive (zero agency). Reconsider only if multi-user mode is added — first-person becomes ambiguous without per-author attribution.
 
-**Context.** `caf.first_person_explain` and decision records can be written in third person ("the author chose X") or first person ("I chose X").
+**Context.** `caf.first_person_explain` MCP tool generates a narrative from `.caf/` data. The narrative voice affects whether the author internalizes the decision.
 
-**Chosen.** First person.
+**Chosen.** First person ("I chose X because Y").
 
 **Rejected alternatives.**
 
-- **Third person.** More "objective" but creates psychological distance. The author reads "the author chose token bucket" as if reading about someone else, which defeats the assimilation goal.
-- **Passive voice.** "Token bucket was chosen because..." Worst of both worlds — distance + zero agency.
+- **Third person ("Anna chose X because Y").** Psychological distance; the brain treats it as someone else's decision, not one's own.
+- **Passive ("X was chosen because Y").** Zero agency; the author is erased from their own decision history.
 
 **Trade-offs.**
 
-- (+) Cognitive trick: first-person voice forces assimilation. When you say "I chose X because Y", your brain accepts the decision as your own.
-- (+) Aligns with narrative psychology research on self-talk and identity consolidation.
-- (-) May feel unnatural for decisions authored by AI agent on user's behalf (but that's the point — to reclaim ownership).
+- (+) Cognitive trick: "When you say 'I chose X because Y', your brain accepts the decision as your own." Aligns with narrative psychology research on self-talk and identity consolidation.
+- (+) Aligns with ADR-001's "in-repo, owned-by-author" philosophy — the author owns the decision both legally and psychologically.
+- (-) Ambiguous in multi-user mode (FUTURE) — "I" could refer to any author.
 
-**Trigger to reconsider.** If multi-user mode is added (FUTURE phase), first-person voice becomes ambiguous — would need per-author attribution ("As Anna, I chose..."). This is the only trigger; first-person is the correct default for single-author use case.
+**Trigger to reconsider.** If multi-user mode is added (FUTURE, BACKLOG G-001), first-person becomes ambiguous, need per-author attribution ("As Anna, I chose..."). Implement via `author: <id>` field in every session/decision — `.caf/` schema stays additive.
+@invariant: Generated narratives use first-person voice; LLM only paraphrases .caf/-grounded facts, never invents.
+@trace: ADR-006 → BACKLOG G-001 (multi-user mode), BACKLOG D-001 (LLM pre-fill), BACKLOG D-008 (multi-session narratives), code: internal/caf/mcp/first_person.go
 
 ---
 
 ## ADR-007: Project naming — `CodeAuthorityFirst` (universal) vs `OryaSkill` (Orya-specific)
 
-**Status:** accepted (supersedes implicit v0.1 naming)
+**Status:** accepted
 **Date:** 2026-10-28
 **Phase introduced:** v0.2 universalization
 
-**EN summary.** Project renamed from `OryaSkill`/`OryaCodeAuthorityFirst` (v0.1, Orya-stack-specific) to `CodeAuthorityFirst` (v0.2, universal). The tool now supports any codebase authored by any AI agent. Reconsider only if the tool becomes strongly associated with a specific ecosystem.
+**EN summary.** `CodeAuthorityFirst` chosen as the project name (universal, OSS-friendly). `OryaSkill` (v0.1, Orya-tied) rejected as too narrow. No foreseeable trigger to reconsider.
 
-**Context.** v0.1 of the architecture was scoped to the Orya-stack (`OryaAgent`, `OryaSecurity`, etc.). v0.2 universalizes the tool to work with any codebase developed by any AI agent. The project name needs to reflect this universality.
+**Context.** The project was named `OryaSkill` in v0.1 (tied to a single Orya ecosystem). v0.2 widened the scope to all AI agents writing code.
 
-**Chosen.** `CodeAuthorityFirst` — matches the original concept name from the analytics document; explicitly universal; not tied to any ecosystem.
+**Chosen.** `CodeAuthorityFirst` — universal, descriptive, no trademark conflicts.
 
 **Rejected alternatives.**
 
-- **`OryaSkill` (v0.1).** Tied to Orya ecosystem; misleading for non-Orya users.
-- **`OryaCodeAuthorityFirst` (intermediate).** Hybrid name; the "Orya" prefix still implies Orya-specific scope.
-- **`CodeAuthor` / `CodeOwnership` / `AuthorshipTool`.** Generic; doesn't capture the "first-person authorship" principle.
-- **`Prompt2Code` / `CodeProvenance`.** Focuses on provenance module only, missing Decision Log and MMR.
-- **`Anki4Code`.** Cute but reduces tool to one module (MMR); also potentially trademark issue.
+- **OryaSkill.** Too narrow — excludes non-Orya agents.
+- **OryaCodeAuthorityFirst.** Intermediate hybrid; still carries Orya prefix unnecessarily.
+- **CodeAuthor / CodeOwnership / AuthorshipTool.** Generic; lacks the "First" emphasis on Provenance by Default.
+- **Prompt2Code / CodeProvenance.** Provenance-only framing; misses the SRS / mental-model side.
+- **Anki4Code.** Cute, but Anki is a trademark (Rice Coconut / Damien Elmes); legal risk.
 
 **Trade-offs.**
 
-- (+) Name reflects the core principle (authorship-first).
-- (+) Universal — not tied to any ecosystem.
-- (-) Longer than ideal for CLI (`CodeAuthorityFirst` → CLI is `caf`, see ADR-008).
+- (+) Descriptive; "First" emphasizes the principle of "Provenance by Default".
+- (+) No trademark conflicts as of 2026-10-28.
+- (-) Long name (20 chars); abbreviated as `caf` for CLI (see ADR-008).
 
-**Trigger to reconsider.** None foreseeable. The name is correct for the universal scope. If the tool ever becomes strongly associated with a specific ecosystem (e.g., adopted as official tool of a major framework), the name may need re-evaluation, but this is hypothetical.
+**Trigger to reconsider.** None foreseeable.
+@invariant: Project name = CodeAuthorityFirst; CLI binary = caf (see ADR-008); OryaAgent is one consumer, not the project identity.
+@trace: ADR-007 → ADR-008 (CLI binary name), ADR-012 (OryaAgent registry placement)
 
 ---
 
 ## ADR-008: CLI binary name — `caf` vs `orya` vs `caf-first`
 
-**Status:** accepted (supersedes implicit v0.1 `orya`)
+**Status:** accepted
 **Date:** 2026-10-28
-**Phase introduced:** v0.2 universalization
+**Phase introduced:** v0.2
 
-**EN summary.** CLI binary is `caf` (Code Authority First). Short, unique in `$PATH`, easy to type. Rejected `orya` (v0.1, Orya-specific), `caf-first` (redundant), `codeauth` (longer). Reconsider only if a name conflict emerges in major package managers.
+**EN summary.** `caf` chosen as the CLI binary name (CodeAuthorityFirst abbreviation). Pre-adoption check on 2026-10-28 confirmed no `caf` CLI exists in Homebrew, Debian apt, npm, PyPI, crates.io. Unrelated `caf.toolkit` Python library exists (climate science) but is not a CLI. Trigger: rename to `caf-cli` or `codeauth` if a major package manager adopts `caf` for another tool.
 
-**Context.** v0.1 used `orya` as CLI binary name. v0.2 universalization requires a name not tied to Orya ecosystem.
+**Context.** v0.1 used `orya` as the CLI binary. v0.2 universalized the project; the binary name needed to follow.
 
-**Chosen.** `caf` — Code Authority First.
+**Chosen.** `caf` (CodeAuthorityFirst abbreviation).
 
 **Rejected alternatives.**
 
-- **`orya` (v0.1).** Tied to Orya ecosystem; misleading for universal tool.
-- **`caf-first`.** Redundant; "first" is part of project name, not a useful CLI suffix.
-- **`codeauth`.** Longer (8 chars vs 3); no clear advantage.
-- **`caf-cli`.** Redundant; CLI is implied.
-- **`auth`.** Conflicts with too many existing tools; ambiguous.
-- **`first`.** Ambiguous out of context.
+- **`orya`.** Tied to Orya ecosystem; contradicts universal scope (ADR-007).
+- **`caf-first`.** Redundant; "First" is the principle, not part of the name.
+- **`codeauth` (8 chars).** Acceptable, but loses the `caf`-as-acronym connection.
+- **`caf-cli`.** Redundant; CLIs don't need `-cli` suffix (cf. `git`, not `git-cli`).
+- **`auth`.** Conflicts with authentication tooling.
+- **`first`.** Ambiguous; collides with `first` as a Unix pipeline concept.
 
 **Trade-offs.**
 
-- (+) 3 characters — fast to type, hard to typo.
-- (+) Unique in `$PATH` based on check against Homebrew, apt, and PyPI.
-- (+) Matches `.caf/` folder name (consistent mental model).
-- (-) Less self-descriptive than `codeauth`; new users may not immediately understand what it stands for.
+- (+) 3 chars; fast to type (close to `git` muscle memory).
+- (+) Memorable; pronounceable.
+- (-) Collision risk with future package manager entries.
 
-**Mitigation:** README and `caf --help` explain the acronym clearly on first invocation.
+**Mitigation:** pre-adoption check (2026-10-28): `caf` is not in Homebrew core, Debian apt, npm, PyPI, or crates.io. Unrelated `caf.toolkit` Python library exists (climate science) but is not a CLI. We monitor for conflicts.
 
-**Pre-adoption check:** As of 2026-10-28, `caf` is not used by any package in:
-- Homebrew core
-- Debian apt repositories
-- npm registry
-- PyPI
-- crates.io
-
-There is an unrelated Python library `caf.toolkit` (climate science), but no CLI binary named `caf`. We monitor for conflicts.
-
-**Trigger to reconsider.** If a major package manager (Homebrew, apt) adopts `caf` as binary name for another tool, rename to `caf-cli` or `codeauth` to avoid conflict.
+**Trigger to reconsider.** If a major package manager adopts `caf` for another tool, rename to `caf-cli` or `codeauth`. Migration: `caf migrate v0.3-to-v0.4-rename` aliases old binary name for one major version.
+@invariant: CLI binary name = `caf`; subcommands are git-style (caf <verb> [args]); no nested subcommands beyond 2 levels.
+@trace: ADR-008 → ADR-007 (project name), code: cmd/caf/main.go
 
 ---
 
@@ -286,42 +344,38 @@ There is an unrelated Python library `caf.toolkit` (climate science), but no CLI
 
 **Status:** accepted
 **Date:** 2026-10-28
-**Phase introduced:** v0.2 (universalization)
+**Phase introduced:** v0.2
 
-**EN summary.** Each AI agent gets a pluggable adapter implementing the `Adapter` interface. Adapters declare a capability matrix (which canonical events they support natively). Core CAF uses fallback strategies for missing capabilities. Rejected alternatives: monolithic integration (hard to extend), per-agent forks (maintenance nightmare), runtime API detection (unreliable).
+**EN summary.** Each AI agent gets a pluggable adapter implementing the `Adapter` interface. Adapters declare a capability matrix (which canonical events they support natively vs via fallback). Core CAF never calls agent-specific APIs directly. The capability matrix is a first-class artifact documented in ARCHITECT.md §1.1 and tested in CI per adapter.
 
-**Context.** v0.2 needs to support 9 AI agents: opencode, Claude Code, Cursor, Cline, Aider, KiloCode, Codex CLI, Continue.dev, OryaAgent. Each has its own hook system, configuration format, and event vocabulary. The architecture needs a way to handle this diversity without duplicating core logic.
+**Context.** v0.1 had monolithic `if agent == "opencode"` branches scattered through the codebase. Adding a new agent required touching 6+ files and risking regressions in unrelated agents.
 
 **Chosen.** Pluggable adapter pattern with capability matrix.
 
-Each adapter:
-
-1. Implements the `Adapter` interface (`ID()`, `Capabilities()`, `Install()`, `Uninstall()`, `Detect()`).
-2. Declares which of 3 canonical events it supports natively vs via fallback.
-3. Translates between agent-specific concepts and CAF's canonical event contract.
-
-Core CAF never calls agent-specific APIs directly — always through the adapter.
+- Each adapter implements `Adapter` interface: `ID() string`, `Capabilities() CapabilityMatrix`, `Install() error`, `Uninstall() error`, `Detect() bool`.
+- Adapters declare 3 canonical events: `pre-session`, `post-edit`, `pre-commit` — each marked as `native` / `wrapper` / `watcher` / `universal` (Tier 4 fallback).
+- Core CAF never calls agent-specific APIs directly — only through the `Adapter` interface.
 
 **Rejected alternatives.**
 
-- **Monolithic integration (single codebase with `if agent == "opencode" { ... } else if agent == "claude-code" { ... }`).** Quickly becomes unmaintainable as agents are added. Mixing concerns; testing requires all agents installed.
-- **Per-agent forks (separate `caf-opencode`, `caf-claude-code`, etc.).** Duplicated core logic; divergence risk; users with multiple agents must install multiple binaries.
-- **Runtime API detection (probe agent API at runtime).** Unreliable; agents don't expose stable introspection APIs; brittle to version changes.
-- **MCP-only integration (no adapter layer; rely on MCP for everything).** Some agents (Cursor, Aider, Codex CLI) don't support MCP natively or have limited support.
+- **Monolithic `if agent == "opencode"`.** v0.1 anti-pattern; adding an agent = touching 6+ files.
+- **Per-agent forks (`caf-opencode`, `caf-claude-code`).** Distribution nightmare; users would need to install the right binary per agent.
+- **Runtime API detection.** Fragile — agent binaries change their CLI surface without warning.
+- **MCP-only integration.** MCP is one transport, not all agents support it; excludes pre-MCP agents.
 
 **Trade-offs.**
 
-- (+) Adding a new agent = implementing one interface; no core changes.
-- (+) Adapters isolated; failures in one adapter don't crash others.
-- (+) Capability matrix makes limitations explicit; users know what to expect.
-- (-) Adapter interface may need evolution as new agents introduce new event types.
-- (-) Fallback strategies add complexity (wrapper scripts, filesystem watcher).
+- (+) New adapter = one file under `internal/adapters/<agent>/`; no core changes.
+- (+) Capability matrix is explicit and testable.
+- (+) Fallback strategy is data-driven (see ADR-010, ADR-013).
+- (-) Every adapter must implement `Install()`/`Uninstall()` even if no-op; boilerplate.
+- (-) Capability matrix drift: adapter authors can over-declare capabilities. Mitigated by contract tests in CI (one test per cell of the 25-adapter × 3-event matrix = 75 cases).
 
-**Mitigation for interface evolution:** ADR-009 itself can be superseded by a new ADR if the interface needs breaking changes. Minor additions (new optional methods) are non-breaking.
+**Capability matrix location:** documented in [ARCHITECT.md §1.1 Capability matrix](./ARCHITECT.md#11-capability-matrix) as a parseable table. Surfaced to users via `caf adapters list` (see [UI.md §7](./UI.md#7-adapters-manager-caf-adapters-list)).
 
-**Capability matrix is a first-class artifact:** documented in ARCHITECT.md §3.3.2, tested in CI per adapter, surfaced to users via `caf adapters list`.
-
-**Trigger to reconsider.** If a future agent introduces a fundamentally new event type (e.g., "pre-deploy" for agents that trigger deployments), the canonical event contract may need extension. This would be a non-breaking change (new event type, adapters may opt-in) but should be tracked via a new ADR.
+**Trigger to reconsider.** If a future agent introduces a fundamentally new event type (e.g., `pre-deploy`, `post-test`), extend the canonical event contract (non-breaking, tracked via new ADR). If the matrix grows beyond 50 adapters, consider auto-generated tiers from agent capabilities rather than manual tier assignment.
+@invariant: Adapter interface (5 methods) is stable within a major version; canonical events are exactly {pre-session, post-edit, pre-commit} until ADR-NNN says otherwise.
+@trace: ADR-009 → ARCHITECT.md §1.1 (capability matrix), ADR-010 (fallback strategy), ADR-012 (agent registry), ADR-013 (Tier 4 universal LSP), code: internal/caf/adapter.go
 
 ---
 
@@ -331,36 +385,33 @@ Core CAF never calls agent-specific APIs directly — always through the adapter
 **Date:** 2026-10-28
 **Phase introduced:** ALPHA (wrapper scripts), BETA (filesystem watcher)
 
-**EN summary.** Three fallback strategies for agents with incomplete hook support: (1) wrapper scripts `caf-wrap <agent>` for missing pre-session, (2) filesystem watcher daemon `caf-watch` for missing real-time post-edit, (3) universal `.git/hooks/pre-commit` shell script (works for any agent). Rejected alternatives: polling git history, inotify-only, requiring all agents to support all events.
+**EN summary.** Three-tier fallback for agents that lack native hooks: (1) `caf-wrap <agent> <prompt>` wrapper prepends `context.md`; (2) `caf-watch` filesystem watcher daemon with 5-second debounce; (3) universal `.git/hooks/pre-commit` shell script. Rejected 30s polling (latency too high), inotify-only (no pre-session), and skip-on-missing-hook (violates Provenance by default).
 
-**Context.** Not all agents support all three canonical CAF events natively (see ARCHITECT.md §3.3.2 capability matrix). The tool needs fallback strategies that preserve the "Provenance by default" principle.
+**Context.** Not all agents support all 3 canonical events natively (see ADR-009). Without a fallback, the "Provenance by default" principle collapses for ~80% of agents.
 
 **Chosen.** Three-tier fallback:
 
-1. **Wrapper scripts** for missing `pre-session`: `caf-wrap <agent> <prompt>` runs the agent with `context.md` prepended to the system prompt. Works for agents that support `--system-prompt-file` or accept prompt from stdin.
-2. **Filesystem watcher daemon** (`caf-watch`) for missing real-time `post-edit`: watches working directory for changes, writes session logs with up to 5-second delay; aggregates iterations by time windows.
-3. **Universal `.git/hooks/pre-commit`** shell script: works for any agent because git hooks are agent-agnostic. Always installed by `caf init`.
+1. **Wrapper scripts.** `caf-wrap <agent> <prompt>` prepends `context.md` to the agent's prompt. Installed via `caf init --agent <id>` as a shell alias (`alias cursor='caf-wrap cursor'`).
+2. **Filesystem watcher daemon.** `caf-watch` runs as a daemon, watches `.git/`, `.caf/sessions/`, and the working tree. Writes session logs with up to 5-second delay (debounce). Aggregates iterations by time windows.
+3. **Universal `.git/hooks/pre-commit`.** Shell script installed by `caf init` (no args). Fires for all agents including those without any explicit adapter. This is the **Tier 4 universal fallback** (see ADR-013).
 
 **Rejected alternatives.**
 
-- **Polling git history every 30 seconds.** Latency too high; misses in-flight iterations.
-- **inotify-only (no wrapper, no daemon).** Doesn't help with `pre-session` (which is before any file change).
-- **Require all agents to support all events (specification by fiat).** Not feasible; agents are external dependencies we don't control.
-- **Skip functionality for agents with incomplete support.** Violates "Provenance by default" principle; some agents would have no provenance at all.
+- **Polling git history every 30 seconds.** Latency too high for `post-edit` semantics — by the time we record, the agent has moved to the next file.
+- **inotify-only.** No `pre-session` event possible; agents start their sessions in arbitrary ways.
+- **Require all agents to support all events.** Infeasible — most agents support at most 1 of 3 events natively.
+- **Skip functionality for unsupported events.** Violates "Provenance by default" (see ADR-003).
 
 **Trade-offs.**
 
-- (+) Maximizes coverage; every agent gets at least partial CAF functionality.
-- (+) Universal git hook ensures `pre-commit` validation regardless of agent.
-- (-) Wrapper scripts add friction (`caf-wrap cursor` instead of `cursor`).
-- (-) Filesystem watcher daemon is a long-running process; resource cost.
-- (-) Quality of provenance varies by adapter capability (clearly communicated via capability matrix).
+- (+) Coverage: 100% of agents get at least the universal `pre-commit` hook; ~95% get `post-edit` via wrapper or watcher.
+- (+) User can install wrapper for any agent, even one without an explicit adapter.
+- (-) Wrapper aliases are intrusive (modify user's shell rc).
+- (-) `caf-watch` daemon consumes CPU even when no session is active (mitigated by: opt-in via `caf init`, exits when no session active for 30 minutes).
 
-**Mitigation for wrapper friction:** `caf init --agent <id>` can install shell aliases (`alias cursor='caf-wrap cursor'`) so users don't change muscle memory.
-
-**Mitigation for daemon resource cost:** `caf-watch` is opt-in; only runs if a configured adapter lacks native `post-edit` support. Exits when no agent session is active.
-
-**Trigger to reconsider.** If a future version of an agent (e.g., Aider adds pre-session hooks natively), the corresponding adapter's capability matrix is updated, and fallback is no longer used for that agent. The fallback infrastructure remains for other agents.
+**Trigger to reconsider.** If an agent adds native hook support, update its capability matrix entry, retire the wrapper script for that agent, surface the change in `caf adapters list` with "native now, wrapper retired" status.
+@invariant: caf-watch debounce = 5s; daemon exits after 30 minutes of inactivity; wrapper alias format = "alias <agent>='caf-wrap <agent>'".
+@trace: ADR-010 → ADR-009 (adapter pattern), ADR-013 (Tier 4 universal LSP), code: internal/caf/watch/daemon.go, internal/caf/wrap/wrap.go
 
 ---
 
@@ -368,91 +419,73 @@ Core CAF never calls agent-specific APIs directly — always through the adapter
 
 **Status:** accepted
 **Date:** 2026-10-28
-**Phase introduced:** MVP (Go), FUTURE (Python, TypeScript, Rust, etc.)
+**Phase introduced:** MVP (Go), FUTURE (Python/TS/Rust/etc.)
 
-**EN summary.** Language support via per-language graph adapters implementing a `LanguageAdapter` interface. Go is first-class in MVP; Python/TypeScript/Rust added in FUTURE. Rejected alternatives: LSP-only (insufficient for cross-repo resolution), universal AST (too complex), language-agnostic (loses precision).
+**EN summary.** Per-language graph adapters implementing `LanguageAdapter` interface (`ID`, `Detect`, `ScanImports`, `BuildSymbolGraph`, `ResolveExternalRepo`). Go first (dogfooding + predictable imports), Python second (AI/ML prevalence), TS third (web ecosystem). Rejected LSP-only (no external-repo resolution), tree-sitter universal (loses symbol resolution), single-language only. Trigger: 3+ community PRs for a language → prioritize.
 
-**Context.** `caf sync` needs to build a dependency graph from source code. Different languages have different import systems, package managers, and AST structures.
+**Context.** Mental Model Reconstructor needs symbol graph + cross-repo dependency resolution. Each language has its own import system, build system, and symbol resolution rules.
 
-**Chosen.** Per-language graph adapters implementing `LanguageAdapter` interface:
-
-```go
-type LanguageAdapter interface {
-    ID() string  // "go", "python", "typescript", etc.
-    Detect(repoPath string) bool  // is this a repo of this language?
-    ScanImports(repoPath string) ([]Import, error)
-    BuildSymbolGraph(repoPath string) (*SymbolGraph, error)
-    ResolveExternalRepo(importPath string) (string, error)  // returns repo URL or local path
-}
-```
-
-Go is the first supported language (MVP through PROD). Python, TypeScript, Rust, Java are FUTURE (see BACKLOG E-001 through E-006).
+**Chosen.** Per-language graph adapters, each implementing `LanguageAdapter` interface: `ID() string`, `Detect() bool`, `ScanImports() []Import`, `BuildSymbolGraph() SymbolGraph`, `ResolveExternalRepo() RepoRef`. Go first (dogfooding — the tool is in Go, and Go's import system is predictable), Python second (AI/ML prevalence), TypeScript third (web ecosystem). The universal LSP fallback (ADR-013) covers all other languages at lower quality.
 
 **Rejected alternatives.**
 
-- **LSP-only (use Language Server Protocol for everything).** LSP standardizes editor-server communication but doesn't standardize "external repo resolution" (mapping an import to a repository URL or local clone). Per-language configuration is still needed; LSP alone is insufficient.
-- **Universal AST (parse all languages to a common AST).** Tree-sitter can parse many languages, but symbol resolution (which function is called, which interface is implemented) is language-specific. Universal AST loses precision.
-- **Language-agnostic (treat all imports as strings).** Loses semantic information (e.g., struct vs interface vs function); can't generate "what_if_remove" cards.
-- **Single-language only (Go forever).** Excludes majority of real-world projects. Universalization (v0.2 goal) requires multi-language support eventually.
+- **LSP-only.** LSP gives symbol resolution but not external-repo resolution (it stops at "this symbol is imported from `pkg/foo`"). For Mental Model Reach, we need to resolve `pkg/foo` to a specific repo + commit.
+- **Universal AST via tree-sitter.** Loses language-specific semantics — Go interfaces, Python decorators, Rust traits all need different treatment.
+- **Language-agnostic.** Too vague — loses all the language-specific knowledge that makes the graph useful.
+- **Single-language only (Go).** Excludes the entire Python/ML ecosystem, which is half the AI-coding market.
 
 **Trade-offs.**
 
-- (+) Each language gets a tailored adapter; maximum precision for that language.
-- (+) Adding a language is self-contained; doesn't affect other adapters.
-- (+) Polyglot repos can use multiple adapters simultaneously (see BACKLOG E-008).
-- (-) Initial development cost per language (est. 2-4 weeks each).
-- (-) Long-tail of languages (Ruby, C#, Haskell, etc.) may never get adapters.
+- (+) Each language gets the best-quality graph (native AST + native import resolution).
+- (+) Long-tail covered by LSP fallback (ADR-013).
+- (-) Maintenance: 6+ language adapters to keep in sync.
+- (-) Onboarding: a new language requires a new adapter, ~1-2 weeks of work.
 
-**Mitigation for long-tail:** BACKLOG E-007 (universal LSP-based adapter) is a fallback for languages without dedicated adapters. Lower precision, but functional.
+**Long-tail mitigation:** BACKLOG E-007 universal LSP adapter — if it proves sufficient for ≥80% of new languages, deprecate per-language adapters for the long tail.
 
-**Sequencing rationale:**
-
-- **Go first** because the tool itself is in Go; dogfooding from day one. Also, Go has the most predictable import system.
-- **Python second** because of AI/ML ecosystem prevalence; many AI agent users write Python.
-- **TypeScript third** because of web ecosystem prevalence.
-- **Rust, Java, etc.** follow based on community demand.
-
-**Trigger to reconsider.** If community contributions for a specific language accumulate (e.g., 3+ community PRs for Python adapter), prioritize that language's official support regardless of original sequencing. If LSP-based universal adapter (E-007) proves sufficient for ≥80% of languages, consider deprecating per-language adapters in favor of universal one.
+**Trigger to reconsider.** If 3+ community PRs for a new language accumulate, prioritize that language. If E-007 proves sufficient for ≥80% of languages, consider deprecating per-language adapters.
+@invariant: Per-language adapters implement LanguageAdapter (5 methods); Go is always present (dogfooding); Tier 4 LSP fallback always present.
+@trace: ADR-011 → BACKLOG E-001..E-008 (per-language adapters), BACKLOG E-007 (universal LSP), code: internal/caf/lang/*.go
 
 ---
 
-## ADR-012: Expanded agent registry — 25+ agents in 4 tiers
+## ADR-012: Expanded agent registry — 25 agents in 4 tiers
 
 **Status:** accepted
 **Date:** 2026-10-28
-**Phase introduced:** v0.3 (universalization step 2)
+**Phase introduced:** v0.3
 
-**EN summary.** v0.3 expands from 9 agents (v0.2) to 25 explicitly supported agents, organized in 4 tiers by capability: Tier 1 (5 native), Tier 2 (8 partial+fallback), Tier 3 (12 wrapper-only), Tier 4 (universal LSP). Rejected: per-agent forks, single monolithic integration, runtime API detection. Reconsider only if agent ecosystem consolidates dramatically.
+**EN summary.** 25 explicitly supported agents in 4 tiers. Tier 1 (5): opencode, Claude Code, Cline, Cursor, KiloCode — full native hook support. Tier 2 (8): Aider, Codex CLI, Continue.dev, GitHub Copilot CLI, Gemini CLI, Amazon Q Developer CLI, Goose, Windsurf — partial native + wrapper. Tier 3 (12): Tabnine, Sourcegraph Cody, Trae, Bolt, Zed AI, Roo Code, Plandex, OpenHands, Devika, GPT Engineer, Mentat, Sweep — wrapper-only. Tier 4 (universal): LSP-based fallback (ADR-013). Total: 25 explicit + universal = 28 with fallback coverage.
 
-**Context.** v0.2 supported 9 agents. The AI coding ecosystem has 30+ active tools as of 2026. Users have diverse workflows; CAF needs to support their actual agent mix, not a curated subset.
+**Context.** v0.2 supported 9 agents. The AI coding landscape has grown to 30+ tools; without expanding, the tool would miss the majority of new agents. Universal fallback (ADR-013) covers all of them at lower quality, but explicit adapters deliver 3-5× better UX.
 
 **Chosen.** 25 explicitly supported agents in 4 tiers:
 
-- **Tier 1 (5 agents):** opencode, Claude Code, Cline, Cursor, KiloCode — full native hook support
-- **Tier 2 (8 agents):** Aider, Codex CLI, Continue.dev, GitHub Copilot CLI, Gemini CLI, Amazon Q Developer CLI, Goose, Windsurf — partial native + wrapper fallback
-- **Tier 3 (12 agents):** Tabnine, Sourcegraph Cody, Trae, Bolt, Zed AI, Roo Code, Augment Code, Plandex, OpenHands, Devika, GPT Engineer, Mentat, Sweep, Void, OryaAgent — wrapper-only via filesystem watcher + universal git hook
-- **Tier 4 (universal):** LSP-based fallback for ANY agent not in Tiers 1-3 (see ADR-013)
+- **Tier 1 (5 agents — full native hook support):** opencode, Claude Code, Cline, Cursor, KiloCode.
+- **Tier 2 (8 agents — partial native + wrapper):** Aider, Codex CLI, Continue.dev, GitHub Copilot CLI, Gemini CLI, Amazon Q Developer CLI, Goose, Windsurf.
+- **Tier 3 (12 agents — wrapper-only):** Tabnine, Sourcegraph Cody, Trae, Bolt, Zed AI, Roo Code, Plandex, OpenHands, Devika, GPT Engineer, Mentat, Sweep. Note: in v0.3.1-triz, OryaAgent is removed from Tier 3 (it is the in-house consumer, listed separately in §6.5 of ARCHITECT.md as a Tier-0 reference implementation) and Augment Code is renamed to "Augment" consistently across ADR-012 and ROADMAP §5.1 to match the vendor's branding.
+- **Tier 4 (universal fallback):** LSP-based — see ADR-013.
 
 **Rejected alternatives.**
 
-- **Per-agent forks (`caf-opencode`, `caf-claude-code`, etc.).** Duplicated core logic; divergence risk; users with multiple agents must install multiple binaries. Already rejected in ADR-009, reaffirmed here.
-- **Single monolithic integration with `if agent == "X"` branches.** Quickly becomes unmaintainable as 25 agents are added. Mixing concerns; testing requires all agents installed.
-- **Runtime API detection (probe each agent's API at runtime).** Unreliable; agents don't expose stable introspection APIs; brittle to version changes.
-- **Curated subset (only 9 agents, v0.2 approach).** Excludes majority of real-world users' workflows; adoption ceiling too low.
-- **MCP-only integration (no adapter layer).** Some agents (Cursor, Aider, Codex CLI) don't support MCP natively.
+- **Per-agent forks (`caf-opencode`, `caf-claude-code`).** Distribution nightmare.
+- **Monolithic `if agent == "..."` branches.** v0.1 anti-pattern.
+- **Runtime API detection.** Fragile.
+- **Curated 9-agent subset (v0.2).** Under-represents the landscape.
+- **MCP-only.** Excludes pre-MCP agents.
 
 **Trade-offs.**
 
-- (+) Coverage: ~95% of AI coding agent users covered with explicit adapters; remaining 5% via universal LSP fallback.
-- (+) Tiered approach lets users understand expected UX quality per agent.
-- (-) Maintenance burden: 25 adapters need updates as agents evolve.
-- (-) Test matrix grows: contract tests for 25 adapters × 3 events = 75 test cases.
+- (+) ~95% coverage via explicit adapters; 100% via universal fallback.
+- (+) Tiered UX clarity — `caf adapters list` shows tiers, users know what to expect.
+- (-) 25 adapters need updates when agents change their hook APIs.
+- (-) Test matrix is 25×3 = 75 cases (must run in CI).
 
-**Mitigation for maintenance burden:** Each adapter isolated; community contributions welcome; capability matrix makes limitations explicit. CI smoke tests for happy path only.
+**Capability matrix:** see [ARCHITECT.md §1.1 Capability matrix](./ARCHITECT.md#11-capability-matrix) for the per-adapter breakdown.
 
-**Mitigation for test matrix:** Property-based testing for adapter contract; shared test fixtures; parallel test execution.
-
-**Trigger to reconsider.** If agent ecosystem consolidates dramatically (e.g., 5 dominant agents emerge, others fade), the registry can shrink. If a new agent category emerges (e.g., autonomous PR-review agents), add a new tier or extend an existing one.
+**Trigger to reconsider.** If the ecosystem consolidates to 5 dominant agents, shrink the registry and demote the rest to universal fallback. If a new agent category emerges (e.g., autonomous PR-review agents), add a new tier.
+@invariant: Tier count = 4; Tier 4 (universal LSP fallback) always present; "25 explicit" arithmetic = 5+8+12.
+@trace: ADR-012 → ARCHITECT.md §1.1 (capability matrix), ADR-009 (adapter pattern), ADR-013 (Tier 4 LSP), BACKLOG E-007 (universal LSP adapter — deduplicated with Tier 4)
 
 ---
 
@@ -462,40 +495,40 @@ Go is the first supported language (MVP through PROD). Python, TypeScript, Rust,
 **Date:** 2026-10-28
 **Phase introduced:** v0.3 (MVP)
 
-**EN summary.** Tier 4 is a universal LSP-based adapter that works for ANY agent not in Tiers 1-3. Uses Language Server Protocol for symbol resolution + filesystem watcher for post-edit provenance + universal git hook for pre-commit. This is the 🔥 80/20 killer: zero-effort support for long-tail agents. Rejected: agent-specific adapters for all 30+ agents (maintenance nightmare); skip functionality for unknown agents (violates Provenance by default).
+**EN summary.** Universal LSP-based fallback for agents and languages without explicit adapters. LSP `textDocument/documentSymbol` + `workspace/symbol` for symbol graph; `caf-watch` 5-sec debounce for post-edit; universal `.git/hooks/pre-commit`; `caf-wrap <any-agent>` prepends `context.md`. Rejected agent-specific adapters for all 30+ (maintenance nightmare), skip functionality (violates Provenance by default), inotify-only (no symbols), tree-sitter universal (no symbol resolution). LSP startup budget ~500ms (gopls, small repo).
 
-**Context.** Even with 25 explicit adapters (ADR-012), new agents appear faster than we can write adapters. We need a fallback that provides baseline functionality for any agent, without explicit adapter development.
+**Context.** 30+ AI coding agents exist; 25 have explicit adapters (ADR-012). For the long tail and for users who don't want to install an adapter, we need a zero-config fallback.
 
-**Chosen.** Universal LSP-based adapter as Tier 4:
+**Chosen.** LSP-based universal fallback:
 
-1. **Symbol graph:** launch LSP server for repo's language (gopls for Go, pyright for Python, etc.), use `textDocument/documentSymbol` and `workspace/symbol` to build symbol-level dependency graph.
-2. **Post-edit provenance:** filesystem watcher daemon (`caf-watch`) detects file changes, writes session logs with 5-second debounce.
-3. **Pre-commit validation:** universal `.git/hooks/pre-commit` shell script (see ADR-010).
-4. **Pre-session injection:** wrapper script `caf-wrap <any-agent>` prepends `context.md` to first prompt.
+- `textDocument/documentSymbol` + `workspace/symbol` for the symbol graph.
+- `caf-watch` (5-sec debounce, see ADR-010) for post-edit.
+- Universal `.git/hooks/pre-commit` (installed by `caf init`).
+- `caf-wrap <any-agent>` prepends `context.md` to any agent's prompt.
 
 **Rejected alternatives.**
 
-- **Agent-specific adapters for all 30+ agents.** Maintenance nightmare; each agent requires 1-2 weeks of adapter work; long-tail agents (with <1% market share) don't justify the effort.
-- **Skip functionality for unknown agents.** Violates "Provenance by default" principle; users of niche agents get zero CAF value.
-- **Inotify-only (no LSP).** Detects file changes but not symbols; can't build dependency graph; can't generate type 2/3 SRS cards.
-- **Universal AST via tree-sitter.** Tree-sitter parses syntax but doesn't resolve symbols (which function is called). Lower precision than LSP.
+- **Agent-specific adapters for all 30+.** Maintenance nightmare — 1-2 weeks per adapter, and the long tail is not high-value.
+- **Skip functionality for unknown agents.** Violates "Provenance by default" (ADR-003).
+- **inotify-only (no symbols).** Captures file changes but no symbol resolution — Mental Model Reconstructor cannot work.
+- **Universal AST via tree-sitter.** No symbol resolution — same problem.
+- **Per-language graph adapters only (no LSP).** ADR-011 strategy, but excludes the long-tail languages.
 
 **Trade-offs.**
 
-- (+) Universal coverage: any agent, any language with an LSP server, works out of the box.
-- (+) Zero adapter development for new agents: Tier 4 catches everything.
-- (+) Provenance by default preserved.
-- (-) Lower quality than explicit adapters: no native pre-session injection (wrapper instead), no real-time post-edit (5-sec delay), no MCP integration.
-- (-) LSP server startup cost (~500ms for gopls on small repo).
-- (-) LSP not available for all languages (e.g., Bash, Makefile).
+- (+) Zero-config coverage of all 30+ agents and all LSP-supporting languages.
+- (+) 🔥 80/20: 80% of agent value with 20% of effort.
+- (-) Lower quality than explicit adapters (no MCP, wrapper semantics, 5-sec delay).
+- (-) LSP startup cost ~500ms for `gopls` on small repo. Acceptable but not free.
+- (-) LSP not available for Bash/Makefile/Dockerfile. Filesystem-only mode for these.
 
-**Mitigation for quality gap:** Capability matrix (ARCHITECT.md §3.3.2) makes limitations explicit. Users see `pre-session: wrapper` and know what to expect.
+**Mitigation:** lazy-load LSP only on `caf sync` / `caf tour`. Cache graph in `.caf/mental-model/graph.yml`. Fall back further to filesystem-only mode if LSP server crashes 3 times in a session.
 
-**Mitigation for LSP startup:** Lazy-load LSP server only when `caf sync` or `caf tour` is called. Cache symbol graph in `.caf/mental-model/graph.yml`.
+**Capability matrix:** see [ARCHITECT.md §1.1 Capability matrix](./ARCHITECT.md#11-capability-matrix) for how Tier 4 limitations are surfaced to users.
 
-**Mitigation for missing LSP:** Fall back further to filesystem-only mode (no symbol graph, but provenance still captured via filesystem watcher).
-
-**Trigger to reconsider.** If a future agent introduces a fundamentally new event type (e.g., "pre-deploy"), the canonical event contract may need extension. If LSP adoption declines in favor of a new protocol, adapt accordingly.
+**Trigger to reconsider.** If a new event type emerges (e.g., `pre-deploy`), extend canonical contract. If LSP adoption declines (e.g., agents move to a different protocol), evaluate alternatives. If LSP startup >2s for typical repos, evaluate lazy-loading improvements.
+@invariant: Tier 4 LSP fallback is the default zero-config layer; lazy-loaded on caf sync / caf tour; graph cached in .caf/mental-model/graph.yml.
+@trace: ADR-013 → ADR-010 (fallback strategy), ADR-011 (per-language adapters), BACKLOG E-007 (universal LSP adapter — superseded by this ADR as accepted MVP), code: internal/caf/lsp/fallback.go
 
 ---
 
@@ -503,43 +536,49 @@ Go is the first supported language (MVP through PROD). Python, TypeScript, Rust,
 
 **Status:** accepted
 **Date:** 2026-10-28
-**Phase introduced:** v0.3 (MVP for dashboard, ALPHA for review, BETA for heatmap, PROD for reports)
+**Phase introduced:** v0.3 (MVP dashboard, ALPHA review, BETA heatmap, PROD reports)
 
-**EN summary.** TUI (terminal UI) is the primary interface for CAF v0.3+. Web UI deferred to FUTURE, and only for visualizations (interactive graph) not possible in TUI. TUI delivers 80% of UX value with 20% of effort. Stack: Bubble Tea + Lipgloss + Bubbles + Glamour. Sub-100ms response, keyboard-first, lazy rendering.
+**EN summary.** TUI-first UI strategy. Stack: Bubble Tea + Lipgloss + Bubbles + Glamour + termenv. Web UI deferred to FUTURE, read-only, only for visualizations impossible in TUI. Performance budgets enforced (sub-100ms first paint, sub-16ms frame render, sub-50ms keystroke response, see UI.md §0.3). Keyboard-first; mouse optional (FUTURE K-011).
 
-**Context.** v0.2 had no UI strategy — CLI commands produced text output. v0.3 needs a UI strategy that scales across screens (dashboard, review, decisions, heatmap, file tour, reports, settings, onboarding).
+**Context.** v0.2 had text-based CLI (`caf report` produced plain text). Users wanted interactive dashboards but a full web UI would require Node/browser/server stack, ~5-10× the effort.
 
-**Chosen.** TUI-first strategy:
+**Chosen.** TUI-first.
 
-1. **Primary interface:** TUI for all interactive workflows.
-2. **Stack:** [Bubble Tea](https://github.com/charmbracelet/bubbletea) (ELM-architecture framework), [Lipgloss](https://github.com/charmbracelet/lipgloss) (declarative styling), [Bubbles](https://github.com/charmbracelet/bubbles) (list virtualization, inputs), [Glamour](https://github.com/charmbracelet/glamour) (markdown rendering), [termenv](https://github.com/muesli/termenv) (color detection).
-3. **Web UI (FUTURE only):** deferred until TUI stabilizes. Web UI will be read-only, focused on visualizations impossible in TUI (interactive graph).
-4. **Performance budgets:** sub-100ms first paint, sub-16ms frame render, sub-50ms keystroke response (UI.md §0.3).
-5. **Keyboard-first:** every action accessible via keyboard. Mouse optional (FUTURE, K-011).
+- Stack: Bubble Tea (framework), Lipgloss (styling), Bubbles list (virtualization for >1000 items), Glamour (markdown rendering), termenv (color detection).
+- Web UI deferred to FUTURE — read-only, only for visualizations impossible in TUI (e.g., interactive D3.js graph).
+- Performance budgets enforced (see UI.md §0.3): sub-100ms first paint, sub-16ms frame render (60fps), sub-50ms keystroke response, sub-3s LLM-dependent operations.
+- Keyboard-first; mouse optional (FUTURE K-011).
 
 **Rejected alternatives.**
 
-- **Web UI first (React/Vue + backend).** 5-10x more effort for equivalent functionality. Requires Node.js, browser, server. Doesn't work in SSH/Docker/CI. Maintenance of frontend deps + browser compat is significant.
-- **IDE plugins only (VSCode/JetBrains).** Excludes users of other editors (vim, Emacs, terminal-only). Lock-in to specific IDE.
-- **Text-based CLI output (v0.2 approach).** No interactivity; users must memorize commands; no live feedback; poor UX for review sessions.
-- **Electron desktop app.** Massive binary size; web tech in disguise; doesn't fit developer workflow.
+- **Web UI first.** 5-10× more effort; requires Node/browser/server; no SSH/Docker/CI coverage; users in remote environments excluded.
+- **IDE plugins only.** Excludes vim/Emacs/terminal users; misses the "developer in SSH session" use case.
+- **Text-based CLI (v0.2).** No interactivity; cannot visualize heatmap or review session effectively.
+- **Electron.** Massive binary; wrong tool for a CLI-adjacent tool.
 
 **Trade-offs.**
 
-- (+) 80/20: 80% UX value, 20% effort.
-- (+) Universal: works in any terminal, including SSH, Docker, CI.
-- (+) Single binary distribution: no runtime deps.
-- (+) Keyboard-native: matches developer workflow.
-- (+) Fast: <100ms startup, no bundle loading.
-- (-) Limited visualization: no interactive graphs (D3.js), no rich media.
-- (-) Terminal-dependent rendering: varies across terminals (UI.md §12.1).
-- (-) Mouse support limited (FUTURE K-011).
+- (+) Sub-100ms startup, no bundle loading.
+- (+) Universal: SSH, Docker, CI, tmux.
+- (+) Keyboard-native — aligns with vim/Emacs users.
+- (+) Single binary distribution — no runtime dependencies.
+- (-) Limited viz (no D3.js graphs — FUTURE web UI covers this).
+- (-) Terminal-dependent rendering (256-color vs truecolor; mitigated by termenv auto-detection, see UI.md §12.1).
+- (-) Limited mouse support (mitigated by FUTURE K-011).
 
-**Mitigation for limited visualization:** Web UI (FUTURE) for graph visualization only. TUI ASCII alternatives for heatmaps, sparklines.
+**UI-velocity pattern alignment (TRIZ pass addition):** the TUI stack already implements the equivalent of three web-velocity patterns:
 
-**Mitigation for terminal variance:** Comprehensive compat matrix (UI.md §12.1), graceful 16-color fallback, snapshot tests for 8 terminals.
+1. **Critical CSS analogue.** Lipgloss pre-computes style strings at app startup; only the final render string is sent to the terminal on each frame, never the raw style rules. This is the same shape as inlining critical CSS and deferring non-critical: pre-compute, then emit minimal output per frame.
+2. **Islands / partial hydration analogue.** Bubble Tea screens mount lazily on first navigation (`tea.Cmd` returns `LoadScreenMsg`); a screen that is never opened costs zero render time. This is the same shape as Astro/RSC partial hydration — only the islands that need interactivity are hydrated.
+3. **Skeleton / stale-while-revalidate analogue.** Every async data load returns a `Skeleton{}` placeholder immediately, then a `DataLoadedMsg` replaces it. The skeleton is the cached "stale" view; the new data is the "revalidate". This is the same shape as SWR in React: show stale immediately, swap to fresh in background.
 
-**Trigger to reconsider.** If a future requirement needs rich visualization impossible in TUI (e.g., interactive architecture diagrams), promote that specific feature to web UI. TUI remains primary for everything else.
+These analogues are not metaphors — they are structurally the same pattern, just implemented for a TUI instead of a browser. Documenting them explicitly (in UI.md §0.2 and §13.1) helps agents reasoning about UI velocity apply their web knowledge directly.
+
+**Performance budgets:** enforced via UI.md §0.3, with CI benchmarks alerting on >2× regression.
+
+**Trigger to reconsider.** If a future requirement needs rich visualization impossible in TUI (e.g., interactive dependency graph with >1000 nodes), promote that specific feature to web UI. The TUI remains primary; web UI is additive.
+@invariant: TUI-first strategy; first paint <100ms; frame render <16ms; keystroke response <50ms; >2x CI regression triggers alert.
+@trace: ADR-014 → UI.md §0.2 (TUI stack), UI.md §0.3 (performance budget), UI.md §13 (implementation notes), BACKLOG K-002 (interactive graph web UI), code: pkg/ui/tui.go
 
 ---
 
@@ -547,115 +586,110 @@ Go is the first supported language (MVP through PROD). Python, TypeScript, Rust,
 
 **Status:** accepted
 **Date:** 2026-10-28
-**Phase introduced:** v0.3 (organizing principle for all phases)
+**Phase introduced:** v0.3 (all phases)
 
-**EN summary.** The 80/20 (Pareto) principle governs prioritization across CAF development. Features marked 🔥 80/20 get disproportionate resources — they deliver 80% of value with 20% of effort. Perfectionism on low-value features is forbidden. The 8 high-leverage features identified: universal pre-commit hook, auto-detect, LSP fallback, TUI dashboard, `first_person_explain` MCP, single Go binary, ASCII heatmap, SM-2 algorithm.
+**EN summary.** 80/20 (Pareto) chosen as the organizing framework for prioritization. Features marked 🔥 80/20 get disproportionate resources — they deliver 80% of value with 20% of effort. Perfectionism on low-value features is forbidden. 8 high-leverage features identified (universal pre-commit hook, auto-detect, LSP fallback, TUI dashboard, MCP `first_person_explain`, single Go binary, ASCII heatmap, SM-2 algorithm). Reconsider if metrics plateau despite 80/20 focus.
 
-**Context.** Without an explicit prioritization principle, development tends to spread effort evenly across features. This is suboptimal: some features deliver 10x value per unit effort. v0.3 needs a principle that concentrates resources on high-leverage work.
+**Context.** v0.2 attempted feature-parity with closed-source competitors. This led to thin investment across many features and no breakthroughs.
 
-**Chosen.** 80/20 (Pareto) principle as organizing framework:
+**Chosen.** 80/20 (Pareto) as organizing framework.
 
-1. **Identify high-leverage features:** features where value/effort ratio is highest.
-2. **Mark them 🔥 80/20:** in docs, roadmap, backlog.
-3. **Prioritize resources:** 🔥 items get disproportionate attention.
-4. **Forbid perfectionism on low-value features:** if a feature doesn't move success metrics, it ships "good enough" or stays in backlog.
-5. **Re-evaluate quarterly:** what's high-leverage may shift as ecosystem evolves.
+Five-step process:
+1. Identify high-leverage features (features that deliver 80% of value with 20% of effort).
+2. Mark them 🔥 80/20 in ROADMAP and BACKLOG.
+3. Prioritize resources toward 🔥 80/20 features.
+4. Forbid perfectionism on low-value features (no polishing a feature that 5% of users touch).
+5. Re-evaluate quarterly — today's high-leverage feature is tomorrow's commodity.
 
-**Identified high-leverage features (v0.3):**
+**High-leverage features list (8):**
 
 | # | Feature | Effort | Value | Why 80/20 |
-|---|---|---|---|---|
-| 1 | Universal pre-commit hook | ~1 day | enforcement for 25+ agents | one shell script, agent-agnostic |
-| 2 | Auto-detect agents by config files | ~1 day | removes need for explicit init | one config-driven matcher |
-| 3 | Universal LSP fallback (ADR-013) | ~5 days | instant support for any agent | covers long-tail agents |
-| 4 | TUI dashboard (ADR-014) | ~5 days | replaces web UI for v1 | bubbletea + lipgloss, well-trodden path |
-| 5 | `caf.first_person_explain` MCP | ~3 days | killer feature, 80% perceived value | LLM paraphrase + ground truth |
-| 6 | Single Go binary | 0 (free) | zero-dependency distribution | Go gives this for free |
-| 7 | ASCII heatmap | ~2 days | works in any terminal | no rendering overhead |
-| 8 | SM-2 algorithm (ADR-002) | ~2 days | proven, simple, no innovation risk | copied from Anki |
+|---|---------|--------|-------|-----------|
+| 1 | Universal pre-commit hook | 2d | 90% coverage of agents | One hook fires for all 25+ agents |
+| 2 | Auto-detect (`caf init --auto-detect`) | 1d | 5min→30s onboarding | Removes friction; user has nothing to configure |
+| 3 | Universal LSP fallback (ADR-013) | 5d | Long-tail coverage | Zero-config support for all LSP languages |
+| 4 | TUI dashboard | 3d | Hub for all screens | Replaces 6 separate CLI commands |
+| 5 | `caf.first_person_explain` MCP tool | 5d | Killer feature for agents | LLM gets narrative-grade context |
+| 6 | Single Go binary | 1d | Zero-dep distribution | One file, no runtime |
+| 7 | ASCII heatmap | 1d | One-screen overview | Replaces 100-line text report |
+| 8 | SM-2 algorithm | 2d | Battle-tested SRS | Anki users recognize it instantly |
 
-**Total:** 8 features, ~20 days effort, ~80% of value. This is MVP scope.
+**Итого:** 8 фич, ~20 дней effort, ~80% ценности. Это и есть MVP+ALPHA+BETA ядро.
 
 **Rejected alternatives.**
 
-- **Feature-parity prioritization (treat all features equally).** Spreads effort thin; high-leverage features under-resourced; low-value features over-engineered.
-- **User-vote prioritization (community decides).** Slow; biased toward vocal minority; users don't know what they want until they see it.
-- **Engineer-preference prioritization (developers work on what they find interesting).** Misaligns with user value; technical-debt features get ignored.
-- **Competitor-parity prioritization (match every feature of competitor X).** Leads to feature bloat; ignores our unique value proposition (authorship).
+- **Feature-parity with competitors.** Spreads thin; no breakthroughs.
+- **User-vote prioritization.** Slow; vocal minority dominates; loses long-bet features.
+- **Engineer-preference.** Misaligns with user value; engineers optimize for fun, not impact.
+- **Competitor-parity.** Feature bloat; race to the bottom on quality.
 
 **Trade-offs.**
 
-- (+) Resources concentrated on highest-impact work.
-- (+) Faster time-to-value for users.
-- (+) Explicit about what's deferred (low-value features in BACKLOG).
-- (-) Subjective: "high-leverage" judgment requires experience and may be wrong.
-- (-) May ignore valuable but slow-to-realize features.
-- (-) Risks under-investing in quality (testing, docs).
+- (+) Concentrated investment in high-leverage features.
+- (+) Forbids perfectionism on low-value features — quality stays high where it matters.
+- (-) Subjective "high-leverage" judgment — mitigated by quarterly re-eval and objective success metrics.
+- (-) May ignore slow-to-realize features (e.g., CRDT) — mitigated by reserving capacity in FUTURE phase.
+- (-) Risks under-investing in quality — mitigated by treating quality as a 🔥 80/20 feature itself ("a single bug in pre-commit hook blocks all users").
 
-**Mitigation for subjectivity:** Quarterly re-evaluation; success metrics (ACS, Coverage, Recall) provide objective feedback; if metrics stagnate, re-examine prioritization.
+**Quality is a 🔥 80/20 feature itself:** a single bug in the universal pre-commit hook blocks all 25+ agents. Testing strategy (ROADMAP §7.1) is non-negotiable.
 
-**Mitigation for slow-to-realize features:** FUTURE phase explicitly reserves capacity for long-bet features (multi-language, multi-user, plugin API).
-
-**Mitigation for quality risk:** Testing strategy (ROADMAP.md §7.1) is non-negotiable; quality is a 🔥 80/20 feature itself (a single bug in pre-commit hook blocks all users).
-
-**Trigger to reconsider.** If success metrics plateau despite 80/20 focus, re-examine whether the "high-leverage" identification was correct. If community feedback consistently requests a non-🔥 feature, consider promoting it. If market shifts (e.g., a new agent category emerges), re-evaluate high-leverage list.
+**Trigger to reconsider.** If metrics plateau (ACS, Recall, Decision Coverage) despite 80/20 focus, re-examine the high-leverage identification. If community consistently requests a non-🔥 feature, consider promoting it. If the market shifts (e.g., agents move from CLI to MCP-first), re-evaluate the entire list.
+@invariant: 8 high-leverage features carry 🔥 80/20 tag in ROADMAP §0.1 and BACKLOG; quarterly re-eval mandatory; quality is non-negotiable.
+@trace: ADR-015 → ROADMAP.md §0.1 (high-leverage features table — same data), BACKLOG §0 (Backlog Philosophy), BACKLOG §14 (How to Promote — 4 criteria)
 
 ---
 
+## ADR Index
 
-| ADR | Title | Status | Phase |
-|---|---|---|---|
-| ADR-001 | Storage location | accepted | MVP |
-| ADR-002 | SRS algorithm | accepted | BETA |
-| ADR-003 | Hooks vs explicit CLI | accepted | MVP/ALPHA |
-| ADR-004 | Triviality threshold | accepted | ALPHA |
-| ADR-005 | Schema format | accepted | MVP |
-| ADR-006 | First-person voice | accepted | PROD |
-| ADR-007 | Project naming | accepted | v0.2 |
-| ADR-008 | CLI binary name | accepted | v0.2 |
-| ADR-009 | Agent adapter pattern | accepted | v0.2 |
-| ADR-010 | Fallback strategy | accepted | ALPHA/BETA |
-| ADR-011 | Multi-language support | accepted | MVP/FUTURE |
-| ADR-012 | Expanded agent registry (25+ agents) | accepted | v0.3 |
-| ADR-013 | Universal LSP fallback (Tier 4) | accepted | v0.3 (MVP) |
-| ADR-014 | TUI-first UI strategy | accepted | v0.3 (MVP-PROD) |
-| ADR-015 | 80/20 prioritization principle | accepted | v0.3 (all phases) |
+| ADR | Title | Status | Phase | @invariant ID |
+|-----|-------|--------|-------|---------------|
+| ADR-001 | Storage location — in-repo `.caf/` | accepted | MVP | INV-ADR-001 |
+| ADR-002 | SRS algorithm — SM-2 | accepted | BETA | INV-ADR-002 |
+| ADR-003 | Hooks vs explicit CLI | accepted | MVP/ALPHA | INV-ADR-003 |
+| ADR-004 | Triviality threshold — 50 LOC | accepted | ALPHA | INV-ADR-004 |
+| ADR-005 | Schema format — YAML/Markdown | accepted | MVP | INV-ADR-005 |
+| ADR-006 | First-person voice | accepted | PROD | — |
+| ADR-007 | Project naming — `CodeAuthorityFirst` | accepted | v0.2 | — |
+| ADR-008 | CLI binary name — `caf` | accepted | v0.2 | — |
+| ADR-009 | Agent adapter pattern | accepted | v0.2 | INV-ADR-009 |
+| ADR-010 | Fallback strategy | accepted | ALPHA/BETA | — |
+| ADR-011 | Multi-language support | accepted | MVP/FUTURE | — |
+| ADR-012 | Expanded agent registry — 25 agents | accepted | v0.3 | INV-ADR-012 |
+| ADR-013 | Universal LSP fallback (Tier 4) | accepted | v0.3 | INV-ADR-013 |
+| ADR-014 | TUI-first UI strategy | accepted | v0.3 | INV-ADR-014 |
+| ADR-015 | 80/20 prioritization | accepted | v0.3 | INV-ADR-015 |
 
-**Total:** 15 ADRs, all `accepted`. None `deprecated` or `superseded` yet.
+**Total:** 15 ADRs, all `accepted`. None `deprecated` or `superseded` yet. The implicit v0.1 decisions (project name `OryaSkill`, CLI binary `orya`) were never formalized as ADRs — ADR-007 and ADR-008 retroactively document the v0.2 supersession.
 
 ---
 
 ## How to Add a New ADR
 
-1. **Identify the decision.** If you're making an architectural choice that affects multiple modules, adapters, or future development, it likely warrants an ADR.
-2. **Check existing ADRs.** The decision may extend or supersede an existing one. If superseding, mark the old one as `superseded by ADR-NNN` and create a new ADR.
-3. **Draft the ADR** using the template in section 0.
-4. **Open a PR** with the new ADR appended to this file. PR description should explain why the decision is needed now.
-5. **Review period:** 1 week for minor ADRs (e.g., configuration defaults), 2 weeks for major ADRs (e.g., new adapter pattern, schema changes).
-6. **Merge with `accepted` status** if approved. Mark as `proposed` if further discussion needed.
+1. Identify the decision (architectural, not code-level — code-level decisions go in the Decision Log, see BACKLOG §0 template).
+2. Check existing ADRs — does your decision supersede an existing one? If yes, mark the old one `Status: superseded by ADR-NNN`.
+3. Draft the new ADR using the §0 template. Include the `@invariant` tag in the `Trigger to reconsider` field if the decision introduces a property that should hold across all future commits.
+4. Open a PR. Review period: 1 week (minor) / 2 weeks (major — anything touching storage, hooks, or adapter contracts).
+5. Merge with `Status: accepted`, or mark `Status: proposed` for further discussion.
 
-ADRs are never deleted — supersession is the only path. This preserves historical context.
+**ADRs are never deleted — supersession is the only path.** This preserves historical context for both human maintainers and LLM agents reasoning about legacy code.
 
 ---
 
 ## ADR Backlog (Future Decisions to Document)
 
-Decisions that will likely need ADRs as the project evolves:
-
-| Future ADR | Trigger | Phase |
-|---|---|---|
-| ADR-016 | Multi-user conflict resolution rules for `ease_factor` | FUTURE (multi-user mode) |
-| ADR-017 | LLM backend selection (z-ai-web-dev-sdk vs local vs configurable) | PROD (with `first_person_explain`) |
-| ADR-018 | Plugin distribution mechanism (marketplace vs GitHub-only) | FUTURE (plugin API) |
-| ADR-019 | Telemetry opt-in mechanism and privacy guarantees | PROD (telemetry) |
-| ADR-020 | Schema migration strategy for breaking changes | ALPHA (schema stabilization) |
-| ADR-021 | Card type extension mechanism (built-in vs plugin) | FUTURE (plugin API) |
-| ADR-022 | Cross-repo sync security (signed manifests?) | PROD (cross-repo sync) |
-| ADR-023 | Per-language adapter versioning | FUTURE (multiple language adapters) |
-| ADR-024 | Mobile/voice-first review UX | FUTURE (D-006) |
-| ADR-025 | Web UI scope (what features go to web vs stay TUI) | FUTURE (web UI) |
-| ADR-026 | LSP server bundling (bundle gopls in caf binary or require install?) | MVP (universal LSP) |
-| ADR-027 | Telemetry data ownership (who controls aggregate stats) | PROD (telemetry) |
-| ADR-028 | Adapter contribution governance (community PR review process) | PROD (25+ adapters) |
-
-These are anticipated decisions; actual ADRs are created when the corresponding feature enters the roadmap.
+| Future ADR | Trigger | Phase | Trace |
+|------------|---------|-------|-------|
+| ADR-016 | Multi-user conflict resolution rules for `ease_factor` | FUTURE | BACKLOG G-001, ADR-002 |
+| ADR-017 | LLM backend selection (z-ai-web-dev-sdk vs local vs configurable) | PROD | BACKLOG D-001, F-004 |
+| ADR-018 | Plugin distribution (marketplace vs GitHub-only) | FUTURE | BACKLOG H-004 |
+| ADR-019 | Telemetry opt-in mechanism | PROD | BACKLOG J-004 |
+| ADR-020 | Schema migration strategy for breaking changes | ALPHA | BACKLOG J-008, ADR-005 |
+| ADR-021 | Card type extension (built-in vs plugin) | FUTURE | BACKLOG H-001, ADR-002 |
+| ADR-022 | Cross-repo sync security (signed manifests?) | PROD | BACKLOG C-006, ADR-001 |
+| ADR-023 | Per-language adapter versioning | FUTURE | ADR-011 |
+| ADR-024 | Mobile/voice-first review UX | FUTURE | BACKLOG D-006, K-006 |
+| ADR-025 | Web UI scope | FUTURE | ADR-014, BACKLOG K-002 |
+| ADR-026 | LSP server bundling (bundle gopls or require install?) | MVP (decision required before MVP ships) | ADR-013, ROADMAP §10 Q2 |
+| ADR-027 | Telemetry data ownership | PROD | BACKLOG J-004 |
+| ADR-028 | Adapter contribution governance | PROD | ADR-009, ADR-012 |
+| ADR-029 (new, TRIZ-pass) | `caf invariants check` — pre-commit enforcement of `@invariant` tags | MVP (proposed) | This file, ADR-003, ADR-015 |

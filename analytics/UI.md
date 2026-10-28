@@ -1,11 +1,78 @@
+---
+doc: UI
+layer: ui
+version: 0.3.1-triz
+language: bilingual
+status: stable
+audience: [agents, UI/UX implementers, contributors adding TUI screens, design reviewers]
+related: [ARCHITECT.md, ROADMAP.md, BACKLOG.md, ADR.md]
+depends_on: [ADR-014, ADR-002, ADR-005, ADR-009, ADR-013, ADR-015]
+invariants:
+  - {id: INV-UI-001, statement: "TUI first paint <100ms on pilot repos; >2x CI regression triggers alert", criticality: high, enforced_by: "CI benchmark — pkg/ui/perf.go"}
+  - {id: INV-UI-002, statement: "Frame render <16ms (60fps) for scroll/redraw; uses virtualized lists + cached layouts", criticality: high, enforced_by: "bubbles/list virtualization"}
+  - {id: INV-UI-003, statement: "Keystroke response <50ms for simple actions; no async round-trip for typing", criticality: high, enforced_by: "tea.Cmd direct dispatch"}
+  - {id: INV-UI-004, statement: "Every async data load returns Skeleton{} immediately, then DataLoadedMsg swaps to real data (SWR pattern)", criticality: high, enforced_by: "pkg/ui/components/skeleton.go pattern"}
+  - {id: INV-UI-005, statement: "Screens mount lazily on first navigation (tea.Cmd returns LoadScreenMsg); closed screens cost zero render time (Islands/partial hydration analogue)", criticality: medium, enforced_by: "pkg/ui/screens/registry.go"}
+  - {id: INV-UI-006, statement: "Lipgloss pre-computes style strings at app startup; only final render string emitted per frame (Critical CSS analogue)", criticality: medium, enforced_by: "Lipgloss API contract"}
+  - {id: INV-UI-007, statement: "Heatmap render <200ms on 247-file repo; re-compute on file change <500ms incremental", criticality: high, enforced_by: "pre-computed + cached"}
+owned_contracts:
+  - "pkg/ui/tui.go — root model + Update(msg) + View() string"
+  - "pkg/ui/screens/*.go — one file per screen, all follow Purpose/Layout/Components/Keyboard map/Performance budget/Edge cases schema"
+  - "pkg/ui/components/ — header, statusbar, spinner, skeleton, heatmap"
+  - "pkg/ui/keys.go — universal keyboard map"
+  - "pkg/ui/perf.go — performance budget enforcer + CI benchmark hooks"
+agent_routing:
+  - {task: "Add new TUI screen", see: [§0 UI Philosophy, §1.3 Common UI patterns, §13.1 File organization], template: "Purpose/Layout/Components/Keyboard map/Performance budget/Edge cases"}
+  - {task: "Optimize TUI performance", see: [§0.3 Performance budget, §13.2 State management, §13.3 Virtualization, §13.4 Caching], invariant: INV-UI-001 through INV-UI-007}
+  - {task: "Add new keyboard shortcut", see: [§0.6 Universal keyboard map], conflict_check: "must not collide with universal map"}
+  - {task: "Fix terminal compat issue", see: [§12.1 Terminal compatibility]}
+  - {task: "Implement skeleton/SWR for new screen", see: [§3.5 Refresh strategy, §13.2 State management]}
+trace_to_code:
+  - "pkg/ui/tui.go — root model"
+  - "pkg/ui/theme.go — color palette, typography"
+  - "pkg/ui/components/{header,statusbar,spinner,skeleton,heatmap}.go"
+  - "pkg/ui/screens/{onboarding,dashboard,review,decisions_list,decisions_detail,decisions_editor,heatmap,adapters,file_tour,reports,settings}.go"
+  - "pkg/ui/keys.go"
+  - "pkg/ui/perf.go"
+ui_budgets:
+  first_paint: "<100ms (any screen)"
+  frame_render: "<16ms (60fps, scroll/redraw)"
+  keystroke: "<50ms"
+  llm_op: "<3s (with skeleton + spinner)"
+  file_op_10k_repo: "<1s"
+  dashboard_full_load: "<500ms"
+  dashboard_auto_refresh: "<50ms (incremental, only changed widgets)"
+  dashboard_memory: "<50MB"
+  card_render: "<50ms (no LLM)"
+  session_save: "<100ms (incremental write)"
+  list_render: "<50ms (virtualized, only visible rows)"
+  filter_response: "<16ms (in-memory index)"
+  detail_view: "<100ms (markdown render via Glamour, cached)"
+  autocomplete: "<50ms (pre-built index)"
+  heatmap_render: "<200ms (247 files pre-computed)"
+  heatmap_recompute: "<500ms (incremental)"
+  heatmap_memory: "<20MB"
+  adapter_health_check: "<5s/adapter (<30s/25 total)"
+  adapter_install: "<2s/adapter (parallel ≤5)"
+  file_tour_first_paint: "<100ms"
+  file_load: "<50ms (cached)"
+  timeline_build: "<50ms (from .caf/sessions/ index)"
+  file_tour_memory: "<10MB"
+  lsp_startup: "~500ms (gopls, small repo)"
+  animated_transitions: "≤100ms"
+  dashboard_auto_refresh_interval: "30s (configurable via ui.heatmap_refresh_seconds)"
+  manifest_cache: "1h"
+  ci_regression_alert_threshold: ">2x regression triggers alert"
+---
+
 # CodeAuthorityFirst — UI.md
 
-> **Версия / Version:** 0.3
+> **Версия / Version:** 0.3.1-triz (post-TRIZ pass: phase conflicts resolved — Dashboard moved to MVP per ROADMAP §2.1, File tour moved to BETA per ROADMAP §4.1; UI-velocity patterns documented explicitly — Critical CSS analogue, Islands/partial hydration analogue, Skeleton/SWR analogue; @invariant tags added to every performance budget subsection; front-matter cross-refs to BACKLOG.md and ADR.md repaired.)
 > **Назначение / Purpose:** detailed specification of all user-facing interfaces — primarily TUI (terminal UI), with progressive enhancements for IDE plugins and (future) web UI. Every screen has ASCII mockup, keyboard map, performance budget, and edge cases.
-> **Философия / Philosophy:** TUI-first (🔥 80/20), sub-100ms response, keyboard-only operation possible, lazy rendering for large datasets.
+> **Философия / Philosophy:** TUI-first (🔥 80/20), sub-100ms response, keyboard-only operation possible, lazy rendering for large datasets. Three UI-velocity patterns (originally from web) are implemented as native TUI patterns: Critical CSS analogue (Lipgloss pre-computed styles), Islands/partial hydration analogue (lazy screen mount), Skeleton/SWR analogue (placeholder + DataLoadedMsg swap).
 > **Язык / Language:** bilingual — Russian body, English summary per section
-> **Аудитория / Audience:** UI/UX implementers, contributors adding TUI screens, design reviewers
-> **Связанные документы:** [ARCHITECT.md](./ARCHITECT.md) · [ROADMAP.md](./ROADMAP.md)
+> **Аудитория / Audience:** UI/UX implementers, contributors adding TUI screens, design reviewers, LLM agents reasoning about UI velocity budgets
+> **Связанные документы:** [ARCHITECT.md](./ARCHITECT.md) · [ROADMAP.md](./ROADMAP.md) · [BACKLOG.md](./BACKLOG.md) · [ADR.md](./ADR.md)
 
 ---
 
@@ -13,131 +80,120 @@
 
 ### 0.1 Why TUI-first (🔥 80/20)
 
-**EN summary.** TUI (terminal UI) is the primary interface for v0.3. Reasons: (1) 80/20 — TUI delivers 80% of UX value with 20% of web UI effort; (2) Speed — terminal apps start in <50ms, web apps need server + bundle; (3) Universal — works on any terminal, including SSH, Docker, CI; (4) Keyboard-native — matches developer workflow; (5) No dependencies — no Node.js, no browser, no Electron.
+**EN summary.** TUI-first covers 80% of use cases with 20% of effort. Terminal apps start in <50ms; web apps need server + bundle. SSH/Docker/CI all have terminals, none have browsers. Keyboard-native aligns with vim/Emacs users. No Node.js, no browser, no Electron — single Go binary.
 
-TUI-first стратегия для v0.3:
+TUI-first — архитектурное решение (ADR-014), не fallback. Пять причин:
+
+1. **🔥 80/20.** TUI покрывает 80% UX use cases 20% effort. Web UI — отложен до FUTURE.
+2. **Скорость.** Terminal apps start in <50ms. Web apps 500-2000ms (server + bundle + render).
+3. **Универсальность.** SSH, Docker, CI — везде есть terminal, нигде нет browser. TUI работает в tmux, в IDE-integrated terminal, в VSCode terminal.
+4. **Keyboard-native.** Developers know vim. `?` for help is universal (less/vim/man).
+5. **No deps.** Single Go binary. No Node.js, no browser, no Electron.
 
 | Критерий | TUI | Web UI |
-|---|---|---|
+|----------|-----|--------|
 | Time-to-first-paint | <100ms | 500-2000ms |
-| Distribution | single binary | needs server or static host |
-| SSH/Docker compatibility | ✓ | ✗ |
-| Keyboard-first | native | needs extra work |
-| Maintenance cost | low | high (frontend deps, browser compat) |
-| Coverage of use cases | 80% | 95% |
+| Distribution | Single binary (~10 MB) | Server + bundle (~5 MB JS) |
+| SSH/Docker/CI | ✓ universal | ✗ requires port-forward |
+| Keyboard-first | ✓ native | requires tab-trapping JS |
+| Maintenance cost | 1 stack (Go + Bubble Tea) | 2 stacks (Go + Node + browser quirks) |
+| Coverage | 80% use cases | 95% use cases |
 
 **Вывод:** TUI покрывает 80% use cases с 20% effort. Web UI отложен до FUTURE (см. §1.4).
 
 ### 0.2 TUI stack
 
-| Component | Choice | Reason |
-|---|---|---|
-| Framework | [Bubble Tea](https://github.com/charmbracelet/bubbletea) | Idiomatic Go, ELM-like architecture, mature, MIT |
-| Styling | [Lipgloss](https://github.com/charmbracelet/lipgloss) | Pairs with Bubble Tea, declarative styles |
-| List virtualization | [Bubbles list](https://github.com/charmbracelet/bubbles) | Built-in virtualization for >1000 items |
-| Markdown rendering | [Glamour](https://github.com/charmbracelet/glamour) | Renders decision records with syntax highlighting |
-| Progress bars | Bubbles spinner + progress | Standard patterns |
-| Input fields | Bubbles textinput | With autocomplete via custom matcher |
-| Tables | Lipglose table | Sortable, paginated |
-| Color detection | [termenv](https://github.com/muesli/termenv) | Auto-detects terminal color support |
+**EN summary.** Stack: Bubble Tea (ELM architecture framework), Lipgloss (styling), Bubbles list (virtualization), Glamour (markdown), termenv (color detection). Rejected tview (older), gocui (lower-level), raw ANSI (error-prone). The stack implements three UI-velocity patterns natively (Critical CSS, Islands/partial hydration, Skeleton/SWR analogues — see §13.1 for the architectural mapping).
 
-**Alternatives rejected:**
-- `tview` — older, less idiomatic, less modular
-- `gocui` — lower-level, more boilerplate
-- Raw ANSI escapes — too error-prone across terminals
+| Component | Choice | Reason |
+|-----------|--------|--------|
+| Framework | [Bubble Tea](https://github.com/charmbracelet/bubbletea) | ELM architecture (Model-Update-View), `tea.Cmd` for async, mature |
+| Styling | [Lipgloss](https://github.com/charmbracelet/lipgloss) | Style strings pre-computed at startup; **Critical CSS analogue** — see §13.1 |
+| List virtualization | [Bubbles list](https://github.com/charmbracelet/bubbles) | Handles >1000 items with viewport virtualization |
+| Markdown | [Glamour](https://github.com/charmbracelet/glamour) | Renders decision records, README, ADRs in TUI |
+| Progress bars | Bubbles spinner, progress | Standard component |
+| Input fields | Bubbles textinput, textarea | Standard components |
+| Tables | Bubbles table | Sortable, paginated |
+| Color detection | [termenv](https://github.com/muesli/termenv) | Auto-detects 256/truecolor, falls back to 16-color |
+
+**Rejected alternatives:** `tview` (older API, less maintained), `gocui` (lower-level, more boilerplate), raw ANSI (error-prone, no abstraction).
+
+> **UI-velocity pattern alignment (TRIZ-pass addition, v0.3.1-triz).** The TUI stack already implements the equivalent of three web-velocity patterns. Documenting them explicitly helps agents apply web knowledge to TUI:
+>
+> 1. **Critical CSS analogue → Lipgloss pre-computed styles.** Lipgloss computes the final ANSI escape string for a style at definition time (e.g. `var title = lipgloss.NewStyle().Bold(true).Foreground(blue)`). On each frame, only the pre-computed string is emitted, never the raw style rules. This is structurally the same as inlining critical CSS and deferring non-critical: pre-compute once, emit minimal per frame. @invariant INV-UI-006.
+> 2. **Islands / partial hydration analogue → Lazy screen mount.** Bubble Tea screens mount lazily on first navigation (`tea.Cmd` returns `LoadScreenMsg`). A screen that is never opened costs zero render time — its model is not initialized, its data is not loaded. This is structurally the same as Astro/RSC partial hydration — only the islands that need interactivity are hydrated. @invariant INV-UI-005.
+> 3. **Skeleton / stale-while-revalidate analogue → Skeleton{} placeholder + DataLoadedMsg swap.** Every async data load returns a `Skeleton{}` placeholder immediately, then a `DataLoadedMsg` replaces it. The skeleton is the cached "stale" view; the new data is the "revalidate". This is structurally the same as SWR in React: show stale immediately, swap to fresh in background. @invariant INV-UI-004.
+>
+> These analogues are not metaphors — they are the same pattern, implemented for a TUI instead of a browser.
 
 ### 0.3 Performance budget (universal)
 
-Любая команда `caf` должна соблюдать:
+**EN summary.** Universal performance budget enforced for all screens. Sub-100ms first paint, sub-16ms frame render (60fps), sub-50ms keystroke, sub-3s LLM ops, sub-1s file ops on 10k-file repo. CI benchmarks; alert on >2x regression. @invariant INV-UI-001 through INV-UI-003.
 
-| Operation | Budget | Strategy |
-|---|---|---|
-| First paint (any screen) | <100ms | Render skeleton first, lazy-load data |
-| Frame render (scroll, redraw) | <16ms (60fps) | Virtualized lists, cached layouts |
-| Keystroke response | <50ms | Direct dispatch, no async for simple actions |
-| LLM-dependent operations | <3s (acceptable) | Skeleton + spinner, cache results |
-| File operations on 10k-file repo | <1s | Streaming + index, no full load |
+| Operation | Budget | Strategy | Invariant |
+|-----------|--------|----------|-----------|
+| First paint (any screen) | <100ms | Render skeleton first, lazy-load data | INV-UI-001 |
+| Frame render (scroll, redraw) | <16ms (60fps) | Virtualized lists, cached layouts | INV-UI-002 |
+| Keystroke response | <50ms | Direct dispatch, no async for simple actions | INV-UI-003 |
+| LLM-dependent operations | <3s (acceptable) | Skeleton + spinner, cache results | (INV-UI-004 SWR pattern) |
+| File operations on 10k-file repo | <1s | Streaming + index, no full load | (INV-ARCH-003 LSP fallback) |
 
-Если операция превышает budget — показываем skeleton + spinner, не блокируем UI.
+Если операция превышает budget — показываем skeleton + spinner, не блокируем UI. Если превышение систематическое (CI benchmark regression >2x), alert срабатывает и PR не мержится без обоснования.
 
 ### 0.4 Color system
 
-Terminal-safe ANSI colors. Поддержка: 256-color, truecolor (если терминал поддерживает). Авто-fallback на 16-color.
-
-**Semantic palette:**
-
-```
-Background:   terminal default (no override)
-Primary:      #61AFEF  (blue)        — primary actions, links
-Secondary:    #98C379  (green)       — success, "good" metrics
-Warning:      #E5C07B  (yellow)       — partial support, attention
-Error:        #E06C75  (red)          — errors, low metrics
-Muted:        #5C6370  (gray)         — secondary text, hints
-Accent:       #C678DD  (purple)       — highlights, focus
-Background2:  #282C34  (dark gray)    — selected items, hot rows
-```
-
-В коде:
+**EN summary.** Hex palette: Primary #61AFEF (blue), Secondary #98C379 (green), Warning #E5C07B (yellow), Error #E06C75 (red), Muted #5C6370 (gray), Accent #C678DD (purple), Background2 #282C34 (dark). termenv auto-detects 256/truecolor, falls back to 16-color.
 
 ```go
+// pkg/ui/theme.go
 var (
-    Primary   = lipgloss.Color("#61AFEF")
-    Success   = lipgloss.Color("#98C379")
-    Warning   = lipgloss.Color("#E5C07B")
-    Error     = lipgloss.Color("#E06C75")
-    Muted     = lipgloss.Color("#5C6370")
-    Accent    = lipgloss.Color("#C678DD")
-    Selected  = lipgloss.Color("#282C34")
+    Primary    = lipgloss.Color("#61AFEF") // blue — primary actions, headings
+    Secondary  = lipgloss.Color("#98C379") // green — success, owned files
+    Warning    = lipgloss.Color("#E5C07B") // yellow — warnings, pending decisions
+    Error      = lipgloss.Color("#E06C75") // red — errors, blindspots
+    Muted      = lipgloss.Color("#5C6370") // gray — muted text, meta
+    Accent     = lipgloss.Color("#C678DD") // purple — accent, LLM-related
+    Background = lipgloss.Color("#282C34") // dark — app background
 )
 ```
 
-Если `termenv` detect'ит 16-color terminal → fallback mapping:
-
-```
-Primary   → blue
-Success   → green
-Warning   → yellow
-Error     → red
-Muted     → white (dim)
-Accent    → magenta
-Selected  → reverse video
-```
+Fallback (16-color): Primary→blue, Secondary→green, Warning→yellow, Error→red, Muted→white(dim), Accent→magenta, Background→black. termenv handles the detection at startup.
 
 ### 0.5 Typography
 
-Terminal monospace. Шрифты зависят от terminal, но CAF задаёт:
-
 | Element | Style | Example |
-|---|---|---|
-| H1 | bold + accent color | **Dashboard** |
-| H2 | bold + primary | **Today's Review Queue** |
-| H3 | bold | **Pending decisions** |
-| Body | regular | Text content |
-| Code | regular + background | `internal/api/policies.go` |
-| Metadata | muted | 2026-10-24 · 11:02 |
-| Highlight | accent underlined | token bucket |
-| Truncated | muted `…` suffix | Very long title… |
+|---------|-------|---------|
+| H1 (screen title) | Bold + Accent color | `# CodeAuthorityFirst — Dashboard` |
+| H2 (section) | Bold + Primary color | `## Today` |
+| H3 (subsection) | Bold + Primary color | `### Review queue` |
+| Body | Regular + Text color | `5 cards due, 2 pending decisions` |
+| Muted meta | Muted color, smaller | `Last refresh: 30s ago` |
+| Code | SarasaMonoSC | `caf who internal/middleware/ratelimit.go:42` |
+| Error | Error color + Bold | `Error: caf binary missing. Sessions continue.` |
 
-Word wrap: `wordwrap` из `github.com/muesli/reflow` с сохранением code spans.
+Word wrap via `github.com/muesli/reflow`.
 
 ### 0.6 Universal keyboard map
 
+**EN summary.** Universal keyboard map enforced across all screens. `?` help, `q`/`Ctrl+C` quit, `Esc` back, `Tab`/`Shift+Tab` cycle widgets, `j`/`↓`/`k`/`↑` vim-style, `g`/`G` top/bottom, `/` search, `Enter` activate, `Space` toggle, `r` refresh, `1`-`9` screen switch, `:` command palette, `h`/`l` horizontal nav.
+
 | Key | Action | Works in |
-|---|---|---|
-| `?` | Show help / keyboard overlay | everywhere |
-| `q` / `Ctrl+C` | Quit / cancel | everywhere |
-| `Esc` | Back / close dialog | everywhere |
-| `Tab` / `Shift+Tab` | Next / prev focusable | forms, dashboards |
-| `j` / `↓` | Next item | lists, tables |
-| `k` / `↑` | Prev item | lists, tables |
-| `g` / `G` | Top / bottom | lists, tables |
-| `/` | Search / filter | lists, tables |
-| `Enter` | Confirm / open | everywhere |
-| `Space` | Toggle / mark | lists, decisions |
-| `r` | Refresh | dashboards |
-| `1`-`9` | Jump to tab N | tabbed screens |
-| `:` | Command palette | everywhere (optional) |
-| `h` / `l` | Left / right (in panes) | split-view screens |
+|-----|--------|----------|
+| `?` | Help overlay | All screens |
+| `q` / `Ctrl+C` | Quit | All screens |
+| `Esc` | Back / Cancel | All screens |
+| `Tab` / `Shift+Tab` | Cycle widgets / focus | Dashboard, multi-panel screens |
+| `j` / `↓` | Down | Lists, tables, single-panel |
+| `k` / `↑` | Up | Lists, tables, single-panel |
+| `g` | Top | Lists, tables |
+| `G` | Bottom | Lists, tables |
+| `/` | Search | Lists, tables, decisions |
+| `Enter` | Activate | Lists, tables, cards |
+| `Space` | Toggle | Checkboxes, card selection |
+| `r` | Refresh | Dashboard, decisions, adapters |
+| `1`-`9` | Switch screen | Dashboard, navigation |
+| `:` | Command palette | All screens (FUTURE K-010) |
+| `h` / `l` | Left / Right nav | Multi-panel: review, file tour |
 
 **Vim-style rationale:** developers know vim, no learning curve. `?` for help is universal (less/vim/man).
 
@@ -147,123 +203,117 @@ Word wrap: `wordwrap` из `github.com/muesli/reflow` с сохранением 
 
 ### 1.1 Screen inventory
 
+**EN summary.** 11 screens inventoried. Phase assignments reconciled with ROADMAP in v0.3.1-triz: Dashboard = MVP (was ALPHA in original UI.md §1.1, conflicting with ROADMAP §2.1); File tour = BETA (was PROD in original UI.md §1.1, conflicting with ROADMAP §4.1).
+
 | # | Screen | Command | Phase | Spec section |
-|---|---|---|---|---|
-| 1 | Onboarding wizard | `caf init` (interactive) | MVP | §9 |
-| 2 | Dashboard | `caf dashboard` | ALPHA | §3 |
-| 3 | Review session | `caf review` | BETA | §4 |
+|---|--------|---------|-------|--------------|
+| 1 | Onboarding Wizard | `caf init` | MVP | §2 |
+| 2 | Dashboard | `caf dashboard` | **MVP** (v0.3.1-triz reconciliation with ROADMAP §2.1) | §3 |
+| 3 | Review Session | `caf review` | BETA | §4 |
 | 4 | Decisions list | `caf decisions` | ALPHA | §5.1 |
-| 5 | Decision editor | `caf decisions new` | ALPHA | §5.3 |
-| 6 | Heatmap | `caf heatmap` | BETA | §6 |
-| 7 | Adapters manager | `caf adapters list` | MVP | §7 |
-| 8 | File tour | `caf tour <file>` | PROD | §8 |
-| 9 | Sessions browser | `caf sessions` | ALPHA | §5.2 |
-| 10 | Reports view | `caf report` | PROD | §10 |
-| 11 | Settings editor | `caf config edit` | ALPHA | §11 |
+| 5 | Decision detail | (from list) | ALPHA | §5.2 |
+| 6 | Decision editor | `caf decisions new` | ALPHA | §5.3 |
+| 7 | Heatmap | `caf heatmap` | BETA | §6 |
+| 8 | Adapters Manager | `caf adapters list` | MVP | §7 |
+| 9 | File Tour | `caf tour <file>` | **BETA** (v0.3.1-triz reconciliation with ROADMAP §4.1) | §8 |
+| 10 | Sessions browser | `caf sessions` | ALPHA | (not in this file — future §) |
+| 11 | Reports | `caf report` | PROD | §10 |
+| 12 | Settings | `caf config edit` | ALPHA | §11 |
 
 ### 1.2 Navigation flow
 
-```text
-                ┌──────────────┐
-                │  caf init    │ (onboarding)
-                └──────┬───────┘
-                       │
-                ┌──────▼───────┐
-   ┌───────────►│ caf dashboard │◄───────────┐
-   │            └──────┬───────┘            │
-   │                   │                    │
-   │       ┌───────────┼───────────┐        │
-   │       │           │           │        │
-   │  ┌────▼────┐ ┌────▼────┐ ┌────▼─────┐  │
-   │  │ review  │ │decisions│ │ sessions │  │
-   │  └────┬────┘ └────┬────┘ └────┬─────┘  │
-   │       │          │            │        │
-   │       │     ┌────▼────┐       │        │
-   │       │     │ decision │       │        │
-   │       │     │  editor  │       │        │
-   │       │     └────┬────┘       │        │
-   │       │          │            │        │
-   │  ┌────▼──────────▼────────────▼─────┐  │
-   └──┤         file tour (caf tour)      ├──┘
-      └───────────────────────────────────┘
 ```
+                        ┌──────────────────┐
+                        │   Onboarding     │
+                        │   (caf init)     │
+                        └────────┬─────────┘
+                                 │
+                                 ▼
+                        ┌──────────────────┐    1     ┌─────────────┐
+                        │    Dashboard     │────────▶│  Review     │
+                        │  (caf dashboard) │         │  Session    │
+                        └────────┬─────────┘         └─────────────┘
+                                 │ 2
+                       ┌─────────┼─────────┐
+                       │3        │4        │5
+                       ▼         ▼         ▼
+                  ┌────────┐ ┌────────┐ ┌────────────┐
+                  │Decisions│ │Heatmap │ │Adapters    │
+                  │(list)   │ │        │ │Manager     │
+                  └────┬────┘ └────────┘ └────────────┘
+                       │
+                       ▼
+                  ┌────────┐
+                  │Decision│
+                  │detail  │
+                  └────────┘
+                       │ 6 (file ref)
+                       ▼
+                  ┌─────────────────┐
+                  │ File Tour       │
+                  │ (caf tour <file>)│
+                  └─────────────────┘
+```
+
+Dashboard is the hub; review/decisions/sessions branch out; file tour is leaf, collecting from all.
 
 ### 1.3 Common UI patterns
 
-**Status bar (bottom of every screen):**
+**EN summary.** Four common patterns: status bar (bottom, screen tabs + repo + agent + help), header bar (top, version + repo + counts + ACS), empty states (CTA box), loading states (skeleton + spinner + 1s warning), error states (`[r] Retry [d] Doctor [i] Ignore [q] Quit`).
 
-```text
-[1] Dashboard  [2] Review  [3] Decisions  │  repo: my-backend  │  agent: claude-code  │  ? help  q quit
+**Status bar (bottom):**
+```
+[1] Dashboard [2] Review [3] Decisions │ repo: my-backend-service │ agent: opencode │ ? help  q quit
 ```
 
-- Tabs по `1`-`9`
-- Repo + активный агент в центре
-- Help/quit справа
-
-**Header bar (top of every screen):**
-
-```text
-CodeAuthorityFirst v0.3.0 │ my-backend-service │ 47 sessions · 12 decisions · ACS 3.8 ↑
+**Header bar (top):**
+```
+CodeAuthorityFirst v0.3.1-triz │ my-backend-service │ 47 sessions · 12 decisions · ACS 3.8 ↑
 ```
 
-- Версия CAF
-- Repo name
-- Summary stats (sessions / decisions / ACS с трендом)
-
-**Empty states:**
-
-Когда данных нет, показываем не пустой экран, а CTA:
-
-```text
-┌─────────────────────────────────────────────────┐
-│             No decisions yet                    │
-│                                                 │
-│   Run your first AI agent session, then:       │
-│                                                 │
-│   $ caf decisions new --files <path>           │
-│                                                 │
-│   Or wait for pre-commit hook to prompt you    │
-│   after the next non-trivial commit.           │
-│                                                 │
-│   [Enter] Dismiss    [?] Help                   │
-└─────────────────────────────────────────────────┘
+**Empty states:** CTA box centered on screen.
+```
+┌────────────────────────────────────────────────┐
+│                                                │
+│   No decisions yet.                            │
+│                                                │
+│   Run `caf decisions new` to record your first │
+│   architectural decision.                      │
+│                                                │
+│   [n] New decision    [?] Help                 │
+│                                                │
+└────────────────────────────────────────────────┘
 ```
 
-**Loading states:**
-
-Skeleton + spinner. Никогда не блокируем UI:
-
-```text
-Loading sessions...
-
-  ████████░░░░░░░░░░░░  42%
-  Fetching 247 session files...
-
-  This should take <1s. If it takes longer, run `caf doctor`.
+**Loading states:** skeleton + spinner.
+```
+CodeAuthorityFirst v0.3.1-triz │ my-backend-service │ Loading...
+⠋ Loading dashboard... (this should take <1s. If it takes longer, run `caf doctor`)
 ```
 
 **Error states:**
-
-```text
-┌─────────────────────────────────────────────────┐
-│ ⚠ Failed to load sessions                       │
-│                                                 │
-│ Error: .caf/sessions/2026-10-24-a1b2c3.yml:    │
-│        line 12: invalid YAML                    │
-│                                                 │
+```
+┌────────────────────────────────────────────────┐
+│ Error: caf binary missing. Sessions continue.  │
+│                                                │
+│ Cause: $PATH does not contain `caf`            │
+│ Recovery: run `make install` or `brew install  │
+│ codeauthorityfirst/tap/caf`                    │
+│                                                │
 │ [r] Retry  [d] Doctor  [i] Ignore  [q] Quit    │
-└─────────────────────────────────────────────────┘
+└────────────────────────────────────────────────┘
 ```
 
 ### 1.4 Web UI (FUTURE, not in v0.3)
 
-Web UI отложен. Когда наступит FUTURE, web UI будет:
+**EN summary.** Web UI is deferred to FUTURE. Read-only view on `.caf/`, interactive graph visualization (D3.js — only thing impossible in TUI), team-mode real-time dashboard, export to PDF/Markdown. **Web UI НЕ заменяет TUI** (ADR-014 invariant). See BACKLOG K-002, ADR-025 (future).
 
-- Read-only view на `.caf/` данные (без редактирования — TUI для этого)
-- Interactive graph visualization (D3.js) — единственное, что нельзя в TUI
-- Real-time dashboard для team mode (multi-user)
+Web UI НЕ заменяет TUI. Web UI добавляет только визуализации, невозможные в terminal:
 
-Web UI НЕ заменяет TUI. TUI остаётся primary interface.
+- **Interactive graph visualization (D3.js).** Single thing TUI cannot do well — interactive node-link graph with zoom/pan.
+- **Real-time heatmap** for team mode (BACKLOG G-003).
+- **Export to PDF/Markdown** for compliance reports (BACKLOG F-003).
+- **NOT replacing TUI** (ADR-014 invariant).
 
 ---
 
@@ -271,97 +321,93 @@ Web UI НЕ заменяет TUI. TUI остаётся primary interface.
 
 ### 2.1 Purpose
 
-Первый запуск `caf` в новом репо. Минимум friction, максимум прозрачности.
+**EN summary.** First `caf` run, minimum friction. ~30 seconds, 4 steps. Auto-detect installed agents. Install universal pre-commit hook. Show first-time setup summary.
 
 ### 2.2 Flow
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                                                                 │
-│   Welcome to CodeAuthorityFirst v0.3.0                          │
-│                                                                 │
-│   This wizard will:                                             │
-│     1. Detect AI agents active in your repo                    │
-│     2. Install universal pre-commit hook                      │
-│     3. Install agent-specific adapters (optional)             │
-│     4. Run first `caf context --refresh`                      │
-│                                                                 │
-│   Time: ~30 seconds                                            │
-│                                                                 │
-│   [Enter] Continue    [q] Cancel                              │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+**Step 1: Welcome**
+```
+┌────────────────────────────────────────────────┐
+│                                                │
+│   Welcome to CodeAuthorityFirst v0.3.1-triz     │
+│                                                │
+│   I'll set up provenance tracking for your     │
+│   repo in ~30 seconds.                         │
+│                                                │
+│   Plan:                                        │
+│   1. Detect installed agents                   │
+│   2. Install universal pre-commit hook         │
+│   3. Configure adapters                        │
+│   4. Show summary                              │
+│                                                │
+│   [Enter] Continue    [q] Quit                 │
+│                                                │
+└────────────────────────────────────────────────┘
 ```
 
-**Step 1: Detection**
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                                                                 │
-│   Scanning for AI agents...                                    │
-│                                                                 │
-│   Detected:                                                    │
-│     ✓ opencode       (.opencode/ found)                       │
-│     ✓ Claude Code    (.claude/ found)                          │
-│     ✗ Cursor         (not detected)                            │
-│     ✗ Aider          (not detected)                            │
-│                                                                 │
-│   Universal fallback (LSP): will be installed                  │
-│                                                                 │
-│   [Enter] Continue with detected agents                       │
-│   [a] Add another agent manually                              │
-│   [s] Skip adapters, universal only                           │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+**Step 2: Detection**
+```
+┌────────────────────────────────────────────────┐
+│                                                │
+│   Detecting agents...                          │
+│                                                │
+│   ✓ opencode     (found in $PATH)              │
+│   ✓ Claude Code  (found in ~/.claude/)         │
+│   ✗ Cursor       (not found — wrapper avail.)  │
+│   ✗ Aider        (not found — wrapper avail.)  │
+│                                                │
+│   Universal fallback (LSP-based) will track    │
+│   all other agents automatically.              │
+│                                                │
+│   [Enter] Continue                             │
+│                                                │
+└────────────────────────────────────────────────┘
 ```
 
-**Step 2: Installation progress**
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                                                                 │
-│   Installing adapters...                                       │
-│                                                                 │
-│   [✓] Universal pre-commit hook    ████████████████████ 100%   │
-│   [✓] Universal LSP fallback       ████████████████████ 100%   │
-│   [✓] opencode adapter             ████████████████████ 100%   │
-│   [✓] Claude Code adapter          ████████████████████ 100%   │
-│   [•] Generating context.md        ████████░░░░░░░░░░░░  42%   │
-│                                                                 │
-│   [Running] caf context --refresh                             │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+**Step 3: Installation progress**
+```
+┌────────────────────────────────────────────────┐
+│                                                │
+│   Installing adapters...                       │
+│                                                │
+│   opencode      ████████████████████ 100%      │
+│   Claude Code   ████████████████████ 100%      │
+│   Universal hook ████████████████████ 100%      │
+│   LSP fallback  ████████████████████ 100%      │
+│                                                │
+│   [Enter] Continue                             │
+│                                                │
+└────────────────────────────────────────────────┘
 ```
 
-**Step 3: First-time setup**
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                                                                 │
-│   ✓ Setup complete!                                            │
-│                                                                 │
-│   Summary:                                                    │
-│     Repo:           my-backend-service                         │
-│     Adapters:        opencode, Claude Code, Universal LSP      │
-│     Pre-commit hook: installed (validates future commits)    │
-│     Sessions logged: 0 (will accumulate as you use agents)   │
-│                                                                 │
-│   Next steps:                                                 │
-│     1. Run an AI agent session normally                       │
-│     2. After non-trivial commit, caf will prompt for decision│
-│     3. Run `caf dashboard` to see your authorship metrics     │
-│                                                                 │
-│   [d] Open dashboard    [q] Done                              │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+**Step 4: Summary**
+```
+┌────────────────────────────────────────────────┐
+│                                                │
+│   Setup complete.                              │
+│                                                │
+│   Installed:                                   │
+│   • .caf/ folder created                       │
+│   • .git/hooks/pre-commit installed (universal)│
+│   • Adapters: opencode, Claude Code            │
+│   • Universal LSP fallback active               │
+│                                                │
+│   Next steps:                                  │
+│   • Run `caf dashboard` to see overview        │
+│   • Run `caf who <file:line>` for provenance  │
+│   • Run `caf context` to generate context.md   │
+│                                                │
+│   [Enter] Finish    [d] Open dashboard        │
+│                                                │
+└────────────────────────────────────────────────┘
 ```
 
 ### 2.3 Edge cases
 
-- **Repo already has `.caf/`:** show "Setup already complete. [r] Re-run  [q] Cancel"
-- **No AI agent detected:** show "No agents detected. Universal fallback will track any agent. [c] Continue  [q] Cancel"
-- **Permission denied on `.git/hooks/`:** show error with `sudo` suggestion
-- **Non-git repo:** show error "CAF requires git. Run `git init` first."
+- Existing `.caf/` — `caf init` detects, offers `caf migrate` if version mismatch.
+- No agent detected — universal fallback will still track; show message "universal LSP fallback active; no explicit adapter needed."
+- Permission denied on `.git/hooks/` — fallback to user-level hooks in `~/.config/git/hooks/`.
+- Non-git repo — `caf init` warns, offers to initialize git first.
 
 ---
 
@@ -369,121 +415,91 @@ Web UI НЕ заменяет TUI. TUI остаётся primary interface.
 
 ### 3.1 Purpose
 
-Real-time overview ментального владения кодом. Главная точка входа после onboarding.
+**EN summary.** Dashboard is the hub screen. Shows Today widget (review queue, pending decisions, new blindspots), Authorship Score widget (ACS weekly avg, target ≥3.5, Recall %, Coverage %), Active Agents widget, Recent Decisions widget, Cross-repo widget (dependencies with stale-decision indicators).
 
 ### 3.2 Layout
 
-```text
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ CodeAuthorityFirst v0.3.0 │ my-backend-service │ 47 sessions · 12 dec · ACS 3.8 ↑│
-├──────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  ┌─ Today ──────────────────────────┐  ┌─ Authorship Score ─────────────┐  │
-│  │                                  │  │                                 │  │
-│  │  Review queue: 7 cards due       │  │   ACS (weekly avg)              │  │
-│  │  Pending decisions: 2            │  │                                 │  │
-│  │  New blindspots: 3 files        │  │   3.8 ▲                         │  │
-│  │                                  │  │   ▲ +0.3 vs last week           │  │
-│  │  [r] Review now    [d] Decide   │  │                                 │  │
-│  │                                  │  │   Target: ≥3.5  ✓              │  │
-│  └──────────────────────────────────┘  │                                 │  │
-│                                        │   Recall: 78%  Coverage: 64%  │  │
-│  ┌─ Active Agents ─────────────────┐  │                                 │  │
-│  │                                 │  │   [s] See detailed stats       │  │
-│  │  claude-code    23 sessions     │  └─────────────────────────────────┘  │
-│  │  opencode        12 sessions     │                                        │
-│  │  aider            8 sessions     │  ┌─ Cross-repo ───────────────────┐  │
-│  │  cursor           4 sessions     │  │                                 │  │
-│  │                                 │  │  Dependencies:                  │  │
-│  │  [a] Adapters manager           │  │   → my-auth-lib (1 stale dec)   │  │
-│  └─────────────────────────────────┘  │   → my-telemetry-lib (clean)    │  │
-│                                        │                                 │  │
-│  ┌─ Recent Decisions ─────────────┐  │  Exposes:                       │  │
-│  │                                 │  │   PolicyAPI (consumed by 2)     │  │
-│  │  d_2026-10-24-01  Rate limiter │  │                                 │  │
-│  │    agent: claude-code           │  │  [x] Run caf sync               │  │
-│  │    files: 1                     │  └─────────────────────────────────┘  │
-│  │                                 │                                        │
-│  │  d_2026-10-23-02  Token format  │                                        │
-│  │    agent: aider                 │                                        │
-│  │    files: 2                     │                                        │
-│  │                                 │                                        │
-│  │  [Enter] Open    [/] Search     │                                        │
-│  └─────────────────────────────────┘                                        │
-│                                                                              │
-├──────────────────────────────────────────────────────────────────────────────┤
-│ [1] Dashboard  [2] Review  [3] Decisions  [4] Sessions  │ repo: my-backend │ ? help  q quit │
-└──────────────────────────────────────────────────────────────────────────────┘
+```
+CodeAuthorityFirst v0.3.1-triz │ my-backend-service │ 47 sessions · 12 decisions · ACS 3.8 ↑
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+┌─ Today ────────────────────────────┐  ┌─ Authorship Score ──────────────────────────────────────────┐
+│ Review queue:        5 cards due    │  │                                                              │
+│ Pending decisions:  2 unrecorded    │  │   ACS (weekly avg): 3.8 ↑        Target: ≥3.5  ✓           │
+│ New blindspots:      3 files flagged│  │                                                              │
+│                                     │  │   Recall:    78%   Target: ≥75%  ✓                         │
+│ [Enter] Start review session        │  │   Coverage:  92%   Target: ≥90%  ✓                         │
+│ [n]     New decision                │  │                                                              │
+└─────────────────────────────────────┘  │   Last 7 days: ▁▂▄▅▆▇█ 3.8                                  │
+                                         │                                                              │
+┌─ Active Agents ─────────────────────┐  │   [m] View metrics report                                   │
+│ opencode        ●  (12 sessions)    │  └──────────────────────────────────────────────────────────────┘
+│ Claude Code     ●  (8 sessions)     │
+│ Universal LSP   ●  (3 sessions)     │  ┌─ Recent Decisions ───────────────────────────────────────────┐
+│                                     │  │ 2026-10-24  Sliding window for rate limiter   [opencode]   │
+└─────────────────────────────────────┘  │ 2026-10-22  Token bucket as fallback          [Claude Code]│
+                                         │ 2026-10-20  Postgres connection pool size=20  [opencode]   │
+┌─ Cross-repo dependencies ──────────┐  │                                                              │
+│ my-backend-service ──▶ my-proto     │  │ [Enter] Open detail   [n] New decision                     │
+│  └ stale decision (3d ago)         │  └──────────────────────────────────────────────────────────────┘
+│ my-backend-service ──▶ my-utils    │
+│  └ up to date                       │  ┌─ Cross-repo ────────────────────────────────────────────────┐
+│                                     │  │ my-backend-service depends on:                              │
+│ [x] Run `caf sync`                 │  │   • my-proto     (3d stale decision — ⚠)                   │
+└─────────────────────────────────────┘  │   • my-utils     (up to date — ✓)                          │
+                                         │                                                              │
+                                         │   [x] Run `caf sync`                                        │
+                                         └──────────────────────────────────────────────────────────────┘
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+[1] Dashboard [2] Review [3] Decisions │ repo: my-backend-service │ agent: opencode │ ? help  q quit
 ```
 
 ### 3.3 Components
 
-**Top bar:** версия, repo, summary stats с трендом.
-
-**Today widget:**
-- Review queue (карточки с `due ≤ сегодня`)
-- Pending decisions (нетривиальные коммиты без decision)
-- New blindspots (файлы, изменённые за 30 дней, без карточек)
-- Quick actions: `r` review, `d` decide
-
-**Authorship Score widget:**
-- ACS (weekly avg) с trend arrow
-- Target met indicator
-- Recall rate, Coverage rate
-- `s` открывает detailed stats
-
-**Active Agents widget:**
-- Список агентов, активных за 30 дней
-- Session count per agent
-- `a` открывает adapters manager
-
-**Recent Decisions widget:**
-- Последние 5 decisions
-- `Enter` открыть, `/` search
-
-**Cross-repo widget:**
-- Dependencies (со stale-decision indicators)
-- Exposes
-- `x` запускает `caf sync`
-
-**Bottom bar:** tabs, repo, help/quit hints.
+Five widgets:
+1. **Today** — review queue, pending decisions, new blindspots.
+2. **Authorship Score** — ACS weekly avg with sparkline, Recall %, Coverage %, targets comparison.
+3. **Active Agents** — agents that have run sessions in last 7 days.
+4. **Recent Decisions** — last 3-5 decisions, sorted by date desc.
+5. **Cross-repo** — dependencies with stale-decision indicators (⚠) or up-to-date (✓).
 
 ### 3.4 Keyboard map
 
 | Key | Action |
-|---|---|
-| `1`-`5` | Switch to widget 1-5 |
-| `Tab` | Next widget |
-| `r` | Open review screen |
-| `d` | Open decisions list |
-| `a` | Open adapters manager |
-| `s` | Open detailed stats |
-| `x` | Run `caf sync` |
-| `R` | Refresh dashboard |
-| `/` | Search across all data |
+|-----|--------|
+| `Tab` / `Shift+Tab` | Cycle widgets |
+| `1`-`5` | Jump to widget N |
+| `Enter` | Activate widget action (e.g. start review from Today widget) |
+| `r` | Manual refresh |
+| `R` | Force full refresh (skip cache) |
+| `x` | Run cross-repo sync (from Cross-repo widget) |
+| `n` | New decision |
+| `m` | View metrics report |
 | `?` | Help |
-| `q` | Quit |
 
 ### 3.5 Refresh strategy
 
-- **Auto-refresh:** every 30 seconds (configurable via `.caf/config.yml` `ui.heatmap_refresh_seconds`)
-- **Manual refresh:** `R`
-- **Refresh only changed widgets:** incremental update, no full re-render
-- **File watcher:** `.caf/` changes trigger automatic refresh of affected widgets only
+**EN summary.** Auto-refresh every 30 seconds (configurable via `.caf/config.yml` `ui.heatmap_refresh_seconds`). Manual `r` for incremental update (only changed widgets). `R` for full refresh (skip cache). File watcher on `.caf/` triggers incremental update.
+
+- Auto-refresh: every 30 seconds (configurable via `.caf/config.yml` `ui.heatmap_refresh_seconds`). Note: the config key name includes "heatmap" for historical reasons; in v0.3.1-triz it controls dashboard refresh as well. Future ADR may rename to `ui.dashboard_refresh_seconds`.
+- Manual `r`: incremental update — only changed widgets. Uses file watcher on `.caf/` to know which widgets need refresh.
+- Manual `R`: full refresh, skip cache. Use when something looks wrong.
+- File watcher on `.caf/sessions/` and `.caf/decisions/` triggers incremental update immediately on change.
 
 ### 3.6 Performance budget
 
-- First paint: <100ms (skeleton + spinner for data)
-- Full data load: <500ms
-- Auto-refresh: <50ms (only changed widgets)
-- Memory: <50MB for dashboard process
+| Operation | Budget | Strategy | Invariant |
+|-----------|--------|----------|-----------|
+| First paint | <100ms | Render skeleton widgets immediately (INV-UI-004 SWR pattern), load real data in background | INV-UI-001 |
+| Full data load | <500ms | Parallel widget loads; caching | (INV-UI-005 lazy mount) |
+| Auto-refresh | <50ms | Only changed widgets; incremental diff | INV-UI-002 |
+| Memory | <50MB | Heatmap pre-computed (not full file content); only visible widgets in memory | (INV-UI-005) |
 
 ### 3.7 Edge cases
 
-- **No sessions yet:** show onboarding CTA in Today widget
-- **No decisions yet:** show "Run your first agent session" CTA in Recent Decisions
-- **Cross-repo deps not synced:** show "Run `caf sync`" CTA in Cross-repo widget
-- **Terminal too narrow (<120 cols):** stack widgets vertically instead of grid
+- No sessions yet — empty state with CTA "Run `caf init` to start tracking."
+- No decisions yet — empty state with CTA "Run `caf decisions new` to record your first decision."
+- Cross-repo not synced — Cross-repo widget shows "Run `caf sync`" CTA.
+- Terminal <120 cols — widgets stack vertically (UI.md §12.2 responsive).
 
 ---
 
@@ -491,175 +507,126 @@ Real-time overview ментального владения кодом. Глав�
 
 ### 4.1 Purpose
 
-Ежедневная SRS-сессия повторения. ~10 минут, 10-15 карточек. Главная точка контакта с MMR.
+**EN summary.** Daily SRS session. ~10 minutes, 10-15 cards. Main contact point with Mental Model Reconstructor. Split-view layout: question (left) + context (file path, decision ref, sessions) + grade panel.
 
 ### 4.2 Layout — Card view
 
-```text
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ caf review │ Card 3 of 12 │ 4 min elapsed │ ease: 2.5 │ interval: 1d → 3d    │
-├──────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  ┌─ Question ─────────────────────────────────┐  ┌─ Context ──────────────┐ │
-│  │                                            │  │                         │ │
-│  │  Type 1 · Why                              │  │  File:                  │ │
-│  │                                            │  │  internal/middleware/   │ │
-│  │  Почему в                                   │  │    ratelimit.go:18     │ │
-│  │  internal/middleware/ratelimit.go:18       │  │                         │ │
-│  │  выбран token bucket?                     │  │  Decision:              │ │
-│  │                                            │  │  d_2026-10-24-01       │ │
-│  │  ─────────────────────────────────────    │  │                         │ │
-│  │                                            │  │  Sessions:             │ │
-│  │  Your answer (type below, then grade):     │  │  • 2026-10-24-a1b2c3    │ │
-│  │                                            │  │    (claude-code)       │ │
-│  │  ▌                                         │  │  • 2026-11-02-e5f6a7    │ │
-│  │                                            │  │    (aider)             │ │
-│  │                                            │  │                         │ │
-│  └────────────────────────────────────────────┘  └─────────────────────────┘ │
-│                                                                              │
-│  ┌─ Grade your recall ──────────────────────────────────────────────────────┐ │
-│  │                                                                          │ │
-│  │  [0] Blackout — no memory           [3] Hard recall, much difficulty    │ │
-│  │  [1] Wrong, but felt familiar       [4] Good recall, some hesitation   │ │
-│  │  [2] Wrong, but easy to find         [5] Perfect, instant recall      │ │
-│  │                                                                          │ │
-│  │  [s] Show expected answer    [n] Skip    [q] Quit session              │ │
-│  │                                                                          │ │
-│  └──────────────────────────────────────────────────────────────────────────┘ │
-│                                                                              │
-├──────────────────────────────────────────────────────────────────────────────┤
-│ Card 3/12 │ ease 2.5 │ next interval: 1d → 3d (if grade 4) │ 4:12 elapsed  │ ? help  q quit │
-└──────────────────────────────────────────────────────────────────────────────┘
+```
+CodeAuthorityFirst v0.3.1-triz │ Review Session │ Card 3/12 │ Recall rate (7d): 78% │ ACS target: ≥3.5
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+┌─ Question ─────────────────────────────────────────────┐  ┌─ Context ───────────────────────────────────────┐
+│                                                       │  │                                                  │
+│  Type 1 (why)                                         │  │  File: internal/middleware/ratelimit.go         │
+│                                                       │  │  Decision: d_2026-10-24-01                       │
+│  Why does this code use a sliding window instead of   │  │  Sessions: 2026-10-24 (opencode), 2026-10-22     │
+│  a fixed window for rate limiting?                   │  │            (Claude Code)                         │
+│                                                       │  │                                                  │
+│                                                       │  │  Related decisions:                              │
+│                                                       │  │  • d_2026-10-22-01  Token bucket as fallback    │
+│                                                       │  │                                                  │
+│                                                       │  │  Related cards:                                  │
+│                                                       │  │  • c_001  Type 1  (this card)                    │
+│                                                       │  │  • c_005  Type 2  (what if remove)               │
+│                                                       │  │                                                  │
+└───────────────────────────────────────────────────────┘  └──────────────────────────────────────────────────┘
+┌─ Grade ───────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                                            │
+│  [0] Blackout (no memory)                                                                                 │
+│  [1] Wrong, but familiar                                                                                  │
+│  [2] Wrong, but easy to find                                                                              │
+│  [3] Hard recall, took effort                                                                             │
+│  [4] Good recall, minor hesitation                                                                        │
+│  [5] Perfect, instant recall                                                                              │
+│                                                                                                            │
+│  [n] Skip (= grade 0)    [s] Show expected answer                                                          │
+│                                                                                                            │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+[?] Help  [q] Quit  [s] Show answer  [0-5] Grade  [n] Skip  [←/→] Card history
 ```
 
 ### 4.3 Card types rendered differently
 
-**Type 1 — Why (above):** blue accent, shows decision ref in context.
-
-**Type 2 — What if remove:**
-
-```text
-┌─ Question ────────────────────────────────────┐
-│                                                │
-│  Type 2 · What if remove                       │
-│                                                │
-│  Что произойдёт, если удалить                  │
-│  policy.Cache из                               │
-│  pkg/policy/evaluator.go?                      │
-│                                                │
-│  ─────────────────────────────────────────    │
-│                                                │
-│  Your answer (predict the impact):             │
-│                                                │
-│  ▌                                             │
-│                                                │
-└────────────────────────────────────────────────┘
-```
-
-**Type 3 — Where handled:**
-
-```text
-┌─ Question ────────────────────────────────────┐
-│                                                │
-│  Type 3 · Where handled                       │
-│                                                │
-│  Где в коде my-backend-service                │
-│  обрабатывается событие                        │
-│  tool_call_failed?                             │
-│                                                │
-│  (List the file paths involved, from           │
-│   ingestion to retry logic.)                    │
-│                                                │
-│  ▌                                             │
-│                                                │
-└────────────────────────────────────────────────┘
-```
+- **Type 1 (why):** blue accent. "Why does this code use X?" — tests fact recall.
+- **Type 2 (what_if_remove):** yellow accent. "If we removed X, what would break?" — tests abstract reasoning.
+- **Type 3 (where_handled):** green accent. "Where in the codebase is X handled from entry to retry?" — tests trace through code.
 
 ### 4.4 Expected answer reveal
 
-After `s` (show expected answer):
-
-```text
-┌─ Expected answer ─────────────────────────────────────────────────────────┐
-│                                                                          │
-│  10 req/min, накладные расходы sliding window не оправданы.              │
-│  Token bucket: 10 токенов в бакете, пополнение 1 токен/6 секунд.         │
-│                                                                          │
-│  From decision d_2026-10-24-01:                                          │
-│  > Sliding window имеет смысл при 100+ req/sec, у нас на 3 порядка       │
-│  > меньше.                                                               │
-│                                                                          │
-│  Related sessions:                                                       │
-│  • 2026-10-24-a1b2c3 (claude-code) — initial implementation             │
-│  • 2026-11-02-e5f6a7 (aider) — added metrics                            │
-│                                                                          │
-│  Now grade your recall:                                                  │
-│  [0-5] Grade    [r] Reveal decision full text    [n] Skip               │
-│                                                                          │
-└──────────────────────────────────────────────────────────────────────────┘
+```
+┌─ Expected answer ──────────────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                                            │
+│  Decision d_2026-10-24-01 (recorded by opencode session 2026-10-24):                                       │
+│                                                                                                            │
+│  "Sliding window имеет смысл при 100+ req/sec, у нас на 3 порядка меньше. Fixed window достаточно и       │
+│  проще в reasoning."                                                                                        │
+│                                                                                                            │
+│  ── from .caf/decisions/d_2026-10-24-01.md (grounded in .caf/, ADR-006 invariant: LLM only paraphrases)   │
+│                                                                                                            │
+│  [0-5] Grade  [n] Skip  [→] Next card                                                                      │
+│                                                                                                            │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### 4.5 Session summary (after last card)
 
-```text
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                                                                              │
-│   Review session complete!                                                   │
-│                                                                              │
-│   ┌─ Summary ────────────────────────────────────────────────────────────┐  │
-│   │                                                                       │  │
-│   │   Cards reviewed: 12/12                                               │  │
-│   │   Time elapsed: 8m 47s                                               │  │
-│   │   Avg per card: 44s                                                  │  │
-│   │                                                                       │  │
-│   │   Grade distribution:                                                │  │
-│   │     [5] ████████████  6 cards  (perfect recall)                      │  │
-│   │     [4] ████████      4 cards  (good recall)                         │  │
-│   │     [3] ████          2 cards  (hard recall — flagged for review)     │  │
-│   │     [2]                                               │  │
-│   │     [1]                                               │  │
-│   │     [0]                                               │  │
-│   │                                                                       │  │
-│   │   Recall rate this session: 83% (10/12 grade ≥4)                    │  │
-│   │   Recall rate 7-day avg: 78% (target ≥75%)                          │  │
-│   │                                                                       │  │
-│   └───────────────────────────────────────────────────────────────────────┘  │
-│                                                                              │
-│   Authorship Confidence Score:                                              │
-                                                                              │
-│   "Мог бы я написать этот код с нуля?" (1-5): _                             │
-│                                                                              │
-│   [1-5] Grade    [s] Skip    [q] Done                                       │
-│                                                                              │
-└──────────────────────────────────────────────────────────────────────────────┘
+```
+CodeAuthorityFirst v0.3.1-triz │ Review Session │ Summary │ 12/12 cards
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+┌─ Grade distribution ──────────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                                            │
+│  [5] ████████████ 4 cards (33%)                                                                            │
+│  [4] ████████████ 4 cards (33%)                                                                            │
+│  [3] ██████ 2 cards (17%)                                                                                  │
+│  [2] ███ 1 card (8%)                                                                                       │
+│  [1] █ 1 card (8%)                                                                                         │
+│  [0] 0 cards                                                                                               │
+│                                                                                                            │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌─ Recall rate ─────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                                            │
+│  This session: 75%  (9/12 cards ≥ grade 3)                                                                 │
+│  7-day avg:    78%  Target: ≥75%  ✓                                                                        │
+│                                                                                                            │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌─ Final reflection ────────────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                                            │
+│  "Мог бы я написать этот код с нуля?" (1-5)                                                                 │
+│                                                                                                            │
+│  [1] No  [2] With help  [3] Maybe  [4] Probably  [5] Yes                                                   │
+│                                                                                                            │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### 4.6 Keyboard map
 
 | Key | Action |
-|---|---|
+|-----|--------|
 | `0`-`5` | Grade current card |
+| `n` | Skip (= grade 0) |
 | `s` | Show expected answer |
-| `n` | Skip card (counts as grade 0) |
-| `r` | Reveal decision full text |
-| `Tab` | Switch between answer field and context pane |
-| `Enter` | Submit answer text (then grades activate) |
-| `Backspace` | Edit answer |
-| `?` | Help overlay |
-| `q` | Quit session (with confirmation if mid-session) |
+| `→` | Next card |
+| `←` | Previous card (only in review mode, not after grade) |
+| `?` | Help |
+| `q` | Quit (saves partial progress) |
+| `Ctrl+C` | Force quit (saves partial progress) |
 
 ### 4.7 Performance budget
 
-- Card render: <50ms (pre-computed display, no LLM call)
-- LLM call (if `--explain` flag): <3s with skeleton + spinner
-- Session save: <100ms (incremental write to `cards.yml`)
+| Operation | Budget | Strategy | Invariant |
+|-----------|--------|----------|-----------|
+| Card render | <50ms | Pre-computed display, no LLM call | INV-UI-002 |
+| LLM call (if `--explain` flag) | <3s | Skeleton + spinner (INV-UI-004 SWR pattern), cache results | (INV-UI-004) |
+| Session save | <100ms | Incremental write to `cards.yml` after each card grade | (INV-ADR-005 atomic writes) |
 
 ### 4.8 Edge cases
 
-- **No cards due:** show "Nothing to review today! Come back tomorrow. [d] Open dashboard"
-- **Card references missing decision:** show "Decision d_xxx not found. Run `caf sync`? [y/n]"
-- **Session interrupted (Ctrl+C):** save partial progress, prompt to resume on next `caf review`
-- **100+ cards due (backlog):** warn user, offer `--max-cards 15` cap
+- No cards due — "No cards due today. Come back tomorrow." with CTA to view heatmap.
+- Missing decision for card — "Decision d_xxx missing. Run `caf sync`?" `[y/n]`
+- Ctrl+C — saves partial progress (`cards.yml` is incrementally written).
+- 100+ cards backlog — warns, offers `--max-cards 15` cap (mitigates SM-2 burnout risk, BACKLOG D-007).
 
 ---
 
@@ -667,173 +634,118 @@ After `s` (show expected answer):
 
 ### 5.1 Decisions list
 
-```text
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ caf decisions │ 12 decisions │ 90% coverage │ Filter: all agents · 30 days │
-├──────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  / Filter: type here to search...                                           │
-│                                                                              │
-│  ┌──────────────────────────────────────────────────────────────────────┐  │
-│  │ Date       Title                              Agent         Files  │  │
-│  ├──────────────────────────────────────────────────────────────────────┤  │
-│  │ 2026-10-24 Rate limiter: token bucket      claude-code    1      │  │
-│  │            vs sliding window                                       │  │
-│  │ 2026-10-23 Token format: JWT vs opaque     aider           2      │  │
-│  │ 2026-10-22 Database: Postgres vs MySQL      claude-code    5      │  │
-│  │ 2026-10-20 Auth: RBAC vs ABAC               opencode       8      │  │
-│  │ 2026-10-18 Cache: in-memory vs Redis        claude-code    3      │  │
-│  │ 2026-10-15 Logging: structured vs plain     aider           2      │  │
-│  │ 2026-10-14 API: REST vs GraphQL             claude-code    12     │  │
-│  │ ...                                                                 │  │
-│  └──────────────────────────────────────────────────────────────────────┘  │
-│                                                                              │
-│  Filter:                                                                    │
-│    [t] Today    [w] Week    [m] Month    [a] All time                      │
-│    [g] By agent [f] By file  [s] By status                                  │
-│                                                                              │
-│  [Enter] Open    [n] New    [/] Search    [g] Gaps    [q] Quit            │
-│                                                                              │
-├──────────────────────────────────────────────────────────────────────────────┤
-│ [3] Decisions │ repo: my-backend │ ? help  q quit                            │
-└──────────────────────────────────────────────────────────────────────────────┘
+**EN summary.** Filterable table of decisions. Filters: today/week/month/all, by agent, by file, by status. Actions: `Enter` open, `n` new, `/` search, `g` gaps.
+
+```
+CodeAuthorityFirst v0.3.1-triz │ Decisions │ 12 total │ 2 unrecorded non-trivial edits (gaps)
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Filter: [t] today  [w] week  [m] month  [a] all   │   [g] gaps   │   [/] search
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Date        │ Title                                    │ Agent       │ Files
+────────────┼──────────────────────────────────────────┼─────────────┼──────────────────────
+2026-10-24  │ Sliding window for rate limiter           │ opencode    │ internal/middleware/rl.go
+2026-10-22  │ Token bucket as fallback                  │ Claude Code │ internal/middleware/tb.go
+2026-10-20  │ Postgres connection pool size=20          │ opencode    │ internal/db/pool.go
+2026-10-18  │ Context cancellation in HTTP handler      │ opencode    │ internal/handler/ctx.go
+2026-10-15  │ Circuit breaker for payments service      │ Claude Code │ internal/payments/cb.go
+...
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+[Enter] Open detail  [n] New decision  [/] Search  [g] Gaps  [t/w/m/a] Filter  [?] Help  [q] Quit
 ```
 
 ### 5.2 Decision detail view
 
-After `Enter` on a row:
+```
+CodeAuthorityFirst v0.3.1-triz │ Decision d_2026-10-24-01
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+# Sliding window for rate limiter
 
-```text
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ caf decisions │ d_2026-10-24-01                                            │
-├──────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  # Rate limiter: token bucket vs sliding window                             │
-│                                                                              │
-│  Date: 2026-10-24  ·  Agent: claude-code  ·  Session: 2026-10-24-a1b2c3     │
-│  Status: accepted  ·  Files: 1                                              │
-│                                                                              │
-│  ────────────────────────────────────────────────────────────────────────    │
-│                                                                              │
-│  ## Контекст                                                                 │
-│                                                                              │
-│  POST /v1/policies принимает запросы создания политик. Без ограничения       │
-│  любой валидный токен может выполнить DoS, забив очередь обработки.           │
-│  Нужно ограничение 10 запросов в минуту на токен.                          │
-│                                                                              │
-│  ## Выбрано                                                                  │
-│                                                                              │
-│  Token bucket: 10 токенов в бакете, пополнение 1 токен/6 секунд.            │
-│                                                                              │
-│  ## Альтернативы                                                             │
-│                                                                              │
-│  ### Sliding window                                                          │
-│  - Что: считать запросы в скользящем окне 60 секунд                          │
-│  - Почему отверг: при 10 req/min накладные расходы не оправданы              │
-│                                                                              │
-│  ### Fixed window                                                            │
-│  - Что: считать запросы в фиксированных минутных окнах                       │
-│  - Почему отверг: на границе окна возможен всплеск 2x                       │
-│                                                                              │
-│  ### Redis-based distributed limiter                                        │
-│  - Что: вынести счётчик в Redis                                              │
-│  - Почему отверг: на данном этапе нет требования multi-instance             │
-│                                                                              │
-│  ## Импликации                                                               │
-│  - Если нагрузка вырастет до 100+ req/sec — пересмотреть в сторону Redis   │
-│  - Интерфейс Limiter абстрактен, миграция без боли                          │
-│                                                                              │
-│  ────────────────────────────────────────────────────────────────────────    │
-│                                                                              │
-│  Related sessions:                                                           │
-│    • 2026-10-24-a1b2c3 (claude-code) — created this decision                │
-│    • 2026-11-02-e5f6a7 (aider) — touched same file                         │
-│                                                                              │
-│  Related cards:                                                              │
-│    • c_001 (type 1, why): "Почему выбран token bucket?"                     │
-│    • c_005 (type 2, what_if_remove): "Что если удалить rate limiter?"       │
-│                                                                              │
-│  [e] Edit    [d] Delete (confirm)    [s] Show file    [Esc] Back           │
-│                                                                              │
-└──────────────────────────────────────────────────────────────────────────────┘
+**Date:** 2026-10-24
+**Agent:** opencode
+**Files:** internal/middleware/rl.go (+45 -12)
+
+## Контекст
+
+We need a rate limiter for the /v1/policies endpoint. Options considered: fixed window, sliding window, token bucket.
+
+## Выбрано
+
+Sliding window with 1-minute window size. Reasoning:
+
+- Sliding window имеет смысл при 100+ req/sec, у нас на 3 порядка меньше.
+- Fixed window проще в reasoning, но creates burst-at-boundary problem.
+- Token bucket is over-engineered for our traffic.
+
+## Альтернативы
+
+- Fixed window — simpler but creates burst-at-boundary problem.
+- Token bucket — over-engineered for our traffic; harder to debug.
+
+## Импликации
+
+- p99 latency target: <100ms.
+- Memory: O(window_size × unique_clients) — bounded.
+- TTL: 5 minutes for inactive clients.
+
+---
+Related sessions: 2026-10-24 (opencode) — 12 file edits, 3 iterations
+Related cards: c_001 (Type 1), c_005 (Type 2)
+
+[e] Edit  [d] Delete  [s] Show file  [Esc] Back
 ```
 
 ### 5.3 Decision editor (`caf decisions new`)
 
 **🔥 80/20 TUI:** автозаполнение для `files`, `tags`, `agent` сокращает время с 90s до 25s.
 
-```text
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ caf decisions new │ d_2026-10-28-01 (auto-generated)                        │
-├──────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  Title:                                                                       │
-│  Rate limiter: token bucket vs sliding window                                │
-│                                                                              │
-│  Files (autocomplete with Tab):                                              │
-│  ─────────────────────────────────────────────                              │
-│  ✓ internal/middleware/ratelimit.go                                          │
-│  ▌ internal/                                                                  │
-│  ↓ internal/api/policies.go         (suggested, modified in session)        │
-│  ↓ internal/middleware/ratelimit.go (suggested, modified in session)        │
-│  ↓ internal/storage/diesel.go        (no changes)                            │
-│                                                                              │
-│  Tags (Tab to add):                                                          │
-│  rate-limiting, middleware, token-bucket                                    │
-│                                                                              │
-│  ┌─ Контекст ────────────────────────────────────────────────────────────┐  │
-│  │ POST /v1/policies принимает запросы создания политик. Без             │  │
-│  │ ограничения любой валидный токен может выполнить DoS, забив            │  │
-│  │ очередь обработки. Нужно ограничение 10 запросов в минуту             │  │
-│  │ на токен.                                                            │  │
-│  └──────────────────────────────────────────────────────────────────────┘  │
-│                                                                              │
-│  ┌─ Выбрано ─────────────────────────────────────────────────────────────┐  │
-│  │ Token bucket: 10 токенов, пополнение 1/6 сек.                       │  │
-│  └──────────────────────────────────────────────────────────────────────┘  │
-│                                                                              │
-│  Альтернативы (press [a] to add):                                           │
-│    1. Sliding window                                                        │
-│       Что: ...                                                              │
-│       Почему отверг: ...                                                    │
-│    2. [Add alternative...]                                                  │
-│                                                                              │
-│  ─────────────────────────────────────────────────────────────────────       │
-│                                                                              │
-│  [Tab] Next field    [a] Add alternative    [s] Save                         │
-│  [x] Save as trivial    [Esc] Cancel                                       │
-│                                                                              │
-├──────────────────────────────────────────────────────────────────────────────┤
-│ Pre-filled from session 2026-10-24-a1b2c3 (claude-code)                     │
-└──────────────────────────────────────────────────────────────────────────────┘
 ```
+CodeAuthorityFirst v0.3.1-triz │ New Decision
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Title:       [Sliding window for rate limiter                                    ]
+Agent:       [opencode                                                           ]  (autocomplete: ↓ opencode, Claude Code, Cursor...)
+Files:       [internal/middleware/rl.go                                          ]  (autocomplete: ↓ from current/recent sessions)
+Tags:        [rate-limiting, middleware                                          ]  (autocomplete: ↓ from previous decisions)
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+## Контекст
 
-**Autocomplete sources:**
-- `files`: paths modified in current/recent sessions
-- `tags`: tags used in previous decisions in this repo
-- `agent`: agents active in this repo
-- `title`: LLM suggestion if `--ai-prefill` (FUTURE)
+We need a rate limiter for the /v1/policies endpoint. Options considered: fixed window,
+sliding window, token bucket.
+
+## Выбрано
+
+[Sliding window with 1-minute window size. Reasoning: ...]
+
+## Альтернативы
+
+[- Fixed window — simpler but creates burst-at-boundary problem.]
+
+## Импликации
+
+[- p99 latency target: <100ms.]
+
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+[Tab] Next field  [Enter] Save  [Esc] Cancel  [?] Help
+```
 
 ### 5.4 Keyboard map
 
 | Key | Action |
-|---|---|
+|-----|--------|
 | `Tab` | Next field |
-| `Shift+Tab` | Prev field |
-| `Enter` | New line in text field |
-| `Ctrl+S` | Save |
-| `Ctrl+X` | Save as trivial |
-| `Esc` | Cancel (with confirm) |
-| `a` | Add alternative (in alternatives section) |
-| `d` | Delete alternative (cursor on alternative) |
+| `Shift+Tab` | Previous field |
+| `Enter` | Save |
+| `Esc` | Cancel |
+| `↓` (in autocomplete fields) | Show autocomplete suggestions |
 | `?` | Help |
 
 ### 5.5 Performance budget
 
-- List render: <50ms (virtualized, only visible rows rendered)
-- Filter response: <16ms (in-memory index)
-- Detail view: <100ms (markdown render via Glamour, cached)
-- Autocomplete suggestions: <50ms (pre-built index)
+| Operation | Budget | Strategy | Invariant |
+|-----------|--------|----------|-----------|
+| List render | <50ms | Virtualized (only visible rows rendered) | INV-UI-002 |
+| Filter response | <16ms | In-memory index, no disk I/O | INV-UI-002 |
+| Detail view | <100ms | Markdown render via Glamour, cached | (INV-UI-005 lazy mount) |
+| Autocomplete suggestions | <50ms | Pre-built index, refreshed on session write | INV-UI-002 |
 
 ---
 
@@ -841,82 +753,65 @@ After `Enter` on a row:
 
 ### 6.1 Purpose
 
-Визуализация владения кодом. Каждый файл — ячейка, цвет — ACS или coverage.
+**EN summary.** Heatmap shows each file as a cell, color = ACS or coverage. Single-screen overview of authorship health. Pre-computed and cached.
 
 ### 6.2 Layout
 
-```text
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ caf heatmap │ my-backend-service │ 247 files │ sorted by: ownership (worst)│
-├──────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  Legend:  ░░ 0-20% (blindspot)  ▒▒ 20-50%  ▓▓ 50-75%  ██ 75-100% (owned)   │
-│                                                                              │
-│  internal/                                                                   │
-│    api/          ██ ██ ██ ░░ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██            │
-│                  policies.go                                                  │
-│                              ↑ worst (0% — never reviewed)                   │
-│                                                                              │
-│    middleware/   ▓▓ ██ ██ ▒▒ ██ ██ ██ ██                                    │
-│                  ratelimit.go                                                │
-│                              ↑ 25% — reviewed once, due in 14 days           │
-│                                                                              │
-│    storage/      ██ ██ ██ ██ ██ ░░ ██ ██                                    │
-│                              ↑ 0% — modified but no SRS card                 │
-│                                                                              │
-│    handlers/     ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██                          │
-│                                                                              │
-│  pkg/                                                                        │
-│    policy/       ██ ██ ▓▓ ██ ██                                              │
-│    api/          ██ ██ ██ ██                                                 │
-│                                                                              │
-│  ────────────────────────────────────────────────────────────────────        │
-│                                                                              │
-│  Total: 247 files                                                            │
-│    ██ Owned (≥75%):       189 files (76%)                                    │
-│    ▓▓ Decent (50-75%):     32 files (13%)                                    │
-│    ▒▒ Weak (20-50%):       18 files ( 7%)                                    │
-│    ░░ Blindspots (0-20%):   8 files ( 3%)                                    │
-│                                                                              │
-│  [s] Sort by name/ownership/recency    [/] Filter    [r] Refresh            │
-│  [Enter] Open file tour    [b] Show blindspots only    [q] Quit            │
-│                                                                              │
-└──────────────────────────────────────────────────────────────────────────────┘
+```
+CodeAuthorityFirst v0.3.1-triz │ Heatmap │ 247 files │ Sort: [n] name  [o] ownership  [r] recency
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+internal/
+  middleware/    ██ rl.go        ██ tb.go        ░░ ctx.go        ▓▓ auth.go       ▓▓ logging.go
+  handler/       ██ policies.go  ██ users.go     ░░ admin.go      ▒▒ health.go      ██ metrics.go
+  db/            ██ pool.go      ▓▓ conn.go      ░░ tx.go          ▒▒ migrate.go
+  caf/           ██ adapter.go   ██ storage.go   ▒▒ hooks.go       ▒▒ sync.go         ░░ doctor.go
+
+pkg/ui/
+  screens/       ██ dashboard.go ██ review.go    ██ decisions.go   ▓▓ heatmap.go      ▒▒ adapters.go
+  components/    ██ header.go     ██ statusbar.go ▓▓ spinner.go     ▓▓ skeleton.go
+
+Legend: ░░ 0-20% (blindspot)  ▒▒ 20-50% (weak)  ▓▓ 50-75% (decent)  ██ 75-100% (owned)
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+[b] Blindspots only  [/] Filter by path  [n/o/r] Sort  [Enter] File tour  [?] Help  [q] Quit
 ```
 
 ### 6.3 Color encoding
 
-```
-0-20%    ░░  dark gray      blindspot — needs SRS card
-20-50%   ▒▒  red           weak — review overdue or never reviewed
-50-75%   ▓▓  yellow        decent — reviewed but interval low
-75-100%  ██  green         owned — strong recall, long interval
-```
+| Range | Color | Meaning |
+|-------|-------|---------|
+| 0-20% | dark gray (░░) | blindspot — needs SRS card |
+| 20-50% | red (▒▒) | review overdue |
+| 50-75% | yellow (▓▓) | interval low |
+| 75-100% | green (██) | strong recall |
 
 ### 6.4 Keyboard map
 
 | Key | Action |
-|---|---|
-| `j/k` | Navigate files |
-| `Enter` | Open file tour |
-| `s` | Cycle sort |
-| `/` | Filter by path |
-| `b` | Show only blindspots |
-| `r` | Refresh |
+|-----|--------|
+| `j`/`↓` `k`/`↑` | Navigate files |
+| `Enter` | Open file tour for selected file |
+| `b` | Toggle blindspots-only filter |
+| `/` | Filter by path regex |
+| `n` | Sort by name |
+| `o` | Sort by ownership (ASC) |
+| `r` | Sort by recency (most recent first) |
+| `?` | Help |
 | `q` | Quit |
 
 ### 6.5 Performance budget
 
-- Render 247 files: <200ms (pre-computed heatmap, cached)
-- Re-compute on file change: <500ms (incremental, only changed files)
-- Memory: <20MB (heatmap pre-computed, not full file content)
+| Operation | Budget | Strategy | Invariant |
+|-----------|--------|----------|-----------|
+| Render 247 files | <200ms | Pre-computed heatmap, cached | INV-UI-007 |
+| Re-compute on file change | <500ms | Incremental — only changed files | INV-UI-007 |
+| Memory | <20MB | Heatmap pre-computed (not full file content); only cell metadata in memory | INV-UI-005 |
 
 ### 6.6 Edge cases
 
-- **Empty repo:** show "No files yet."
-- **Repo with 10k+ files:** render only first 1000 by default, paginated
-- **New file (<7 days):** show "new" indicator instead of color
-- **Deleted file:** show `✗` marker, fade out over 30 days
+- Empty repo — "No files tracked yet. Run `caf sync`."
+- Repo with 10k+ files — render first 1000 by default, paginated. (Note: original UI.md §6.6 said "render first 1000" but did not specify a budget for the 10k-file case; the 1000-file budget <200ms applies. For >1000 files, render time scales linearly.)
+- New file <7 days old — shows "new" indicator (cyan dot).
+- Deleted file — shows `✗` fading over 30 days (gray with strikethrough).
 
 ---
 
@@ -924,106 +819,95 @@ After `Enter` on a row:
 
 ### 7.1 Purpose
 
-Показать все доступные адаптеры, их tier, status установки, capabilities.
+**EN summary.** Lists installed + available adapters, with capability matrix and health check. Surfaces which canonical events each adapter supports natively vs via fallback.
 
 ### 7.2 Layout
 
-```text
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ caf adapters │ 25 available │ 4 installed in my-backend                    │
-├──────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  Installed (4):                                                              │
-│  ───────────────                                                              │
-│  ┌────────────┬──────┬─────────────┬─────────────┬─────────────┬──────────┐ │
-│  │ Agent      │ Tier │ pre-session │ post-edit   │ pre-commit  │ Status   │ │
-│  ├────────────┼──────┼─────────────┼─────────────┼─────────────┼──────────┤ │
-│  │ opencode   │  1   │ ✓ native    │ ✓ native    │ ✓ universal │ healthy  │ │
-│  │ claude-code│  1   │ ✓ native    │ ✓ native    │ ✓ universal │ healthy  │ │
-│  │ aider      │  2   │ ✗ wrapper   │ ✓ native    │ ✓ universal │ healthy  │ │
-│  │ LSP fallback│  4  │ ✗ wrapper  │ ✗ watcher   │ ✓ universal │ healthy  │ │
-│  └────────────┴──────┴─────────────┴─────────────┴─────────────┴──────────┘ │
-│                                                                              │
-│  Available (21):                                                             │
-│  ───────────────                                                              │
-│  ┌────────────┬──────┬─────────────┬──────────────────────────────────────┐ │
-│  │ Agent      │ Tier │ Detected?   │ Action                              │ │
-│  ├────────────┼──────┼─────────────┼──────────────────────────────────────┤ │
-│  │ Cursor     │  1   │ ✗          │ [i] Install                          │ │
-│  │ Cline      │  1   │ ✗          │ [i] Install                          │ │
-│  │ KiloCode   │  1   │ ✗          │ [i] Install                          │ │
-│  │ Codex CLI  │  2   │ ✗          │ [i] Install                          │ │
-│  │ Continue   │  2   │ ✗          │ [i] Install                          │ │
-│  │ GH Copilot │  2   │ ✗          │ [i] Install                          │ │
-│  │ Gemini CLI │  2   │ ✗          │ [i] Install                          │ │
-│  │ Amazon Q   │  2   │ ✗          │ [i] Install                          │ │
-│  │ Goose      │  2   │ ✗          │ [i] Install                          │ │
-│  │ Windsurf   │  2   │ ✗          │ [i] Install                          │ │
-│  │ Tabnine    │  3   │ ✗          │ [i] Install                          │ │
-│  │ Cody       │  3   │ ✗          │ [i] Install                          │ │
-│  │ ...                                                                       │ │
-│  └────────────┴──────┴─────────────┴──────────────────────────────────────┘ │
-│                                                                              │
-│  [d] Detect agents    [r] Refresh    [a] Install all detected              │
-│  [h] Health check     [q] Quit                                              │
-│                                                                              │
-└──────────────────────────────────────────────────────────────────────────────┘
+```
+CodeAuthorityFirst v0.3.1-triz │ Adapters Manager │ 4 installed / 21 available
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Installed (4):
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Adapter           │ Tier │ pre-session │ post-edit │ pre-commit │ MCP │ Status
+──────────────────┼──────┼─────────────┼───────────┼─────────────┼─────┼───────────
+opencode          │ 1    │ ✓ native    │ ✓ native  │ ✓ native    │ ✓   │ ✓ healthy
+Claude Code       │ 1    │ ✓ native    │ ✓ native  │ ✓ native    │ ✓   │ ✓ healthy
+Universal LSP     │ 4    │ ✓ wrapper   │ ✓ watcher │ ✓ universal │ ✓   │ ✓ healthy
+Universal hook    │ —    │ —           │ —         │ ✓ universal │ —   │ ✓ healthy
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Available (21):
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Cursor            │ 1    │ ✓ wrapper   │ ✓ native  │ ✓ native    │ ✓   │ [i] Install
+Cline             │ 1    │ ✓ native    │ ✓ native  │ ✓ native    │ ✓   │ [i] Install
+KiloCode          │ 1    │ ✓ native    │ ✓ native  │ ✓ native    │ ✓   │ [i] Install
+Aider             │ 2    │ ✗           │ ✓ wrapper │ ✓ wrapper   │ —   │ [i] Install
+Codex CLI         │ 2    │ ✗           │ ✓ wrapper │ ✓ wrapper   │ —   │ [i] Install
+Continue.dev      │ 2    │ ✗           │ ✓ wrapper │ ✓ wrapper   │ —   │ [i] Install
+GitHub Copilot    │ 2    │ ✗           │ ✓ wrapper │ ✓ wrapper   │ —   │ [i] Install
+Gemini CLI        │ 2    │ ✗           │ ✓ wrapper │ ✓ wrapper   │ —   │ [i] Install
+Amazon Q          │ 2    │ ✗           │ ✓ wrapper │ ✓ wrapper   │ —   │ [i] Install
+Goose             │ 2    │ ✗           │ ✓ wrapper │ ✓ wrapper   │ —   │ [i] Install
+Windsurf          │ 2    │ ✗           │ ✓ wrapper │ ✓ wrapper   │ —   │ [i] Install
+Tabnine           │ 3    │ ✗           │ ✗         │ ✓ wrapper   │ —   │ [i] Install
+Sourcegraph Cody  │ 3    │ ✗           │ ✗         │ ✓ wrapper   │ —   │ [i] Install
+...
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+[↑↓] Navigate  [Enter] Install / Open detail  [h] Health check  [m] Migrate config  [?] Help  [q] Quit
 ```
 
 ### 7.3 Keyboard map
 
 | Key | Action |
-|---|---|
-| `j/k` | Navigate rows |
-| `Enter` | Open adapter detail |
-| `i` | Install selected adapter |
+|-----|--------|
+| `j`/`↓` `k`/`↑` | Navigate list |
+| `Enter` | Install selected adapter (from Available) or open detail (from Installed) |
+| `h` | Run health check on all installed adapters |
+| `m` | Migrate config (e.g. `caf adapters install aider --migrate-config`) |
 | `u` | Uninstall selected adapter |
-| `d` | Run auto-detect |
-| `a` | Install all detected |
-| `h` | Run health check |
-| `r` | Refresh |
+| `?` | Help |
 | `q` | Quit |
 
 ### 7.4 Health check view
 
-After `h`:
+```
+Health check — 4 adapters
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+opencode
+  ✓ pre-session hook fires (config: ~/.config/opencode/hooks.toml)
+  ✓ post-edit writes to .caf/sessions/ (verified by test session)
+  ✓ pre-commit validation passes
+  ✓ config file present
+  ✓ MCP server responds
 
-```text
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ caf adapters health │ Running smoke tests...                                │
-├──────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  [✓] opencode         pre-session hook fires correctly                     │
-│  [✓] opencode         post-edit writes to .caf/sessions/                   │
-│  [✓] opencode         config file present at ~/.config/opencode/hooks.toml │
-│                                                                              │
-│  [✓] claude-code       pre-session hook fires correctly                    │
-│  [✓] claude-code       post-edit writes to .caf/sessions/                  │
-│  [✗] claude-code       config file missing at .claude/settings.json        │
-│      → Reinstall: `caf adapters install claude-code`                       │
-│                                                                              │
-│  [✓] aider             wrapper script present                               │
-│  [✓] aider             wrapper invoked correctly (test run)               │
-│  [⚠] aider             .aider.conf.yml uses old format                     │
-│      → Migrate: `caf adapters install aider --migrate-config`              │
-│                                                                              │
-│  [✓] LSP fallback      LSP server started                                  │
-│  [✓] LSP fallback      symbol graph built                                  │
-│  [✓] LSP fallback      graph saved to .caf/mental-model/graph.yml          │
-│                                                                              │
-│  ─────────────────────────────────────────────────────────────────────       │
-│  Summary: 11 passed, 1 failed, 1 warning                                   │
-│                                                                              │
-│  [r] Re-run    [f] Fix all    [q] Close                                    │
-│                                                                              │
-└──────────────────────────────────────────────────────────────────────────────┘
+Claude Code
+  ✓ pre-session hook fires (config: .claude/settings.json)
+  ✓ post-edit writes to .caf/sessions/
+  ✓ pre-commit validation passes
+  ✓ config file present
+  ✓ MCP server responds
+
+Universal LSP
+  ✓ LSP server started (gopls, ~500ms startup)
+  ✓ symbol graph built (247 files)
+  ✓ saved to .caf/mental-model/graph.yml
+  ✓ pre-commit hook installed in .git/hooks/pre-commit
+
+Universal hook
+  ✓ .git/hooks/pre-commit exists
+  ✓ hook is executable
+  ✓ caf binary in $PATH
+
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Summary: 4 passed, 0 failed, 0 warnings                          [r] Re-run  [Esc] Back
 ```
 
 ### 7.5 Performance budget
 
-- List render: <50ms
-- Health check: <5s per adapter (parallel), <30s total for 25 adapters
-- Install: <2s per adapter (parallel up to 5)
+| Operation | Budget | Strategy | Invariant |
+|-----------|--------|----------|-----------|
+| List render | <50ms | Virtualized, only visible rows | INV-UI-002 |
+| Health check | <5s per adapter (parallel) | Parallel goroutines; <30s total for 25 adapters | (INV-ARCH-003 lazy LSP) |
+| Install | <2s per adapter (parallel up to 5) | Goroutines; error isolation | (INV-ARCH-002 stable interface) |
 
 ---
 
@@ -1031,124 +915,120 @@ After `h`:
 
 ### 8.1 Purpose
 
-Guided экскурсия по конкретному файлу: когда, почему, какими агентами редактировался.
+**EN summary.** File tour shows the history of a single file: timeline (left, sessions/decisions/cards) + numbered source (right). Useful for "why does this file look the way it does?" archaeology.
 
 ### 8.2 Layout
 
-```text
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ caf tour │ internal/middleware/ratelimit.go │ 142 lines │ 3 sessions         │
-├──────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  ┌─ Timeline ──────────────────────┐  ┌─ File view ──────────────────────┐ │
-│  │                                  │  │                                   │ │
-│  │  ● 2026-10-24 (created)          │  │  1  package middleware             │ │
-│  │    claude-code                   │  │  2                                 │ │
-│  │    "add rate limiter"            │  │  3  import (                       │ │
-│  │    +88 lines                     │  │  4    "context"                    │ │
-│  │                                  │  │  5    "time"                       │ │
-│  │  ● 2026-10-28 (metrics)          │  │  6    "sync"                       │ │
-│  │    claude-code                   │  │  7  )                              │ │
-│  │    "add prometheus metrics"      │  │  8                                 │ │
-│  │    +12 lines                     │  │  9  type Limiter interface {       │ │
-│  │                                  │  │ 10    Allow(token string) bool     │ │
-│  │  ● 2026-11-02 (refactor)         │  │ 11  }                              │ │
-│  │    aider                         │  │ 12                                 │ │
-│  │    "extract TokenBucket type"    │  │ 13  type TokenBucket struct {      │ │
-│  │    -5 +8 lines                   │  │ 14    tokens chan struct{}         │ │
-│  │                                  │  │ 15    rate time.Duration          │ │
-│  │  ─────────────────────────       │  │ 16  }                              │ │
-│  │                                  │  │ 17                                 │ │
-│  │  Decisions:                      │  │ 18  func New(...) *TokenBucket {   │ │
-│  │  • d_2026-10-24-01 (token bucket)│  │ 19    // ...                       │ │
-│  │                                  │  │ 20    return &TokenBucket{        │ │
-│  │  Related cards:                  │  │ 21      tokens: make(chan struct{} │ │
-│  │  • c_001 (why: token bucket)     │  │ 22      // ...                      │ │
-│  │  • c_005 (what_if_remove)        │  │ 23    }                             │ │
-│  │                                  │  │ 24  }                              │ │
-│  │  [Enter] Open decision           │  │ 25                                 │ │
-│  │  [s] Show full session           │  │ ...                                │ │
-│  │  [r] Review related cards         │  │                                   │ │
-│  └──────────────────────────────────┘  └───────────────────────────────────┘ │
-│                                                                              │
-│  [j/k] Scroll file    [Tab] Switch panes    [/] Search in file              │
-│  [Enter] Open decision    [s] Open session    [r] Review cards    [q] Quit│
-│                                                                              │
-└──────────────────────────────────────────────────────────────────────────────┘
+```
+CodeAuthorityFirst v0.3.1-triz │ File Tour │ internal/middleware/ratelimit.go (142 lines, 3 sessions)
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+┌─ Timeline ─────────────────────────────────────┐  ┌─ Source: internal/middleware/ratelimit.go ──────────────────────────────────────┐
+│                                                │  │                                                                                  │
+│  ● 2026-10-24 (post-edit, opencode)            │  │   1  package middleware                                                          │
+│  "feat: sliding window for /v1/policies"      │  │   2                                                                                │
+│  +45 -12 lines                                 │  │   3  import (                                                                      │
+│                                                │  │   4      "context"                                                                 │
+│  ● 2026-10-22 (post-edit, Claude Code)         │  │   5      "time"                                                                    │
+│  "fix: race condition in token counter"        │  │   6      "sync"                                                                    │
+│  +12 -3 lines                                  │  │   7  )                                                                             │
+│                                                │  │   8                                                                                │
+│  ● 2026-10-20 (pre-session, opencode)          │  │   9  // TokenBucket implements a sliding-window rate limiter.                     │
+│  "refactor: extract rate limiter to its own    │  │  10  // See decision d_2026-10-24-01 for reasoning.                                │
+│  file"                                         │  │  11  type TokenBucket struct {                                                    │
+│  +142 -0 lines (file created)                  │  │  12      tokens chan struct{}                                                      │
+│                                                │  │  13      rate   time.Duration                                                       │
+│  Related decisions:                            │  │  14      mu     sync.Mutex                                                         │
+│  • d_2026-10-24-01  Sliding window             │  │  15  }                                                                             │
+│  • d_2026-10-22-01  Race condition fix         │  │  16                                                                                │
+│                                                │  │  17  func NewTokenBucket(rate time.Duration, capacity int) *TokenBucket {          │
+│  Related cards:                                │  │  18      tb := &TokenBucket{                                                       │
+│  • c_001  Type 1  (why)                       │  │  19          tokens: make(chan struct{}, capacity),                                 │
+│  • c_005  Type 2  (what if remove)            │  │  20          rate:   rate,                                                          │
+│  • c_012  Type 3  (where handled)             │  │  21      }                                                                          │
+│                                                │  │  22      go tb.refill()                                                             │
+│                                                │  │  23      return tb                                                                  │
+│                                                │  │  24  }                                                                              │
+│                                                │  │  ... (118 more lines, paginated)                                                   │
+│                                                │  │                                                                                   │
+│  [j/k] Navigate timeline                       │  │  [j/k] Scroll source  [n/p] Next/prev page  [Enter] Jump to line                  │
+│  [Enter] Jump to file:line                     │  │                                                                                   │
+│  [d] Show decision detail                      │  │                                                                                   │
+│  [c] Show card                                 │  │                                                                                   │
+│  [Esc] Back                                    │  │                                                                                   │
+└────────────────────────────────────────────────┘  └───────────────────────────────────────────────────────────────────────────────────┘
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+[?] Help  [q] Quit
 ```
 
 ### 8.3 Keyboard map
 
 | Key | Action |
-|---|---|
-| `j/k` | Scroll file view |
-| `Tab` | Switch between timeline and file panes |
-| `Enter` | Open selected decision (when in timeline) |
-| `s` | Open selected session details |
-| `r` | Start review of related cards |
-| `/` | Search in file |
+|-----|--------|
+| `j`/`↓` `k`/`↑` | Navigate timeline (left panel) or scroll source (right panel) |
+| `Tab` | Switch between timeline and source panel |
+| `Enter` | Jump to file:line from selected timeline event |
+| `d` | Show decision detail for selected event |
+| `c` | Show card for selected event |
+| `n`/`p` | Next/prev page of source (for files >1000 lines) |
 | `?` | Help |
 | `q` | Quit |
 
 ### 8.4 Performance budget
 
-- First paint: <100ms
-- File load: <50ms (cached after first open)
-- Timeline build: <50ms (from `.caf/sessions/` index)
-- Memory: <10MB (only current file in memory)
+| Operation | Budget | Strategy | Invariant |
+|-----------|--------|----------|-----------|
+| First paint | <100ms | Render skeleton (INV-UI-004 SWR); load timeline + source in background | INV-UI-001 |
+| File load | <50ms | Cached after first open | (INV-UI-005 lazy mount) |
+| Timeline build | <50ms | From `.caf/sessions/` index (pre-built) | (INV-ARCH-003) |
+| Memory | <10MB | Only current file in memory; timeline from index | INV-UI-005 |
 
 ### 8.5 Edge cases
 
-- **File never touched by AI agents:** show "This file has no AI session history. [d] Open dashboard"
-- **File deleted:** show "File no longer exists in working tree. Showing last known version."
-- **Binary file:** show "Cannot tour binary file."
-- **File >5000 lines:** paginate, show only first 1000 with "press [n] for next page"
+- File never touched by AI — "No AI sessions recorded for this file. Run `caf sync` to re-scan."
+- File deleted — show last known content with `✗` indicator and "file deleted on YYYY-MM-DD" header.
+- Binary file — show "Binary file, no source view." with timeline still available.
+- File >5000 lines — paginate source 1000 lines per page. `[n]` next page. Timeline unaffected.
+- File <50 lines — full file shown; no pagination needed.
 
 ---
 
 ## 9. Onboarding Wizard (extended)
 
-See §2 for basic flow. This section adds advanced options.
-
 ### 9.1 Advanced mode (`caf init --advanced`)
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                                                                 │
-│   Advanced setup                                                │
-│                                                                 │
-│   Triviality threshold (LOC): [50]                              │
-│   Pre-commit validation: [x] enable                             │
-│   Auto-detect agents: [x] yes                                  │
-│   Dashboard auto-refresh (sec): [30]                            │
-│   Theme: ( ) dark  ( ) light  (•) auto                          │
-│                                                                 │
-│   [s] Save    [Esc] Cancel                                      │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+```
+┌────────────────────────────────────────────────┐
+│ Advanced settings                              │
+│                                                │
+│ Triviality threshold (LOC): [50]              │
+│ Pre-commit validation:        [✓] enabled      │
+│ Auto-detect agents:           [✓] enabled      │
+│ Dashboard auto-refresh (sec): [30]             │
+│ Theme:                        ( ) dark         │
+│                               (•) light        │
+│                               ( ) auto         │
+│                                                │
+│ [Tab] Next field  [Enter] Continue             │
+└────────────────────────────────────────────────┘
 ```
 
 ### 9.2 Migration from v0.1/v0.2
 
-If `.orya/` exists (v0.1) or `.caf/` exists (v0.2):
+`caf init` detects existing `.orya/` (v0.1) or `.caf/` (v0.2) and offers migration:
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                                                                 │
-│   Existing CodeAuthorityFirst setup detected                    │
-│                                                                 │
-│   Version: 0.2.0  →  0.3.0                                     │
-│                                                                 │
-│   Migration will:                                               │
-│     • Add agent_tier field to existing sessions                │
-│     • Add auto_detected field to config.yml                     │
-│     • Add ui section to config.yml                              │
-│                                                                 │
-│   Time: ~5 seconds (247 sessions)                              │
-│                                                                 │
-│   [m] Migrate    [s] Skip (keep v0.2 format)    [q] Cancel   │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+```
+┌────────────────────────────────────────────────┐
+│ Existing v0.2 .caf/ folder detected.           │
+│                                                │
+│ Migration will:                                │
+│   • Add agent_tier, auto_detected fields      │
+│   • Add ui config section (theme, refresh)     │
+│   • Preserve all existing data                 │
+│                                                │
+│ Estimated time: ~5 seconds (247 sessions)      │
+│                                                │
+│ [Enter] Migrate  [s] Skip  [?] Help            │
+└────────────────────────────────────────────────┘
 ```
 
 ---
@@ -1157,99 +1037,74 @@ If `.orya/` exists (v0.1) or `.caf/` exists (v0.2):
 
 ### 10.1 Daily report
 
-```text
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ caf report --day │ 2026-10-28                                                │
-├──────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  Today's activity:                                                           │
-│                                                                              │
-│  Sessions:     3  (claude-code ×2, opencode ×1)                              │
-│  Commits:      2  (both with CAF-Session trailer ✓)                          │
-│  Decisions:    1  new (d_2026-10-28-01: "Database indexing strategy")       │
-│  Cards due:    7  (5 reviewed, recall rate 80%)                              │
-│                                                                              │
-│  ────────────────────────────────────────────────────────────────────        │
-│                                                                              │
-│  What you did well:                                                          │
-│    ✓ All non-trivial commits have decision records                          │
-│    ✓ Recall rate above target (75%)                                         │
-│                                                                              │
-│  What to improve:                                                            │
-│    ⚠ 1 commit marked trivial (LOC: 87) — consider decision                 │
-│    ⚠ 2 blindspots detected in internal/storage/                            │
-│                                                                              │
-│  Tomorrow's queue:                                                          │
-│    • 8 cards due for review                                                 │
-│    • 1 cross-repo sync needed (my-auth-lib changed TokenValidator)         │
-│                                                                              │
-│  [w] Week report    [m] Metrics    [o] Ownership heatmap    [q] Quit      │
-│                                                                              │
-└──────────────────────────────────────────────────────────────────────────────┘
+```
+CodeAuthorityFirst v0.3.1-triz │ Daily Report │ 2026-10-28
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Sessions today: 4
+  • opencode      2 sessions (45 + 28 minutes)
+  • Claude Code   2 sessions (32 + 19 minutes)
+
+Commits with `CAF-Session` trailer: 3/3 ✓
+
+Decisions new: 2
+  • d_2026-10-28-01  "Why we switched from sync.Map to RWMutex"
+  • d_2026-10-28-02  "Context cancellation in retry logic"
+
+Cards due today: 5  Cards reviewed: 5  Recall rate: 80%
+
+What you did well:
+  • 100% decision coverage on non-trivial commits
+  • Recall rate above 7-day avg (78%)
+
+What to improve:
+  • 1 blindspot: internal/middleware/circuit_breaker.go (last reviewed 14 days ago)
+  • Agent diversity below target (H=0.8, target ≥1.0)
+
+Tomorrow's queue:
+  • 3 cards due (Type 1: 2, Type 2: 1)
+  • 1 pending decision from today's session
+
+[Esc] Back  [w] Week report  [m] Metrics report  [?] Help
 ```
 
 ### 10.2 Week report
 
-Similar layout, but with 7-day trends visualized as ASCII sparklines:
+```
+CodeAuthorityFirst v0.3.1-triz │ Week Report │ 2026-10-22 to 2026-10-28
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ACS (7-day avg):        3.5 → 3.8  ↑+0.3   Target: ≥3.5  ✓
+Recall (7-day avg):    72% → 80%   ↑+8pp   Target: ≥75%  ✓
+Decision coverage:    88% → 92%   ↑+4pp   Target: ≥90%  ✓
+Sessions/day:           4.2 → 4.5   ↑+0.3
+Agent diversity (H):   0.9 → 1.2   ↑+0.3   Target: ≥1.0  ✓
 
-```text
-ACS trend (7 days):   3.5 3.6 3.4 3.7 3.8 3.7 3.8
-                     ▁▂▁▃▄▃▄  ↑ +0.3
+7-day ACS sparkline: ▁▂▃▄▅▆▇█
 
-Recall rate:         72 75 70 78 80 75 80
-                     ▃▄▂▆▇▅▇  ↑ +8pp
-
-Sessions per day:    2  3  1  4  3  2  3
-                     ▂▃▁▅▄▃▃  → stable
+Top contributors (this week):
+  • opencode      12 sessions
+  • Claude Code    8 sessions
+  • Universal LSP 3 sessions
 ```
 
 ### 10.3 Metrics report
 
-```text
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ caf report --metrics │ 30-day rolling                                        │
-├──────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  ┌─ Authorship ───────────────────────────────────────────────────────────┐ │
-│  │                                                                        │ │
-│  │  ACS (Authorship Confidence Score)                                    │ │
-│  │    Current: 3.8  Target: ≥3.5  ✓                                       │ │
-│  │    30-day trend: 3.4 → 3.8  (+0.4, ↑ improving)                      │ │
-│  │                                                                        │ │
-│  │  Recall Rate                                                          │ │
-│  │    Current: 78%  Target: ≥75%  ✓                                       │ │
-│  │    30-day trend: 65% → 78%  (+13pp, ↑ improving)                    │ │
-│  │                                                                        │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
-│                                                                              │
-│  ┌─ Coverage ────────────────────────────────────────────────────────────┐  │
-│  │                                                                        │ │
-│  │  Decision Coverage                                                    │ │
-│  │    Current: 92%  Target: ≥90%  ✓                                       │ │
-│  │    (11/12 non-trivial commits have decisions)                         │ │
-│  │                                                                        │ │
-│  │  Mental Model Reach                                                   │ │
-│  │    Current: 68%  Target: ≥70%  ⚠ below target                        │ │
-│  │    Action: run `caf review --regenerate --since 30d`                  │ │
-│  │                                                                        │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
-│                                                                              │
-│  ┌─ Agents ──────────────────────────────────────────────────────────────┐  │
-│  │                                                                        │ │
-│  │  Agent Diversity (Shannon entropy)                                    │ │
-│  │    Current: 1.2  Target: ≥1.0  ✓                                       │ │
-│  │    Distribution:                                                       │ │
-│  │      claude-code   47 sessions  (53%)  ████████████                  │ │
-│  │      opencode      18 sessions  (20%)  ████                          │ │
-│  │      aider         14 sessions  (16%)  ███                            │ │
-│  │      cursor         8 sessions  ( 9%)  ██                             │ │
-│  │      LSP fallback   2 sessions  ( 2%)  ▌                              │ │
-│  │                                                                        │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
-│                                                                              │
-│  [d] Day report    [w] Week report    [o] Ownership heatmap    [q] Quit   │
-│                                                                              │
-└──────────────────────────────────────────────────────────────────────────────┘
+```
+CodeAuthorityFirst v0.3.1-triz │ Metrics Report (30-day rolling)
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ACS (Authorship Confidence Score):     3.8   Target: ≥3.5   ✓
+Recall rate:                            78%   Target: ≥75%   ✓
+Decision coverage:                      92%   Target: ≥90%  ✓
+Mental model reach:                     68%   Target: ≥70%  ⚠ below target
+  Action: `caf review --regenerate --since 30d`
+Agent diversity (Shannon entropy H):     1.2   Target: ≥1.0  ✓
+
+Per-agent distribution:
+  opencode      ████████████████ 48%
+  Claude Code   ███████████       32%
+  Universal LSP ████              12%
+  Cursor        ███                8%
+
+Adapter coverage (native):              70%   Target: ≥70%  ✓ (4 native / 25 explicit + universal)
 ```
 
 ---
@@ -1258,34 +1113,32 @@ Sessions per day:    2  3  1  4  3  2  3
 
 ### 11.1 Layout
 
-```text
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ caf config edit │ .caf/config.yml                                             │
-├──────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  General:                                                                    │
-│    Triviality threshold (LOC): [50]                                          │
-│    Pre-commit validation:    [x] enabled                                     │
-│    Fail-safe mode:            [x] enabled                                    │
-│                                                                              │
-│  Adapters:                                                                   │
-│    Enabled agents:                                                           │
-│      [x] opencode                                                            │
-│      [x] claude-code                                                         │
-│      [x] aider                                                               │
-│      [ ] cursor                                                              │
-│      [ ] cline                                                               │
-│      ...                                                                     │
-│    [a] Add agent    [d] Detect agents                                       │
-│                                                                              │
-│  UI:                                                                         │
-│    Theme:        ( ) dark  ( ) light  (•) auto                               │
-│    Review session max cards: [15]                                            │
-│    Dashboard refresh (sec):  [30]                                            │
-│                                                                              │
-│  [Ctrl+S] Save    [Esc] Cancel (with confirm if changes)                    │
-│                                                                              │
-└──────────────────────────────────────────────────────────────────────────────┘
+```
+CodeAuthorityFirst v0.3.1-triz │ Settings
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+General
+  Triviality threshold (LOC):    [50]
+  Pre-commit validation:        [✓] enabled
+  Fail-safe mode:               [✓] enabled (recommended — see ARCHITECT.md §2.5 fail-safe contract)
+
+Adapters
+  [✓] opencode      (Tier 1, native)
+  [✓] Claude Code   (Tier 1, native)
+  [ ] Cursor        (Tier 1, wrapper)
+  [ ] Aider         (Tier 2, wrapper)
+  [✓] Universal LSP (Tier 4, fallback)
+
+UI
+  Theme:                         (•) dark   ( ) light   ( ) auto   ( ) high-contrast
+  Review session max cards:     [15]
+  Dashboard refresh (sec):      [30]
+
+LLM (PROD)
+  Backend:                       [z-ai-web-dev-sdk ▼]
+  First-person voice:           [✓] enabled (recommended — ADR-006)
+
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+[Ctrl+S] Save  [Esc] Cancel  [?] Help
 ```
 
 ---
@@ -1295,65 +1148,44 @@ Sessions per day:    2  3  1  4  3  2  3
 ### 12.1 Terminal compatibility
 
 | Terminal | Tested | Notes |
-|---|---|---|
-| iTerm2 (macOS) | ✓ | full color, truecolor, mouse |
-| Terminal.app (macOS) | ✓ | 256-color only, no truecolor |
-| Alacritty | ✓ | full color, fast |
-| Kitty | ✓ | full color, graphics |
-| Windows Terminal | ✓ | full color |
-| VSCode integrated terminal | ✓ | full color |
-| Git Bash (Windows) | partial | limited color, some rendering issues |
-| Linux TTY (no X) | partial | 16-color fallback |
-| SSH from any terminal | ✓ | color detected remotely |
-
-**Detection:** `termenv` auto-detects. Fallback to no-color if unsure.
+|----------|--------|-------|
+| iTerm2 (macOS) | ✓ | Full truecolor, mouse, all features |
+| Terminal.app (macOS) | ✓ | 256-color only (no truecolor) |
+| Alacritty | ✓ | Full truecolor |
+| Kitty | ✓ | Full truecolor, graphics protocol |
+| Windows Terminal | ✓ | Full truecolor |
+| VSCode integrated | ✓ | 256-color, mouse works |
+| Git Bash (Windows) | partial | Limited color, some rendering issues. Mitigation: fall back to 16-color via termenv; surface as `caf doctor` warning recommending WSL or Windows Terminal. |
+| Linux TTY (Ctrl+Alt+F1) | partial | 16-color only; no mouse |
+| SSH | ✓ | Full features (depends on client terminal) |
 
 ### 12.2 Responsive design
 
 | Width (cols) | Layout |
-|---|---|
-| ≥140 | Full grid (3-column widgets) |
-| 100-139 | 2-column grid |
-| 60-99 | Single column, stacked |
-| <60 | Compact mode (essential info only, hints to widen) |
-
-```text
-< 60 cols:
-┌──────────────────────────────────┐
-│ CAF v0.3  my-backend  ACS 3.8  │
-├──────────────────────────────────┤
-│ Review queue: 7                  │
-│ Pending decisions: 2             │
-│ Blindspots: 3                    │
-│                                  │
-│ [r] Review  [d] Decide  [q] Q  │
-└──────────────────────────────────┘
-Widen terminal for full dashboard.
-```
+|--------------|--------|
+| ≥140 | Full grid (3-column dashboard) |
+| 100-139 | 2-column dashboard |
+| 60-99 | Single column, widgets stacked |
+| <60 | Compact mode: "Widen terminal for full dashboard." + key info only |
 
 ### 12.3 Accessibility
 
-- **Color-blind friendly:** never use color as the sole encoding. Always pair with text/symbol (`✓`, `⚠`, `✗`).
-- **Screen reader hints:** use ANSI escape `\033[?25h` to indicate focus changes.
-- **Keyboard-only operation:** every action accessible via keyboard.
-- **No time-based-only cues:** flashing/blinking forbidden; transitions are state-based.
-- **High contrast mode:** `caf config set ui.theme high-contrast` uses brighter colors with thicker borders.
+- Color-blind friendly: pair color with text/symbol (✓ ⚠ ✗), never color-only.
+- Screen reader hints via ANSI escape codes (`\033[?25h` to show cursor, etc.).
+- Keyboard-only operation possible (no mouse required, FUTURE K-011 adds mouse support).
+- No time-based-only cues (no flashing).
+- High-contrast mode: `caf config set ui.theme high-contrast`.
 
 ### 12.4 Internationalization
 
-- Body text: RU/EN depending on user locale (configurable via `.caf/config.yml` `ui.language`)
-- CLI command names: always English (universal)
-- YAML field names: always English
-- Decision record content: whatever language the user writes in
+- Body text: RU/EN depending on user locale (`ui.language` config).
+- CLI names always English (universal).
+- YAML field names always English (machine-readable).
+- Decision content: user's language (recorded as-is, not translated).
 
-### 12.5 Telemetry (opt-in, FUTURE)
+### 12.5 Telemetry (opt-in, FUTURE, BACKLOG J-004)
 
-Not in v0.3. When added (BACKLOG J-004):
-
-- Anonymous: only command counts and error rates
-- Opt-in: explicit `caf config set telemetry.enabled true`
-- No content: no prompts, no file paths, no decisions
-- Public dashboard: aggregate stats visible at `caf telemetry stats`
+Anonymous command counts + error rates. Opt-in via `caf config set telemetry.enabled true`. No content (no prompts, paths, decisions). Public dashboard: `caf telemetry stats`. See BACKLOG J-004.
 
 ---
 
@@ -1361,99 +1193,96 @@ Not in v0.3. When added (BACKLOG J-004):
 
 ### 13.1 File organization
 
-```text
-pkg/ui/
-├── tui.go                    # TUI root, Bubble Tea program
-├── theme.go                  # color palette, typography
-├── components/
-│   ├── header.go             # top bar
-│   ├── statusbar.go          # bottom bar
-│   ├── spinner.go            # loading spinner
-│   ├── skeleton.go           # skeleton loaders
-│   └── heatmap.go            # ASCII heatmap renderer
-├── screens/
-│   ├── onboarding.go         # §2 / §9
-│   ├── dashboard.go          # §3
-│   ├── review.go             # §4
-│   ├── decisions_list.go     # §5.1
-│   ├── decisions_detail.go   # §5.2
-│   ├── decisions_editor.go   # §5.3
-│   ├── heatmap.go            # §6
-│   ├── adapters.go           # §7
-│   ├── file_tour.go          # §8
-│   ├── reports.go            # §10
-│   └── settings.go           # §11
-├── keys.go                   # keyboard bindings
-└── perf.go                   # performance budgets enforcement
 ```
+pkg/ui/
+├── tui.go              # root model + Update + View
+├── theme.go            # color palette, typography
+├── keys.go             # universal keyboard map (§0.6)
+├── perf.go             # performance budget enforcer + CI benchmark hooks (§0.3)
+├── components/
+│   ├── header.go       # header bar
+│   ├── statusbar.go    # status bar
+│   ├── spinner.go      # loading spinner
+│   ├── skeleton.go     # skeleton placeholder (INV-UI-004 SWR pattern)
+│   └── heatmap.go      # heatmap cell renderer (§6)
+└── screens/
+    ├── onboarding.go     # §2 / §9
+    ├── dashboard.go      # §3
+    ├── review.go         # §4
+    ├── decisions_list.go      # §5.1
+    ├── decisions_detail.go    # §5.2
+    ├── decisions_editor.go    # §5.3
+    ├── heatmap.go             # §6
+    ├── adapters.go            # §7
+    ├── file_tour.go           # §8
+    ├── reports.go             # §10
+    └── settings.go            # §11
+```
+
+Each screen file maps to its spec section by file comment: `// §3 Dashboard (caf dashboard)`.
 
 ### 13.2 State management
 
-Bubble Tea ELM-like architecture:
+**EN summary.** Bubble Tea ELM architecture. `model` struct holds activeScreen / repo / agent / data / theme / width / height. `Update(msg)` handles `tea.WindowSizeMsg`, `tea.KeyMsg`, `DataLoadedMsg`. Async loading via `tea.Cmd` returning `DataLoadedMsg{Sessions}`. The pattern is structurally equivalent to React's SWR (stale-while-revalidate) — skeleton shown immediately, fresh data swaps in.
 
 ```go
 type model struct {
     activeScreen Screen
     repo         string
     agent        string
-    data         DataLoader  // async data fetching
+    data         map[string]interface{} // generic; typed per screen
     theme        Theme
     width        int
     height       int
-    // ... per-screen state in screens/
+    loading      map[string]bool         // INV-UI-004: which keys have Skeleton shown
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
     switch msg := msg.(type) {
     case tea.WindowSizeMsg:
         m.width, m.height = msg.Width, msg.Height
+        return m, nil
     case tea.KeyMsg:
-        return m.handleKey(msg)
+        // handle keystroke (<50ms, INV-UI-003 direct dispatch)
+        return m, m.handleKey(msg)
     case DataLoadedMsg:
-        return m.handleData(msg)
+        // SWR pattern: replace Skeleton with real data (INV-UI-004)
+        m.data[msg.Key] = msg.Data
+        delete(m.loading, msg.Key)
+        return m, nil
     }
     return m, nil
 }
 ```
 
-Async data loading via `tea.Cmd`:
+Async loading via `tea.Cmd` returning `DataLoadedMsg`:
 
 ```go
-func loadData() tea.Msg {
-    sessions, _ := caf.LoadSessions(repoPath)
-    return DataLoadedMsg{Sessions: sessions}
+func loadSessionsCmd(repo string) tea.Cmd {
+    return func() tea.Msg {
+        sessions, _ := storage.Sessions(repo)
+        return DataLoadedMsg{Key: "sessions", Data: sessions}
+    }
 }
 ```
 
+**Skeleton/SWR pattern:** when a screen mounts, it immediately shows a `Skeleton{}` for each data key in `m.loading`. When `DataLoadedMsg` arrives, the skeleton is replaced with real data. This is the same shape as React's SWR hook: show stale immediately, swap to fresh in background.
+
 ### 13.3 Virtualization strategy
 
-For lists with >100 items, use `bubbles/list` with virtualization:
-
-```go
-list := list.New(items, delegate, width, height)
-list.SetShowHelp(false)
-list.SetShowTitle(false)
-list.SetFilteringEnabled(true)  // built-in /filter
-// Only visible items rendered
-```
-
-For file tour with >5000 lines, paginate:
-
-```go
-const pageSize = 1000
-currentPage := 0
-// On 'n': currentPage++; render lines [currentPage*pageSize : (currentPage+1)*pageSize]
-```
+- `bubbles/list` for any list with >100 items. `SetFilteringEnabled(true)` for search.
+- For file tour source view >5000 lines: paginate 1000 lines per page (`const pageSize = 1000`).
+- Heatmap: pre-computed cells, never full file content.
 
 ### 13.4 Caching strategy
 
 | Data | Cache location | TTL | Invalidation |
-|---|---|---|---|
-| Dashboard widgets | in-memory | 30s | file watcher on `.caf/` |
-| Decision detail (rendered markdown) | `~/.caf/cache/decisions/` | 7d | file change |
-| Sessions index | in-memory | session-lifetime | new session writes |
-| Heatmap | in-memory | 5m | `git diff` since last build |
-| Adapter capabilities | in-memory | process-lifetime | never changes during run |
+|------|----------------|-----|--------------|
+| Dashboard widgets | in-memory | 30s | `.caf/` watcher fires |
+| Decision detail markdown | `~/.caf/cache/decisions/` | 7d | `.caf/decisions/` watcher fires |
+| Sessions index | in-memory | session-lifetime | (rebuilt on `caf sync`) |
+| Heatmap | in-memory | 5m | `git diff` since last compute |
+| Adapter capabilities | in-memory | process-lifetime | (never changes within process) |
 
 ---
 
@@ -1461,43 +1290,42 @@ currentPage := 0
 
 ### 14.1 Unit tests
 
-- Every screen has `*_test.go` with snapshot tests
-- Snapshot tests use [termenv] profile to ensure consistent rendering
-- Mock `DataLoader` for predictable test data
+Every screen has `*_test.go` with snapshot tests using `termenv` profile. Mock `DataLoader` interface.
 
 ### 14.2 Integration tests
 
-- Real `.caf/` directories with fixture data
-- Full TUI flow tests via [teatest](https://github.com/charmbracelet/teatest)
-- Tests run in CI with various terminal sizes (60, 100, 140 cols)
+Real `.caf/` fixtures; full TUI flow via [teatest](https://github.com/charmbracelet/teatest). CI with terminal sizes 60/100/140 cols.
 
 ### 14.3 Performance tests
 
-- Benchmark: `caf dashboard` first paint <100ms on 1000-session repo
-- Benchmark: `caf review` card render <50ms
-- Benchmark: `caf heatmap` render <200ms on 1000-file repo
-- Benchmarks run in CI; regressions >2x trigger alert
+```bash
+# CI benchmarks (run on every PR)
+benchmark: `caf dashboard` first paint <100ms on 1000-session repo
+benchmark: `caf review` card render <50ms
+benchmark: `caf heatmap` render <200ms on 1000-file repo
+# Regressions >2x trigger alert, PR blocked
+```
 
 ### 14.4 Visual regression tests
 
-- Snapshot tests capture rendered output
-- Diffs reviewed in PR
-- Snapshots stored in `pkg/ui/__snapshots__/`
+Snapshots in `pkg/ui/__snapshots__/`. Snapshot diff in CI; manual review for intentional changes.
 
 ---
 
 ## 15. Future UI Enhancements (not in v0.3)
 
-| Enhancement | Where (BACKLOG ref) | Phase |
-|---|---|---|
-| VSCode extension | B-001 | FUTURE |
-| JetBrains plugin | B-002 | FUTURE |
-| Neovim plugin | B-003 | FUTURE |
-| Full-screen review TUI | B-004 (already in v0.3!) | done |
-| Onboarding wizard | B-005 (already in v0.3!) | done |
-| Color-coded reports | B-008 (already in v0.3!) | done |
-| Terminal dashboard | B-009 (already in v0.3!) | done |
-| Multi-repo dashboard | B-010 | FUTURE |
-| Web dashboard | FUTURE section | FUTURE |
-| Voice-first review | D-006 | FUTURE |
-| Mobile app | rejected (R-004) | — |
+| Enhancement | Where (BACKLOG ref) | Phase | Status |
+|-------------|---------------------|-------|--------|
+| VSCode extension with inline provenance | B-001 / K-003 (duplicate) | FUTURE | proposed |
+| JetBrains plugin | B-002 / K-004 (duplicate) | FUTURE | idea |
+| Neovim plugin | B-003 / K-005 (duplicate) | FUTURE | draft |
+| Full-screen review TUI | B-004 | BETA | ✅ done (shipped in v0.3) |
+| Onboarding wizard | B-005 | MVP | ✅ done (shipped in v0.3) |
+| Color-coded `caf report` | B-008 | BETA | ✅ done (shipped in v0.3) |
+| Terminal dashboard | B-009 | MVP | ✅ done (shipped in v0.3) |
+| Multi-repo dashboard | B-010 / K-001 (duplicate) | PROD | proposed |
+| Web dashboard | (FUTURE) | FUTURE | — |
+| Voice-first review | D-006 / K-006 (duplicate) | FUTURE | idea |
+| Mobile app | R-004 | rejected | rejected |
+
+> **v0.3.1-triz reconciliation:** In the original UI.md §15, the "Status" column was missing; items B-004, B-005, B-008, B-009 were tagged inline as "already in v0.3! done" but the status field was inconsistent. v0.3.1-triz adds an explicit Status column. Cross-theme duplicates (K-003/4/5/6 = B-001/2/3 and D-006) are now explicitly tagged as duplicates per BACKLOG §12 cross-reference.
