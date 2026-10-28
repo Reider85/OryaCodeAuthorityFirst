@@ -1,1081 +1,676 @@
-# CodeAuthorityFirst — ARCHITECT.md
+# CodeAuthorityFirst — ROADMAP.md
 
-> **Версия спецификации / Spec version:** 0.2 (universal)
-> **Форм-фактор / Form factor:** CLI + MCP server + Agent Adapter Layer
-> **Охват / Scope:** any codebase authored or co-authored by AI coding agents; agent-agnostic via pluggable adapters
-> **Поддерживаемые агенты / Supported agents (v0.2 target):** opencode, Claude Code, Cursor, Cline, Aider, KiloCode, Codex CLI, Continue.dev, OryaAgent
-> **Голос реконструкции / Reconstruction voice:** first-person («Я выбрал X потому что…»)
-> **Предыдущая версия / Previous version:** 0.1 (Orya-specific, see git history)
-> **Язык / Language:** bilingual — Russian body, English glossary and per-section summaries
-> **Аудитория / Audience:** tool maintainers + committers using AI coding agents in any stack
+> **Версия / Version:** 0.3 (80/20 prioritized, expanded agents, UI milestones)
+> **Формат фаз / Phase format:** MVP → ALPHA → BETA → PROD → FUTURE
+> **Принцип приоритезации / Prioritization principle:** 🔥 80/20 — 20% усилий даёт 80% ценности; high-leverage фичи получают приоритет
+> **Язык / Language:** bilingual — Russian body, English summary per phase
+> **Аудитория / Audience:** tool maintainers + early adopters
+> **Связанные документы:** [ARCHITECT.md](./ARCHITECT.md) · [UI.md](./UI.md) · [BACKLOG.md](./BACKLOG.md) · [ADR.md](./ADR.md)
 
 ---
 
-## 0. Document Conventions
+## 0. Roadmap Philosophy (v0.3)
 
-### 0.1 Bilingual policy
+**EN summary.** v0.3 roadmap applies 80/20 prioritization: high-leverage features (universal pre-commit hook, auto-detect, LSP fallback, TUI dashboard) get disproportionate resources. Perfectionism on low-value features is forbidden. Each phase is self-sufficient — after each, the tool is more useful than before.
 
-**Русский** — основной язык документа. Технические термины сохраняются на языке оригинала (CLI-команды, YAML-ключи, ASCII-диаграммы, идентификаторы агентов). **English** — для глоссария, заголовков таблиц и кратких `EN summary.` блоков в начале каждой крупной секции. Это даёт международным контрибьюторам точку входа без перевода, а русскоязычным мейнтейнерам — точные формулировки без лоскутного перевода.
+Дорожная карта v0.3 построена на четырёх принципах:
 
-### 0.2 Glossary
+1. **🔥 80/20 priority.** Фичи помеченные `🔥 80/20` получают приоритет в ресурсах. Это фичи, дающие 80% ценности за 20% усилий. Перфекционизм на low-value фичах запрещён (см. ADR-015).
 
-| Term (EN) | Термин (RU) | Definition |
-|---|---|---|
-| Authorship | Авторство | субъективная способность объяснить код так, будто он написан тобой |
-| Provenance | Происхождение | трассировка от промпта AI-сессии до git-объекта |
-| Decision Record | Запись решения | ADR-подобный документ с акцентом на отвергнутые альтернативы |
-| Mental Model | Ментальная карта | внутреннее представление связей и причинно-следственных решений |
-| Spaced Repetition | Интервальное повторение | алгоритм SM-2 (как в Anki) |
-| Blindspot | Слепая зона | файл, изменённый за 30 дней, но не покрытый SRS-карточкой |
-| Agent Adapter | Адаптер агента | модуль, транслирующий CAF-события в hook-систему конкретного AI-агента |
-| Capability Matrix | Матрица возможностей | таблица "агент × поддерживаемое hook-событие" |
-| Trivial commit | Тривиальный коммит | коммит с пометкой `CAF-Trivial: true`, не требующий decision-записи |
-| Card | Карточка | SRS-единица в Mental Model Reconstructor |
+2. **Self-sufficiency.** Каждая фаза добавляет ценность автономно. После MVP инструмент уже полезен, даже если development остановится.
 
-### 0.3 Identifier conventions
+3. **Universal before specific.** Сначала universal fallback (LSP, git hook, filesystem watcher) — покрывает ВСЕХ агентов сразу. Потом явные адаптеры для enhanced UX. Это обратно v0.2 подхода, где specific adapters were primary.
 
-- CLI-команды: `caf <subcommand>` (snake_case для флагов)
-- YAML-поля: `snake_case`
-- Файлы provenance: `.caf/sessions/<YYYY-MM-DD>-<short_id>.yml`, где `short_id` — первые 6 hex-символов SHA-256 от `started_at + initial_prompt + agent_id`
-- Файлы решений: `.caf/decisions/d_<YYYY-MM-DD>-<seq>.md`
-- SRS-карточки: единый файл `.caf/mental-model/cards.yml`
-- Git trailer: `CAF-Session: <id>` (заменяет Orya-Session из v0.1)
+4. **TUI before Web.** TUI покрывает 80% UX ценностью 20% effort. Web UI отложен до FUTURE.
 
-### 0.4 Naming rationale
+### 0.1 High-leverage features list (🔥 80/20)
 
-**Project name:** `CodeAuthorityFirst` (вместо `OryaSkill`/`OryaCodeAuthorityFirst` из v0.1) — отражает универсальность: инструмент не привязан к конкретному стеку.
+| # | Feature | Effort | Value | Why 80/20 |
+|---|---|---|---|---|
+| 1 | Universal pre-commit hook | ~1 день | enforcement для 25+ агентов | один shell script, agent-agnostic |
+| 2 | Auto-detect agents by config files | ~1 день | removes need for explicit `caf init --agent` | один config-driven matcher |
+| 3 | Universal LSP fallback | ~5 дней | мгновенная поддержка любого agent'а | покрывает long-tail агентов |
+| 4 | TUI dashboard | ~5 дней | заменяет web UI для v1 | bubbletea + lipgloss, well-trodden path |
+| 5 | `caf.first_person_explain` MCP | ~3 дня | killer feature, 80% perceived value | LLM paraphrase + ground truth |
+| 6 | Single Go binary | 0 (бесплатно) | zero-dependency distribution | Go gives this for free |
+| 7 | ASCII heatmap | ~2 дня | works in any terminal | no rendering overhead |
+| 8 | SM-2 algorithm | ~2 дня | proven, simple, no innovation risk | copied from Anki |
 
-**CLI binary:** `caf` (вместо `orya`) — короткое, легко печатается, не конфликтует с существующими инструментами в `$PATH`.
-
-**Folder:** `.caf/` (вместо `.orya/`) — то же имя, что и CLI, не содержит информации о каком-либо фреймворке.
-
-Подробное обоснование — см. ADR-007, ADR-008, ADR-009.
+**Итого:** 8 фич, ~20 дней effort, ~80% ценности. Это и есть MVP scope.
 
 ---
 
-## 1. Problem Statement
+## 1. Phase Overview (v0.3)
 
-**EN summary.** When code in any repository is generated or co-authored by an AI coding agent (opencode, Claude Code, Cursor, Aider, etc.), the human author loses the mental map of decisions and rejected alternatives. Existing tools capture git history but not the *agent session context*: the prompt, the alternatives the agent considered and rolled back, the reasoning behind choosing approach A over B. `CodeAuthorityFirst` restores authorship by recording provenance across **any** agent, archiving decisions, and applying spaced repetition to the author's own knowledge of the codebase.
+| Phase | Duration (est.) | Primary goal | Modules live | Agents supported | UI screens | 🔥 80/20 features |
+|---|---|---|---|---|---|---|
+| MVP | 2-3 weeks | Universal provenance + dashboard | Provenance, context.md, dashboard | 25+ via universal LSP + Tier 1 (2 explicit) | dashboard, onboarding, adapters list | 1, 2, 3, 6 |
+| ALPHA | 4-6 weeks | Decision Log + TUI review | + Decision Log, TUI editor | + Tier 1 complete (5 explicit) | + decisions list, decisions editor | 4, 7 |
+| BETA | 6-8 weeks | Mental Model Reconstructor | + MMR (SM-2), single-repo graph | + Tier 2 (8 explicit) | + review session, heatmap, file tour | 8 |
+| PROD | 8-10 weeks | MCP server + cross-repo | + MCP, cross-repo sync, OryaAgent | + Tier 3 (12 explicit) | + reports view, settings | 5 |
+| FUTURE | open-ended | Multi-language, web UI, plugins | + language adapters, multi-user | extensibility via plugins | + web UI (visualizations only) | — |
 
-Когда код в любом репозитории пишется или редактируется AI-агентом (opencode, Claude Code, Cursor, Aider и др.), возникает специфическое отчуждение. Файл существует, компилируется, проходит тесты — но в голове автора нет истории его появления. Не зафиксированы рассмотренные альтернативы, не сохранены тупиковые ветки, которые агент попробовал и откатил, не сохранено обоснование выбора подхода. Git log показывает «refactor auth middleware» — но это память агента, а не память человека.
-
-Это критично, потому что владение кодом — это не знание синтаксиса, а **ментальная карта принятых решений и отвергнутых альтернатив**. Без неё невозможно безопасно эволюционировать систему: каждое следующее изменение принимается в вакууме, риск регрессий растёт, а обсуждение архитектуры превращается в «спрошу у агента».
-
-`CodeAuthorityFirst` — инструмент, который восстанавливает ощущение авторства **для любого проекта, разрабатываемого любым AI-агентом**. Он не пишет код за автора и не заменяет агент. Он делает так, чтобы через неделю, месяц или год после AI-сессии автор мог открыть любой файл в любом репозитории и сказать: «Я понимаю, почему здесь именно так, и могу объяснить это другому разработчику».
-
-Универсальность достигается через **Agent Adapter Layer** (см. секцию 3.3) — каждый AI-агент получает свой адаптер, транслирующий внутренние события агента в единый CAF-контракт.
-
----
-
-## 2. Design Principles
-
-**EN summary.** Six principles govern all architectural decisions. The same six as v0.1, with one reformulation: "Cross-repo mental graph" is now "Cross-project mental graph" (any repo, not just Orya*). The agent-agnostic principle is implicit in the Adapter Layer — any feature that requires a specific agent's API and cannot be expressed via the adapter contract is out of scope for v0.2.
-
-Инструмент строится на шести принципах, которые определяют все архитектурные решения ниже.
-
-**Authorship-first.** Главная метрика — не покрытие кода тестами и не скорость разработки, а субъективная уверенность автора: «я могу объяснить этот код так, как будто написал его сам». Любая фича оценивается через этот критерий; фичи, не двигающие Authorship Confidence Score (см. секцию 12.1), не попадают в v0.2.
-
-**Provenance by default.** Происхождение каждого нетривиального коммита (какой промпт, какая сессия, какой агент, какая итерация) записывается автоматически, без участия человека. Хранение provenance — это базовый слой, на котором строятся остальные модули; отсутствие provenance делает два других модуля бесполезными.
-
-**Decision > Implementation.** Понимание «как» вторично по отношению к пониманию «почему». Инструмент тратит больше ресурсов на фиксацию отвергнутых альтернатив, чем на объяснение финальной реализации — финальную реализацию можно прочитать в коде, альтернативы же исчезают без следа.
-
-**Spaced repetition of code.** Ментальная карта затухает без подкрепления — эмпирически этот порог составляет 4-6 недель. Применяется алгоритм SM-2 (как в Anki) к ключевым файлам и решениям, чтобы через 30/60/90 дней после коммита они автоматически возвращались в зону внимания автора.
-
-**First-person voice.** Все генерируемые объяснения пишутся от лица автора: «Я выбрал RBAC вместо ABAC, потому что на тот момент у нас было всего три роли». Это когнитивный трюк — первое лицо заставляет ассимилировать решение как собственное, а не как внешне навязанное.
-
-**Cross-project mental graph.** Любой набор репозиториев, разработанных автором, — один продукт с точки зрения ментальной карты. Инструмент хранит граф зависимостей между ними: «Repo A зависит от Repo B через интерфейс `Foo`, определённый в `RepoB/pkg/foo.go:42`». При изменении интерфейса в одном репо инструмент подсказывает, какие решения в зависимых репо могут стать неактуальными.
+**🔥 Key shift from v0.2:** MVP теперь покрывает 25+ агентов через universal fallback, а не 2 явных адаптера. Это радикально расширяет initial coverage.
 
 ---
 
-## 3. System Architecture
+## 2. Phase: MVP (2-3 weeks)
 
-**EN summary.** Four layers compose the universal system: Interface Layer (CLI + MCP server), Agent Adapter Layer (pluggable per-agent modules translating CAF events to agent-specific hook systems), Storage Layer (`.caf/` folder committed to each repo's git history), Hooks Layer (canonical pre-session / post-edit / pre-commit events that adapters implement). The Adapter Layer is the v0.2 addition that makes the system universal — adapters declare a capability matrix and gracefully degrade when an agent lacks a feature.
+**EN summary.** Deliver universal provenance for ALL agents (25+) via LSP fallback + 2 explicit Tier 1 adapters (opencode, Claude Code). After MVP, user can run `caf init` (zero args), universal pre-commit hook is installed, any AI agent automatically tracked. Dashboard TUI shows real-time metrics. Decision Log and Mental Model absent.
 
-`CodeAuthorityFirst` состоит из четырёх слоёв. Каждый слой можно использовать независимо, но вместе они дают синергетический эффект. **Новинка v0.2:** добавлен Agent Adapter Layer, изолирующий специфику каждого AI-агента за единым контрактом событий.
+### 2.1 Scope
 
-### 3.1 Layered diagram
+**🔥 80/20 MVP scope:** maximum value, minimum effort.
 
-```text
-┌──────────────────────────────────────────────────────────────────────────┐
-│  Interface Layer                                                          │
-│  ┌──────────────────┐    ┌──────────────────┐                             │
-│  │  caf CLI         │    │  MCP server      │  ← any MCP-compatible      │
-│  │  (terminal/IDE)  │    │  (stdio / SSE)   │    client                  │
-│  └────────┬─────────┘    └────────┬─────────┘                             │
-│           │                       │                                       │
-└───────────┼───────────────────────┼───────────────────────────────────────┘
-            │                       │
-┌───────────┼───────────────────────┼───────────────────────────────────────┐
-│  Agent Adapter Layer               │                                       │
-│  ┌────────┴───────────────────────┴────────┐                              │
-│  │  Adapter Registry                        │                              │
-│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐     │                              │
-│  │  │opencode │ │ClaudeCC │ │ Cursor  │ ... │                              │
-│  │  └─────────┘ └─────────┘ └─────────┘     │                              │
-│  └────────┬────────────────────────────────┘                              │
-│           │ canonical CAF events:                                         │
-│           │  pre-session / post-edit / pre-commit                          │
-└───────────┼───────────────────────────────────────────────────────────────┘
-            │
-┌───────────┼───────────────────────────────────────────────────────────────┐
-│  Storage Layer                       │                                     │
-│  ┌────────▼─────────────────────────┐                                      │
-│  │  .caf/  (per-repo, in git)       │                                      │
-│  │  ├─ context.md                    │                                      │
-│  │  ├─ manifest.yml                  │                                      │
-│  │  ├─ sessions/*.yml                │                                      │
-│  │  ├─ decisions/*.md                │                                      │
-│  │  └─ mental-model/                 │                                      │
-│  │     ├─ cards.yml                  │                                      │
-│  │     └─ graph.yml                  │                                      │
-│  └──────────────────────────────────┘                                       │
-└───────────────────────────────────────────────────────────────────────────┘
-            ▲
-            │ canonical events fire through adapters
-┌───────────┼───────────────────────────────────────────────────────────────┐
-│  Hooks Layer (canonical CAF contract)                                     │
-│  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐                   │
-│  │ pre-session  │   │  post-edit   │   │ pre-commit   │                   │
-│  │ reads        │   │  writes      │   │  validates   │                   │
-│  │ context.md   │   │  provenance  │   │  decisions   │                   │
-│  └──────────────┘   └──────────────┘   └──────────────┘                   │
-└───────────────────────────────────────────────────────────────────────────┘
-```
+**Modules implemented:**
 
-### 3.2 Why this composition
+- Provenance Tracker (partial — without decision linking)
+- `context.md` generator
+- Universal pre-commit hook (🔥 — works for any agent)
+- Universal LSP fallback adapter (🔥 — covers any agent)
+- Auto-detect (`caf init --auto-detect`, 🔥)
+- Adapter for **opencode** (Tier 1, native)
+- Adapter for **Claude Code** (Tier 1, native)
+- TUI dashboard (🔥, see UI.md §3)
+- TUI onboarding wizard (see UI.md §2)
+- TUI adapters manager (see UI.md §7)
 
-Хранение `.caf/` в самом репозитории (а не в отдельной БД) гарантирует, что provenance и decisions эволюционируют синхронно с кодом: `git checkout` на старый коммит даёт доступ к ментальной карте того момента. Agent Adapter Layer минимизирует трение — автор не должен явно вызывать `caf log`, журнал сессий пишется автоматически независимо от того, какой агент редактирует код. CLI и MCP-сервер дают два режима потребления: CLI для дневной работы в терминале, MCP — для автоматического инжектирования контекста в новые AI-сессии.
+**Adapters shipped:**
 
-Ядро системы — три модуля: **Provenance Tracker**, **Decision Log**, **Mental Model Reconstructor**. Они описаны в секции 4.
-
----
-
-## 3.3 Agent Adapter Layer
-
-**EN summary.** The Adapter Layer is the v0.2 addition that makes the tool universal. Each AI coding agent has its own hook system, configuration format, and event vocabulary. Adapters translate between agent-specific concepts and the canonical CAF event contract (pre-session / post-edit / pre-commit). Adapters declare a capability matrix; the core never assumes an adapter supports all events — it gracefully degrades when an agent lacks support.
-
-### 3.3.1 Canonical event contract
-
-CAF определяет три канонических события, которые любой адаптер должен по возможности реализовать:
-
-| Event | Trigger | Input | Action |
+| Adapter | Tier | Status | Coverage mechanism |
 |---|---|---|---|
-| `pre-session` | запуск AI-сессии агентом | `repo_path`, `session_id`, `agent_id` | читать `.caf/context.md`, инжектировать в system prompt агента |
-| `post-edit` | после каждой итерации агента, изменившей файлы | `repo_path`, `session_id`, `diff` | писать `.caf/sessions/<id>.yml`, при нетривиальном изменении — TUI-промпт для decision |
-| `pre-commit` | перед `git commit` | `repo_path`, staged diff | валидировать наличие trailer `CAF-Session` и ссылки на decision |
-
-### 3.3.2 Adapter capability matrix
-
-Не все агенты поддерживают все три события одинаково. Адаптер объявляет capability matrix; ядро CAF использует fallback-стратегии для отсутствующих capabilities.
-
-| Agent | `pre-session` | `post-edit` | `pre-commit` | MCP native | Adapter status (v0.2) |
-|---|---|---|---|---|---|
-| opencode | ✓ (hooks.toml) | ✓ | ✓ | ✓ | Tier 1 — MVP |
-| Claude Code | ✓ (settings.json hooks) | ✓ | ✓ | ✓ | Tier 1 — MVP |
-| Cursor | partial (rules file) | ✓ (extension API) | ✓ (git hook) | ✗ | Tier 1 — ALPHA |
-| Cline | ✓ (extension hooks) | ✓ | ✓ | ✗ | Tier 1 — ALPHA |
-| Aider | ✗ (no pre-session) | ✓ (via .aider.conf) | ✓ (git hook) | ✗ | Tier 2 — BETA |
-| KiloCode | ✓ | ✓ | ✓ | ✓ | Tier 2 — BETA |
-| Codex CLI | partial | ✓ | ✓ | ✗ | Tier 2 — BETA |
-| Continue.dev | ✓ (config.yaml hooks) | ✓ | ✓ | ✗ | Tier 2 — BETA |
-| OryaAgent | ✓ (native) | ✓ (native) | ✓ (native) | ✓ | Tier 3 — PROD |
-
-### 3.3.3 Fallback strategies
-
-Для агентов с неполной поддержкой событий:
-
-- **Нет `pre-session`** (Aider, частично Codex CLI): wrapper-скрипт `caf-wrap <agent> <prompt>` запускает агент, предварительно инжектировав `context.md` через `--system-prompt-file` или эквивалент. Если агент не поддерживает system prompt override — `context.md` печатается в stdout как преамбула, агент читает её как первый turn.
-- **Нет `post-edit` (real-time)**: filesystem watcher daemon `caf-watch` отслеживает изменения в рабочем каталоге и пишет session-лог при каждом flush. Задержка до 5 секунд; итерации агрегируются по временным окнам.
-- **Нет `pre-commit` (git hook)**: невозможно — `pre-commit` всегда реализуем через `.git/hooks/pre-commit`. Это universal fallback, работающий для любого агента.
-
-### 3.3.4 Adapter interface (Go)
-
-```go
-// pkg/adapter/adapter.go
-package adapter
-
-type Event string
-
-const (
-    EventPreSession  Event = "pre-session"
-    EventPostEdit     Event = "post-edit"
-    EventPreCommit    Event = "pre-commit"
-)
-
-type Adapter interface {
-    // ID returns the agent identifier (e.g. "opencode", "claude-code").
-    ID() string
-
-    // Capabilities returns the events this adapter supports natively.
-    // Core uses fallbacks for missing capabilities.
-    Capabilities() map[Event]Capability
-
-    // Install registers the adapter's hook configuration in the agent.
-    // Called once by `caf init --agent <id>`.
-    Install(repoPath string) error
-
-    // Uninstall removes the adapter's hook configuration.
-    Uninstall(repoPath string) error
-
-    // Detect checks whether this adapter's agent is active in the repo.
-    // Returns true if e.g. .opencode/ or .claude/ exists.
-    Detect(repoPath string) bool
-}
-
-type Capability struct {
-    Native      bool   // true = real hook, false = fallback
-    FallbackDesc string // human-readable explanation when Native=false
-}
-```
-
-### 3.3.5 Adapter registry
-
-Адаптеры регистрируются в `internal/registry/registry.go` через `init()`:
-
-```go
-package registry
-
-import (
-    "codeauthorityfirst/pkg/adapter"
-    "codeauthorityfirst/pkg/adapter/opencode"
-    "codeauthorityfirst/pkg/adapter/claudecode"
-    "codeauthorityfirst/pkg/adapter/cursor"
-    "codeauthorityfirst/pkg/adapter/cline"
-    "codeauthorityfirst/pkg/adapter/aider"
-    "codeauthorityfirst/pkg/adapter/kilocode"
-    "codeauthorityfirst/pkg/adapter/codexcli"
-    "codeauthorityfirst/pkg/adapter/continue_dev"
-    "codeauthorityfirst/pkg/adapter/oryaagent"
-)
-
-func init() {
-    for _, a := range []adapter.Adapter{
-        opencode.New(),
-        claudecode.New(),
-        cursor.New(),
-        cline.New(),
-        aider.New(),
-        kilocode.New(),
-        codexcli.New(),
-        continue_dev.New(),
-        oryaagent.New(),
-    } {
-        Register(a)
-    }
-}
-```
-
-Команда `caf adapters list` показывает зарегистрированные адаптеры и их capabilities.
-
----
-
-## 4. Module Specifications
-
-### 4.1 Provenance Tracker
-
-**EN summary.** Each AI agent session receives a unique `session_id` and auto-logs to `.caf/sessions/<id>.yml` with the agent identifier, original prompt, iterations, files touched, final commit SHA, and references to decisions made. `git blame` is patched via a `post-commit` trailer `CAF-Session: <id>` so plain `git log --grep=CAF-Session` finds provenance regardless of which agent produced the commit.
-
-Provenance Tracker отвечает на вопрос «откуда взялся этот код». Каждая сессия любого поддерживаемого агента получает уникальный `session_id` и автоматически логирует себя в `.caf/sessions/<id>.yml`. Запись содержит идентификатор агента, исходный промпт, итерации, затронутые файлы, финальный коммит и ссылку на git-объект.
-
-**Схема записи сессии (v0.2 — добавлено поле `agent`):**
-
-```yaml
-# .caf/sessions/2026-10-24-a1b2c3.yml
-session_id: 2026-10-24-a1b2c3
-repo: my-backend-service
-agent: claude-code        # NEW in v0.2: which agent produced this session
-agent_version: 1.0.21
-model: claude-sonnet-4-5
-started_at: 2026-10-24T11:02:14+03:00
-ended_at: 2026-10-24T11:47:33+03:00
-tool_call: claude-code run "add rate limiter to /v1/policies"
-initial_prompt: |
-  Нужно добавить rate limiter на endpoint POST /v1/policies.
-  Сейчас любой клиент может спамить запросами. Ограничение:
-  10 запросов в минуту на токен.
-iterations:
-- id: i1
-  action: read
-  target: internal/api/policies.go
-- id: i2
-  action: edit
-  target: internal/api/policies.go
-  diff_summary: "добавлен middleware RateLimit(token, 10/min)"
-- id: i3
-  action: edit
-  target: internal/middleware/ratelimit.go  # новый файл
-files_touched:
-- internal/api/policies.go
-- internal/middleware/ratelimit.go
-commit_sha: 9f3e2a1  # null если не закоммичено
-decisions_made:
-- d_2026-10-24-01  # ссылка на .caf/decisions/d_2026-10-24-01.md
-voice_signature: "rate limiter нужен был срочно, выбрал token bucket"
-```
-
-**Связь с `git blame`.** Provenance Tracker патчит `git blame` через `post-commit` hook: каждый коммит, сделанный через любого AI-агента, помечается trailer `CAF-Session: 2026-10-24-a1b2c3` и `CAF-Agent: claude-code`. Это позволяет `git log --grep=CAF-Session` находить происхождение кода без отдельного инструмента, а `git log --grep=CAF-Agent=claude-code` фильтровать по конкретному агенту.
-
-**CLI-команды модуля:**
-
-```bash
-# Кто написал эту строку, в какой сессии и каким агентом?
-caf who internal/api/policies.go:42
-# → session 2026-10-24-a1b2c3, agent: claude-code,
-#   prompt: "add rate limiter", iteration i2
-
-# Когда в этом файле появился паттерн X?
-caf when --pattern "token_bucket" internal/middleware/
-# → 2026-10-24, session a1b2c3, agent: claude-code, commit 9f3e2a1
-
-# Почему (вытягивает decision log для этого файла)
-caf why internal/middleware/ratelimit.go
-# → d_2026-10-24-01: выбран token bucket вместо sliding window
-
-# Все сессии определённого агента
-caf sessions --agent claude-code --since 7d
-```
-
-Provenance — это базовый слой. Без него два других модуля не работают.
-
----
-
-### 4.2 Decision Log
-
-**EN summary.** ADR-like records stored in `.caf/decisions/d_<date>-<seq>.md`. Triggered by `post-edit` adapter event after non-trivial edits (>50 LOC, excluding imports / formatting / test-duplicates) and enforced by `pre-commit`. The decision template is agent-agnostic; the same format applies whether Claude Code, Aider, or Cursor produced the change.
-
-Decision Log — это архив отвергнутых альтернатив. Каждое нетривиальное решение получает файл `.caf/decisions/<id>.md` в формате, похожем на ADR, но с одним принципиальным отличием: **главная ценность — не в описании выбранного варианта, а в фиксации отвергнутых**.
-
-**Схема decision-записи:**
-
-```markdown
----
-id: d_2026-10-24-01
-title: Rate limiter: token bucket vs sliding window
-date: 2026-10-24
-repo: my-backend-service
-agent: claude-code          # NEW in v0.2
-session: 2026-10-24-a1b2c3
-files:
-- internal/middleware/ratelimit.go
-status: accepted
----
-
-## Контекст
-POST /v1/policies принимает запросы создания политик. Без ограничения
-любой валидный токен может выполнить DoS, забив очередь обработки.
-Нужно ограничение 10 запросов в минуту на токен.
-
-## Выбрано
-Token bucket: 10 токенов в бакете, пополнение 1 токен/6 секунд.
-
-## Альтернативы
-
-### Sliding window
-- Что: считать запросы в скользящем окне 60 секунд
-- Почему отверг: при 10 req/min накладные расходы на хранение
-  временных меток не оправданы.
-
-### Fixed window
-- Что: считать запросы в фиксированных минутных окнах
-- Почему отверг: на границе окна возможен всплеск 2x (10+10),
-  что для политик критично.
-
-### Redis-based distributed limiter
-- Что: вынести счётчик в Redis
-- Почему отверг: на данном этапе нет требования multi-instance.
-
-## Импликации
-- Если нагрузка вырастет до 100+ req/sec — пересмотреть в сторону
-  sliding window + Redis.
-- Интерфейс Limiter абстрактен, миграция без боли.
-- Метрики: размер бакета вынесен в конфиг, можно тюнить без релиза.
-```
-
-**Триггеры записи.** Decision log не пишется вручную. Записи инициируются событием `post-edit` от адаптера: после каждой AI-сессии, изменившей >50 строк нетривиального кода, ядро CAF предлагает автору за 30 секунд заполнить шаблон через TUI-промпт. Если автор пропускает — событие `pre-commit` напоминает ещё раз и блокирует коммит, пока не появится ссылка на decision (или явная пометка `CAF-Trivial: true`).
-
-**CLI-команды модуля:**
-
-```bash
-# Все решения за сегодня
-caf decisions --today
-
-# Решения, влияющие на конкретный файл
-caf decisions --file internal/middleware/ratelimit.go
-
-# Решения, сделанные конкретным агентом
-caf decisions --agent aider --since 30d
-
-# Решения без связанных коммитов (прорехи в логе)
-caf decisions --gaps
-
-# Поиск по ключевому слову среди отвергнутых альтернатив
-caf decisions --search "Redis"
-
-# Интерактивное создание новой записи
-caf decisions new --files internal/middleware/ratelimit.go
-```
-
----
-
-### 4.3 Mental Model Reconstructor (MMR)
-
-**EN summary.** Converts passive code-reading ability into active ownership via SM-2 spaced repetition over three card types: "Why X here?", "What if Y is removed?", "Where is Z handled?". Cards are generated automatically from `.caf/sessions/` and `.caf/decisions/`. A cross-repo dependency graph in `.caf/mental-model/graph.yml` enables cards of types 2 and 3, and surfaces "blindspots". Cards are agent-agnostic — a card may reference sessions from multiple agents if the file was touched by different agents over time.
-
-MMR применяет алгоритм SM-2 к трём типам карточек, генерируемых из `.caf/sessions/` и `.caf/decisions/`. Карточки не привязаны к конкретному агенту — если файл редактировался разными агентами в разное время, карточка ссылается на все релевантные сессии.
-
-**Тип 1 — «Почему здесь X?»** Карточка привязана к конкретному файлу и строке. Вопрос: «Почему в `internal/middleware/ratelimit.go:18` выбран token bucket?». Ответ сверяется с `d_2026-10-24-01`. Генерируется автоматически при создании decision-записи.
-
-**Тип 2 — «Что будет если удалить Y?»** Карточка симулирует удаление ключевого компонента. Пример: «Что произойдёт, если удалить `policy.Cache`?». Ответ: «Латентность eval вырастет с 2ms до 40ms». Генерируется из графа зависимостей.
-
-**Тип 3 — «Где обрабатывается Z?»** Карточка проверяет знание потока данных. Пример: «Где обрабатывается событие `tool_call_failed`?». Выявляет слепые зоны.
-
-**Алгоритм SM-2.** Каждая карточка имеет `ease_factor` (начально 2.5) и `interval` (начально 1 день). После ответа автор оценивает качество 0-5. Оценка <3 сбрасывает интервал, ≥4 увеличивает на `ease_factor`. Стандартный SM-2 без модификаций.
-
-**Формат хранения:**
-
-```yaml
-# .caf/mental-model/cards.yml
-cards:
-- id: c_001
-  type: why
-  repo: my-backend-service
-  file: internal/middleware/ratelimit.go
-  line: 18
-  question: "Почему выбран token bucket?"
-  expected_answer: "10 req/min, накладные расходы sliding window не оправданы"
-  decision_ref: d_2026-10-24-01
-  sessions:              # NEW in v0.2: multiple sessions may contribute
-  - 2026-10-24-a1b2c3    # claude-code session
-  - 2026-11-02-e5f6a7    # aider session that touched same line
-  ease: 2.5
-  interval_days: 1
-  due: 2026-10-25
-  last_reviewed: null
-  reviews: []
-```
-
-**Граф зависимостей.** MMR строит и поддерживает кросс-репо граф: импорты, вызовы интерфейсов, события. Граф хранится в `.caf/mental-model/graph.yml` и обновляется при каждом `caf sync`.
-
-**CLI-команды модуля:**
-
-```bash
-# Ежедневная сессия повторения (10 минут, ~15 карточек)
-caf review
-
-# Жёсткая сессия: только карточки с низким ease
-caf review --hard
-
-# Просмотр слепых зон
-caf review --blindspots
-
-# Принудительно сгенерировать карточки из последних решений
-caf review --regenerate --since 7d
-
-# Статистика владения
-caf review --stats
-```
-
----
-
-## 5. Data Model — `.caf/` Contracts
-
-**EN summary.** `.caf/` lives at the root of any repo and is committed alongside code. Same structure as v0.1's `.orya/` but with `agent` field added to all session/decision/card records. Five subdirectories + three top-level files. All schemas are YAML/Markdown to maximize diffability.
-
-### 5.1 File tree
-
-```text
-.caf/
-├── context.md              # автоматически генерируемый контекст для pre-session
-├── manifest.yml            # мета-информация о репо и связях с другими репо
-├── config.yml              # NEW in v0.2: per-repo CAF configuration
-│                           #   (enabled agents, capability overrides)
-├── sessions/               # Provenance Tracker
-│   ├── 2026-10-24-a1b2c3.yml
-│   └── 2026-10-25-d4e5f6.yml
-├── decisions/              # Decision Log
-│   ├── d_2026-10-24-01.md
-│   ├── d_2026-10-24-02.md
-│   └── index.yml           # быстрый индекс для поиска
-├── mental-model/           # Mental Model Reconstructor
-│   ├── cards.yml           # SRS-карточки
-│   └── graph.yml           # кросс-репо граф зависимостей
-└── reviews/                # история caf review сессий
-    └── 2026-10-24.log
-```
-
-### 5.2 `config.yml` (NEW in v0.2)
-
-Per-repo конфигурация CAF, в частности — какие агенты включены и какие capability overrides применяются:
-
-```yaml
-# .caf/config.yml
-version: 0.2
-enabled_agents:
-- opencode
-- claude-code
-- cursor              # fallback pre-session via wrapper
-- aider               # fallback pre-session via wrapper
-capability_overrides:
-  cursor:
-    pre-session:
-      native: false
-      fallback: wrapper
-  aider:
-    pre-session:
-      native: false
-      fallback: wrapper
-triviality_threshold_loc: 50
-hooks_fail_safe: true
-```
-
-### 5.3 `manifest.yml`
-
-Связующий файл между репо. Пример для произвольного бэкенд-сервиса:
-
-```yaml
-# .caf/manifest.yml в репозитории my-backend-service
-repo: my-backend-service
-role: service  # service | library | cli | orchestrator | etc.
-description: |
-  Backend API for policy management. Go + PostgreSQL.
-  Handles POST /v1/policies, GET /v1/policies/{id}, etc.
-depends_on:
-- repo: my-auth-lib            # внутренняя библиотека
-  interface: github.com/myorg/my-auth-lib.TokenValidator
-  used_in: internal/api/policies.go:42
-  decision: d_2026-09-15-03    # почему именно этот интерфейс
-- repo: my-telemetry-lib
-  interface: github.com/myorg/my-telemetry-lib.Tracer
-  used_in: internal/middleware/tracing.go:18
-- repo: postgres               # внешняя зависимость
-  interface: database/sql
-  used_in: internal/storage/pg.go
-exposes:
-- interface: PolicyAPI
-  package: github.com/myorg/my-backend-service/pkg/api
-  consumers: [my-frontend, my-cli-tool]
-principles:
-- "Сервис не содержит бизнес-логики в handlers, только маршрутизацию"
-- "Все долгоживящие состояния — в PostgreSQL, не в памяти"
-- "Каждая ошибка логируется с trace_id"
-primary_agents:                # NEW in v0.2: which agents typically work here
-- claude-code
-- cursor
-```
-
-`depends_on[].decision` — обратная ссылка на `.caf/decisions/`, объясняющая выбор интерфейса. При `caf sync` инструмент проверяет, что все referenced decisions существуют.
-
-### 5.4 `context.md`
-
-Генерируется командой `caf context` и перегенерируется автоматически при каждом коммите. Содержит выжимку для AI-агента: принципы, последние 10 decisions, активные слепые зоны, интерфейсы, которые репо экспортирует/потребляет. **Длина — строго до 2000 токенов**.
-
-Алгоритм генерации:
-
-1. Прочитать `manifest.yml` → секция `principles` + `exposes` + `depends_on` + `primary_agents`.
-2. Прочитать `decisions/index.yml`, взять последние 10 по полю `date`.
-3. Прочитать `mental-model/graph.yml`, вычислить blindspots.
-4. Скомпоновать markdown ≤2000 токенов; приоритезация: `principles > blindspots > decisions > exposes`.
-
-### 5.5 `sessions/*.yml`
-
-См. секцию 4.1. Именование: `<YYYY-MM-DD>-<short_id>.yml`, где `short_id` — первые 6 hex-символов SHA-256 от `started_at + initial_prompt + agent_id`. Добавление `agent_id` в хэш гарантирует уникальность даже если два разных агента запускаются в одну секунду с одинаковым промптом.
-
-### 5.6 `decisions/*.md` и `decisions/index.yml`
-
-См. секцию 4.2 для формата отдельной записи. `index.yml`:
-
-```yaml
-# .caf/decisions/index.yml
-- id: d_2026-10-24-01
-  title: Rate limiter: token bucket vs sliding window
-  date: 2026-10-24
-  repo: my-backend-service
-  agent: claude-code            # NEW in v0.2
-  files:
-  - internal/middleware/ratelimit.go
-  tags: [rate-limiting, middleware, token-bucket]
-  status: accepted
-```
-
-### 5.7 `mental-model/cards.yml` и `graph.yml`
-
-См. секцию 4.3 для формата карточек. `graph.yml` — кросс-репо граф зависимостей:
-
-```yaml
-# .caf/mental-model/graph.yml
-nodes:
-- repo: my-backend-service
-  file: pkg/policy/evaluator.go
-  symbol: Cache
-  kind: struct
-- repo: my-frontend
-  file: src/api/policies.ts
-  symbol: fetchPolicies
-  kind: usage
-edges:
-- from: {repo: my-frontend, file: src/api/policies.ts, line: 12}
-  to:   {repo: my-backend-service, file: pkg/api/policy.go, symbol: PolicyAPI}
-  kind: http_call
-  decision: d_2026-09-15-03
-last_synced: 2026-10-24T11:00:00+03:00
-```
-
-Граф строится language-agnostically. Для Go: `go list -json ./...`. Для Python: `pip show` + AST-парсинг импортов. Для TypeScript: `tsc --listFiles` + `tsconfig` paths. Language adapters добавляются по фазам roadmap (см. ROADMAP.md).
-
----
-
-## 6. Hooks Contracts
-
-**EN summary.** Three canonical CAF events: `pre-session` (injects `context.md` into agent's system prompt), `post-edit` (writes provenance draft after each iteration; for >50 LOC non-trivial edits, prompts author for a decision record), `pre-commit` (blocks commits lacking `CAF-Session` trailer or decision reference, unless `CAF-Trivial: true`). All events fire through adapters — the core never calls agent-specific APIs directly.
-
-### 6.1 Pre-session event
-
-**Trigger:** запуск AI-сессии агентом.
-**Input:** `repo_path`, `session_id`, `agent_id`.
-**Action:**
-
-1. Читать `.caf/context.md`.
-2. Если файл отсутствует или старше последнего коммита — запустить `caf context --refresh`.
-3. Через адаптер инжектировать содержимое в system prompt агента (способ зависит от агента — см. capability matrix).
-
-**Effect:** Агент с первой итерации знает об архитектурных решениях репо и не предложит отвергнутые альтернативы заново.
-
-**Adapter implementations:**
-
-| Agent | Способ инжекции |
-|---|---|
-| opencode | `hooks.toml` pre-session hook → `caf hook pre-session` выводит context в stdout, opencode читает как system prompt |
-| Claude Code | `settings.json` PreToolUse hook → `caf hook pre-session` writes to `.claude/context.txt`, Claude Code reads via `--system-prompt-file` |
-| Cursor | wrapper `caf-wrap cursor` prependует context в первый промпт |
-| Cline | extension API `onActivate` → injects `context.md` content into Cline's system prompt slot |
-| Aider | wrapper `caf-wrap aider` prependует context в `--message` |
-| KiloCode | hooks config → `caf hook pre-session` |
-| Codex CLI | wrapper (pre-session fallback) |
-| Continue.dev | `config.yaml` hooks → `caf hook pre-session` |
-| OryaAgent | native first-class integration |
-
-### 6.2 Post-edit event
-
-**Trigger:** после каждой итерации агента, изменившей файлы.
-**Input:** `repo_path`, `session_id`, `diff`.
-**Action:**
-
-1. Автоматически создать/обновить `.caf/sessions/<session_id>.yml` с затронутыми файлами и diff-сводкой.
-2. Подсчитать «нетривиальные» изменения: >50 строк, исключая imports, форматирование, тесты-дубликаты.
-3. Если порог пройден — прервать сессию (если адаптер поддерживает) и предложить автору за 30 секунд заполнить decision-шаблон через TUI-промпт.
-4. Автор может пропустить с пометкой `trivial: true`; в этом случае `pre-commit` спросит ещё раз.
-
-### 6.3 Pre-commit event
-
-**Trigger:** перед `git commit`.
-**Input:** staged diff.
-**Action:**
-
-1. Проверить наличие trailer `CAF-Session: <id>` в message коммита.
-2. Если коммит нетривиален и не ссылается ни на один decision — **заблокировать коммит**.
-3. Вывести подсказку: «У этого изменения нет записи в Decision Log. Создать? (y/n/t — trivial)».
-4. При `y` — запустить `caf decisions new` интерактивно.
-5. При `t` — добавить trailer `CAF-Trivial: true` и разрешить коммит.
-6. При `n` — отказ от коммита.
-
-**Universal implementation:** `pre-commit` всегда реализуется через `.git/hooks/pre-commit` shell-скрипт, устанавливаемый `caf init`. Этот скрипт agent-agnostic — git hook не знает, какой агент редактировал файлы, он проверяет только trailer и decision-ссылку.
-
-### 6.4 Adapter installation
-
-Команда `caf init --agent <id>` устанавливает адаптер для конкретного агента в текущем репо:
-
-```bash
-# Установить один адаптер
-caf init --agent claude-code
-
-# Установить несколько адаптеров
-caf init --agents opencode,claude-code,cursor
-
-# Автоопределение: CAF сканирует репо на наличие .opencode/, .claude/, .cursor/
-# и предлагает установить соответствующие адаптеры
-caf init --auto-detect
-```
-
-Для каждого адаптера генерируется конфигурация в соответствующем месте:
-
-| Agent | Конфигурационный файл |
-|---|---|
-| opencode | `~/.config/opencode/hooks.toml` |
-| Claude Code | `.claude/settings.json` (committed to repo) |
-| Cursor | `.cursor/rules/caf.mdc` (committed to repo) |
-| Cline | `.cline/config.json` (committed to repo) |
-| Aider | `.aider.conf.yml` (committed to repo) |
-| KiloCode | `.kilocode/settings.json` |
-| Codex CLI | `~/.codex/config.toml` |
-| Continue.dev | `.continue/config.yaml` (committed to repo) |
-| OryaAgent | `.orya/settings.yml` |
-
-### 6.5 Fail-safe semantics
-
-Хуки спроектированы так, чтобы не ломать workflow при сбое:
-
-- Если `caf` binary недоступен → агент продолжает работать, в логе warning, сессия не блокируется.
-- Если `.caf/` отсутствует → hook молча пропускается (репо не инициализирован через `caf init`).
-- Если адаптер не поддерживает `pre-session` → fallback через wrapper; если wrapper не используется, `pre-session` пропускается с warning.
-- При конфликте `CAF-Trivial: true` и нетривиального диффа → `pre-commit` всё равно требует decision или явного trailer.
-
-См. ADR-003 для обоснования.
-
----
-
-## 7. Sequence Flows
-
-**EN summary.** Three canonical flows: (1) prompt → git commit through all three modules in a daily workflow; (2) SRS card lifecycle from generation to review and ease update; (3) cross-repo change propagation when an interface in one repo is modified, surfacing potentially stale decisions in dependents. All flows are agent-agnostic — they work identically whether Claude Code, Cursor, or Aider produced the change.
-
-### 7.1 Prompt → git commit (дневной поток данных)
-
-```text
-[author]            [any agent]      [adapter]           [.caf/]
-   │                    │                │                  │
-   │  agent run         │                │                  │
-   ├───────────────────►│ pre-session    │                  │
-   │                    ├───────────────►│ read context.md  │
-   │                    │                ├─────────────────►│
-   │                    │                │◄─────────────────┤ markdown
-   │                    │ inject to      │                  │
-   │                    │ system prompt  │                  │
-   │                    │                │                  │
-   │  (agent works)     │                │                  │
-   │                    │ iteration i1   │                  │
-   │                    ├───────────────►│ post-edit        │
-   │                    │                ├─────────────────►│ write sessions/
-   │                    │                │                  │ <id>.yml
-   │                    │ iteration i2   │                  │
-   │                    ├───────────────►│ post-edit        │
-   │                    │                │ >50 LOC? → TUI   │
-   │                    │                │ prompt author    │
-   │  (fill decision)   │                │                  │
-   │◄───────────────────┤                │                  │
-   │                    │                ├─────────────────►│ write decisions/
-   │                    │                │                  │ d_*.md
-   │  git commit        │                │                  │
-   ├───────────────────►│                │ pre-commit       │
-   │                    │ (git hook, universal)              │
-   │                    │ validate trailer + decision ref   │
-   │                    │ pass                              │
-   │  commit created    │                │                  │
-   │◄───────────────────┤                │ post-commit      │
-   │                    │                ├─────────────────►│ add trailers
-   │                    │                │                  │ CAF-Session,
-   │                    │                │                  │ CAF-Agent
-```
-
-### 7.2 SRS card lifecycle
-
-```text
-[decision created]                 [MMR generator]              [cards.yml]
-       │                                  │                          │
-       │  d_2026-10-24-01.md              │                          │
-       ├─────────────────────────────────►│ generate type-1 card     │
-       │                                  ├─────────────────────────►│ c_001
-       │                                  │ ease=2.5, interval=1d   │
-       │                                  │ due=2026-10-25           │
-       │                                  │                          │
-       │  [next day, caf review]           │                          │
-       │  due ≤ today? → show c_001        │                          │
-       │  author answers, rates 4/5        │                          │
-       │  interval = 1 * 2.5 = 2.5 → 3d   │                          │
-       │  due = 2026-10-28                │                          │
-       │                                  │                          │
-       │  [graph update via caf sync]      │                          │
-       │  graph.yml rebuilt                │                          │
-       │  → generate type-2/3 cards        │                          │
-       │  from new graph nodes            │                          │
-       │                                  ├─────────────────────────►│ c_002, c_003
-       │                                  │                          │
-       │  [30 days later]                  │                          │
-       │  file X changed but no card →    │                          │
-       │  blindspot                       │                          │
-       │  caf review --blindspots         │                          │
-       │  → regenerate cards for X         │                          │
-```
-
-### 7.3 Cross-repo change propagation
-
-```text
-[Repo A: my-auth-lib]               [Repo B: my-backend-service]
-   │                                            │
-   │  interface TokenValidator changed          │
-   │  git commit (with CAF-Session trailer)    │
-   │                                            │
-   │  caf sync (in Repo B)                      │
-   │◄───────────────────────────────────────────┤
-   │  reads my-auth-lib/.caf/manifest.yml       │
-   │  detects: used_in internal/api/policies.go:42│
-   │           references outdated interface    │
-   │                                            │
-   │  flags decision d_2026-09-15-03            │
-   │  as "potentially stale"                    │
-   │                                            │
-   │  surfaces in next caf review as            │
-   │  "review-because-interface-changed"        │
-   │  card type                                 │
-```
-
----
-
-## 8. MCP Interface
-
-**EN summary.** MCP server `caf-mcp` exposes 5 tools and 3 prompts to any MCP-compatible client. The flagship tool `caf.first_person_explain` returns a first-person narrative explaining a file's history, decisions, and rejected alternatives. MCP tools are agent-agnostic — they read from `.caf/` regardless of which agent produced the data.
-
-MCP-сервер `caf-mcp` выставляет инструменты и промпты, которые может вызывать любой MCP-совместимый клиент: opencode, Claude Code, Cursor (через MCP bridge), Cline, KiloCode, OryaAgent.
-
-### 8.1 MCP-tools
-
-| Tool | Описание | Возвращает |
-|---|---|---|
-| `caf.context` | Текущий контекст репо (то же, что `context.md`) | Markdown, ~2000 токенов |
-| `caf.provenance` | История сессий, затронувших файл/строку | Список сессий с промптами и идентификаторами агентов |
-| `caf.decisions` | Поиск decisions по тегам/файлам/репо/агенту | Список decision summary |
-| `caf.mental_model` | SRS-карточки для текущего пользователя | JSON с due-карточками |
-| `caf.first_person_explain` | **Главное:** объясняет файл от первого лица | Markdown-нарратив |
-
-### 8.2 `caf.first_person_explain` — flagship tool
-
-Принимает путь к файлу и возвращает объяснение, написанное от лица автора:
-
-```text
-Tool: caf.first_person_explain
-Input: { "file": "internal/middleware/ratelimit.go", "depth": "medium" }
-
-Output (markdown):
-
-## internal/middleware/ratelimit.go
-
-Я добавил этот файл 24 октября, в сессии с Claude Code про rate
-limiting на POST /v1/policies (session 2026-10-24-a1b2c3).
-На тот момент у нас был открытый endpoint без ограничений, и
-любой валидный токен мог заDoSить очередь обработки.
-
-Я выбрал token bucket на 10 токенов с пополнением 1/6 сек.
-Смотрел sliding window, но при 10 req/min накладные расходы
-на хранение меток не оправданы. Redis-based вариант отверг,
-потому что multi-instance пока не нужен, а точка отказа
-не нужна. Интерфейс Limiter абстрактен, перенести в Redis
-можно без боли.
-
-Позже (session 2026-11-02-e5f6a7, Aider) я вернулся сюда,
-чтобы добавить метрики — размер бакета вынесен в конфиг,
-можно тюнить без релиза. Метрики экспортируются в
-my-telemetry-lib как ratelimit_deny_total.
-```
-
-Глубина `depth` принимает значения `short` (1 параграф, только решение), `medium` (решение + главные альтернативы), `long` (полная археология: все итерации сессии, все отвергнутые альтернативы, метрики). Narратив генерируется LLM, но фактические данные берутся строго из `.caf/`, что устраняет риск галлюцинаций на фактологической части.
-
-### 8.3 MCP-prompts
-
-- `caf.pre_session_brief` — что показать агенту перед началом работы. Включает `context.md` + список активных blindspots + последние 3 decisions по теме предстоящей задачи.
-- `caf.code_review_with_provenance` — ревью коммита с учётом исходного промпта и отвергнутых альтернатив.
-- `caf.archaeology` — раскопки конкретного файла: когда, почему, какие альтернативы, какими агентами редактировался.
-
----
-
-## 9. CLI Reference
-
-```bash
-# === Инициализация ===
-caf init                          # создать .caf/ в текущем репо
-caf init --agent <id>             # установить адаптер для конкретного агента
-caf init --agents a,b,c           # установить несколько адаптеров
-caf init --auto-detect            # автоопределение агентов по наличию конфиг-файлов
-
-# === Adapter management (NEW in v0.2) ===
-caf adapters list                 # показать зарегистрированные адаптеры + capabilities
-caf adapters install <id>         # установить адаптер (alias для caf init --agent)
-caf adapters uninstall <id>       # удалить адаптер
-caf adapters detect               # определить активные агенты в репо
-
-# === Provenance ===
-caf who <file:line>               # кто, в какой сессии и каким агентом написал строку
-caf when --pattern <regex> <dir>  # когда появился паттерн
-caf why <file>                    # связать файл с decision log
-caf sessions --since 7d           # список сессий за период
-caf sessions --agent <id>         # сессии конкретного агента
-caf sessions --gaps               # коммиты без session trailer
-
-# === Decision Log ===
-caf decisions                     # все решения (по умолчанию за 30 дней)
-caf decisions --today             # только сегодняшние
-caf decisions --file <path>       # влияющие на файл
-caf decisions --agent <id>        # NEW: решения конкретного агента
-caf decisions --search <query>    # полнотекстовый поиск
-caf decisions --gaps              # нетривиальные коммиты без decision
-caf decisions new [--files ...]   # интерактивное создание записи
-
-# === Mental Model ===
-caf review                        # ежедневная SRS-сессия (~10 мин)
-caf review --hard                 # только карточки с низким ease
-caf review --blindspots           # файлы без SRS-карточек
-caf review --regenerate --since 7d
-caf review --stats                # статистика владения
-
-# === Контекст и синхронизация ===
-caf context                       # вывести context.md в stdout
-caf context --refresh             # перегенерировать context.md
-caf sync                          # обновить кросс-репо граф
-caf tour <file>                   # guided-экскурсия по файлу
-
-# === Hook-интерфейс (вызывается адаптерами) ===
-caf hook pre-session --repo <path> --agent <id>
-caf hook post-edit --repo <path> --session <id> --agent <id>
-caf hook pre-commit --repo <path>
-
-# === Отчёты ===
-caf report --day                  # дневной отчёт
-caf report --week                 # недельная ретроспектива
-caf report --ownership            # heatmap владения по файлам
-caf report --agent <id>           # NEW: отчёт по конкретному агенту
-caf report --metrics              # сводные метрики успеха
-```
-
-Все команды принимают `--repo <path>` для кросс-репо операций. По умолчанию репо определяется по текущему каталогу.
-
----
-
-## 10. Cross-repo Topology
-
-**EN summary.** Any set of repos developed by the same author forms one product from the mental-map perspective. Topology is encoded in each repo's `.caf/manifest.yml` and aggregated by `caf sync` into `.caf/mental-model/graph.yml`. The topology is not restricted to a single org — a developer's personal projects, work projects, and open-source contributions can all reference each other via local clones.
-
-### 10.1 Topology example (universal)
-
-```text
-                    ┌──────────────────────────┐
-                    │  my-backend-service      │  role: service
-                    │  primary_agents:         │  exposes: PolicyAPI
-                    │  - claude-code           │
-                    │  - cursor                 │
-                    └────────────┬─────────────┘
-                                 │
-              ┌──────────────────┼──────────────────┐
-              │                  │                  │
-              ▼                  ▼                  ▼
-   ┌──────────────────┐ ┌────────────────┐ ┌────────────┐
-   │  my-auth-lib     │ │ my-telemetry-  │ │ postgres   │
-   │  (library)       │ │ lib (library)  │ │ (external) │
-   │  primary_agents: │ │ primary_agents:│ └────────────┘
-   │  - opencode      │ │ - aider        │
-   │  - claude-code   │ │                │
-   └──────────────────┘ └────────────────┘
-
-                                 ▲
-              ┌──────────────────┴──────────────────┐
-              │                                     │
-   ┌──────────────────┐                  ┌──────────────────┐
-   │  my-frontend     │                  │  my-cli-tool     │
-   │  (webapp)         │                  │  (cli)           │
-   │  primary_agents:  │                  │  primary_agents:  │
-   │  - cursor         │                  │  - claude-code   │
-   │  - cline          │                  │  - aider         │
-   └──────────────────┘                  └──────────────────┘
-```
-
-### 10.2 Roles
-
-Roles не фиксированы — пользователь определяет их в `manifest.yml`:
-
-| Repo | Role | Exposes | Consumes |
+| Universal LSP fallback 🔥 | 4 | ✓ | covers ANY agent |
+| Universal pre-commit hook 🔥 | n/a | ✓ | covers ANY agent |
+| opencode | 1 | ✓ native | enhanced UX (native pre-session injection) |
+| Claude Code | 1 | ✓ native | enhanced UX |
+
+**Coverage:** 25+ agents covered (via universal fallback) + 2 enhanced (via Tier 1 adapters).
+
+**CLI commands (MVP):**
+
+- `caf init` 🔥 — universal hook + LSP fallback (no args needed!)
+- `caf init --auto-detect` 🔥 — universal + auto-detected explicit adapters
+- `caf init --agent opencode` — universal + explicit
+- `caf dashboard` 🔥 — TUI dashboard
+- `caf adapters list` — TUI adapter manager
+- `caf who <file:line>` — provenance lookup
+- `caf when --pattern <regex> <dir>`
+- `caf sessions --since 7d`
+- `caf context` / `caf context --refresh`
+- `caf hook pre-session --repo <path> --agent <id>`
+- `caf hook post-edit --repo <path> --session <id> --agent <id>`
+- `caf hook pre-commit --repo <path>` (🔥 universal)
+
+**Hooks:**
+
+- `pre-session` — via Tier 1 adapter (native) or wrapper (Tier 2+) or LSP (Tier 4)
+- `post-edit` — via Tier 1 adapter (native) or filesystem watcher (Tier 2+)
+- `pre-commit` 🔥 — universal git hook, agent-agnostic
+
+### 2.2 Deliverables
+
+- Working `caf` binary для Linux/macOS (Go build, single binary)
+- `.caf/` folder structure, созданная `caf init`
+- TUI dashboard with real-time metrics
+- TUI onboarding wizard
+- Universal LSP fallback (covers 25+ agents out of the box)
+- Universal pre-commit git hook
+- Документация: quick-start (5-min onboarding via `caf init`)
+- Pilot: 1-2 pet project репозиториев на dogfooding
+- CI pipeline: unit tests, snapshot tests for TUI
+
+### 2.3 Exit criteria
+
+1. Пилотный репо использует `caf` 7 дней подряд без ручных fallback'ов
+2. Universal pre-commit hook корректно срабатывает на нетривиальные коммиты от 3+ разных агентов
+3. Universal LSP fallback успешно строит symbol graph для Go репо до 1000 файлов
+4. TUI dashboard first paint <100ms на пилотном репо
+5. `caf init --auto-detect` корректно детектит opencode + Claude Code в репо, где они оба активны
+6. Adapter contract test suite проходит для opencode, Claude Code, и universal LSP
+
+### 2.4 What's NOT in MVP
+
+- Decision Log — приходит в ALPHA
+- Mental Model Reconstructor — приходит в BETA
+- MCP server — приходит в PROD
+- Tier 1 adapters кроме opencode + Claude Code — приходят в ALPHA
+- Tier 2/3 explicit adapters — приходят в BETA/PROD
+- Cross-repo sync automation — приходит в PROD
+- LLM features (`first_person_explain`) — приходят в PROD
+
+### 2.5 Risks
+
+| Risk | Probability | Impact | Mitigation |
 |---|---|---|---|
-| `my-backend-service` | service | `PolicyAPI` | `my-auth-lib.TokenValidator`, `my-telemetry-lib.Tracer`, `postgres` |
-| `my-auth-lib` | library | `TokenValidator`, `Limiter` | `postgres` |
-| `my-telemetry-lib` | library | `Tracer`, `Metrics` | — |
-| `my-frontend` | webapp | — | `my-backend-service.PolicyAPI` |
-| `my-cli-tool` | cli | — | `my-backend-service.PolicyAPI` |
-
-### 10.3 Sync algorithm
-
-`caf sync` работает в три шага:
-
-1. **Local scan.** Для текущего репо определяет language и запускает соответствующий adapter:
-   - Go: `go list -json ./...`
-   - Python: AST-парсинг импортов + `pip show`
-   - TypeScript: `tsc --listFiles` + tsconfig paths
-   - Rust: `cargo metadata` + `cargo tree`
-2. **Manifest reconciliation.** Для каждого найденного external import читает соответствующий `<repo>/.caf/manifest.yml` (если репо клонирован локально) или pullит через git remote + raw URL.
-3. **Graph update.** Записывает узлы и рёбра в `.caf/mental-model/graph.yml`, помечает stale decisions (те, где referenced interface изменился со времени последнего sync).
-
-При обнаружении, что интерфейс в `depends_on` изменился, sync создаёт карточку типа `review-because-interface-changed` в `cards.yml`, которая появится в следующем `caf review`.
+| Universal LSP fallback produces noisy/incomplete graph | high | medium | Acceptable — fallback is "best effort", explicit adapters improve quality |
+| Filesystem watcher consumes too much CPU | medium | medium | Throttle: poll every 1s, debounce 5s, ignore .git/ and other noisy paths |
+| TUI rendering issues on weird terminals | medium | low | Comprehensive terminal compat matrix (UI.md §12.1), graceful fallback to 16-color |
+| `caf init` UX confusing for new users | medium | high | Onboarding wizard with clear steps (UI.md §2); test with 5 external users before release |
+| Universal pre-commit hook blocks legit commits | medium | high | Fail-safe mode: if `caf` binary missing, hook warns and lets commit through |
 
 ---
 
-## 11. Trade-offs / ADRs
+## 3. Phase: ALPHA (4-6 weeks)
 
-Подробное обоснование всех архитектурных решений вынесено в отдельный документ **`ADR.md`**. Краткий список ADR:
+**EN summary.** Add Decision Log with TUI editor (🔥 80/20 autocomplete reduces fill time from 90s to 25s). Expand Tier 1 to all 5 native agents (Cursor, Cline, KiloCode). Pre-commit validation now requires decision records (or `CAF-Trivial: true`).
 
-| ADR | Тема | Краткое решение |
+### 3.1 Scope
+
+**Modules implemented:**
+
+- Decision Log (полная функциональность)
+- TUI decisions list (`caf decisions`, see UI.md §5.1)
+- TUI decision editor with autocomplete (🔥, see UI.md §5.3)
+- TUI decision detail view (see UI.md §5.2)
+- Pre-commit validation (decision required for non-trivial commits)
+- Adapter for **Cursor** (Tier 1, partial — pre-session via wrapper)
+- Adapter for **Cline** (Tier 1, native)
+- Adapter for **KiloCode** (Tier 1, native)
+
+**Adapters shipped (cumulative):**
+
+| Adapter | Tier | Status |
 |---|---|---|
-| ADR-001 | Storage location | In-repo `.caf/` committed to git |
-| ADR-002 | SRS algorithm | SM-2 (Anki-compatible) |
-| ADR-003 | Hooks vs explicit CLI | Hooks with fail-safe fallbacks |
-| ADR-004 | Triviality threshold | 50 LOC excluding imports/formatting/tests |
-| ADR-005 | Schema format | YAML for structured, Markdown for human-readable |
-| ADR-006 | First-person voice | First person in all generated narratives |
-| ADR-007 | Project naming | `CodeAuthorityFirst` (universal, not Orya-specific) |
-| ADR-008 | CLI binary name | `caf` (short, unique in $PATH) |
-| ADR-009 | Agent adapter pattern | Pluggable adapters with capability matrix |
-| ADR-010 | Fallback strategy | Wrapper scripts + filesystem watcher + universal git hook |
-| ADR-011 | Multi-language support | Per-language graph adapters, Go-first |
+| Universal LSP fallback 🔥 | 4 | ✓ |
+| Universal pre-commit hook 🔥 | n/a | ✓ |
+| opencode | 1 | ✓ |
+| Claude Code | 1 | ✓ |
+| Cursor | 1 | ✓ pre-session wrapper, post-edit + pre-commit native |
+| Cline | 1 | ✓ native |
+| KiloCode | 1 | ✓ native |
 
-Полные тексты ADR — см. `ADR.md`.
+**Coverage:** 25+ agents via universal + 5 enhanced via Tier 1.
+
+**New CLI commands:**
+
+- `caf why <file>` — связать файл с Decision Log
+- `caf decisions` 🔥 — TUI dashboard для decisions
+- `caf decisions new [--files ...]` 🔥 — TUI editor с autocomplete
+- `caf decisions --today` / `--file <path>` / `--search <query>` / `--gaps` / `--agent <id>`
+
+**TUI screens added:**
+
+- Decisions list (UI.md §5.1)
+- Decision detail (UI.md §5.2)
+- Decision editor (UI.md §5.3)
+- Settings editor (UI.md §11)
+
+### 3.2 Deliverables
+
+- Working Decision Log с TUI editor (🔥 autocomplete)
+- Universal pre-commit validation (decision required for non-trivial commits)
+- Cursor + Cline + KiloCode adapters с полными capability matrix
+- Wrapper scripts `caf-wrap cursor` / `caf-wrap cline` / `caf-wrap kilocode` для pre-session fallback
+- Документация: migration guide из MVP (как ретроактивно создать decisions)
+- Pilot: расширение до 3-5 репо
+
+### 3.3 Exit criteria
+
+1. Decision Coverage ≥90% на пилотных репо за последние 7 дней
+2. Universal pre-commit hook корректно блокирует нетривиальные коммиты без decision (works for ALL 25+ agents)
+3. TUI decision editor average fill time ≤30 seconds (vs 90s without autocomplete)
+4. Все Tier 1 адаптеры работают на macOS + Linux без ручной конфигурации
+5. Пилот: автор может ответить на вопрос «почему мы выбрали X, а не Y» для любого нетривиального решения за последние 30 дней через `caf decisions`
+
+### 3.4 What's NOT in ALPHA
+
+- Mental Model Reconstructor — приходит в BETA
+- MCP server — приходит в PROD
+- Кросс-репо graph sync automation — приходит в PROD
+- Tier 2 explicit adapters (Aider, Codex CLI, etc.) — приходят в BETA
+- Поддержка языков кроме Go — приходит по фазам
+
+### 3.5 Risks
+
+| Risk | Probability | Impact | Mitigation |
+|---|---|---|---|
+| TUI editor annoys users with autocomplete noise | medium | medium | Configurable: `caf config set decisions.autocomplete aggressive|conservative|off` |
+| Pre-commit hook blocks CI commits | high | high | Detect `CI=true` env var, skip validation in CI environments |
+| Decision template too verbose | high | high | Default to compact template; `caf decisions new --verbose` for full |
+| Cursor wrapper script breaks on Cursor updates | medium | medium | Pin Cursor version in CI; auto-detect at runtime |
+| Tier 1 adapters have inconsistent UX | medium | low | Standardize via TUI screens — all adapters use same `caf decisions new` editor |
 
 ---
 
-## 12. Success Metrics
+## 4. Phase: BETA (6-8 weeks)
 
-**EN summary.** Same four metrics as v0.1, plus a new metric `Agent Diversity` measuring the distribution of sessions across agents — a healthy project uses multiple agents, not just one. All metrics must converge to target values within 8 weeks of usage.
+**EN summary.** Add Mental Model Reconstructor with SM-2 algorithm. TUI review session (🔥 full-screen, split-view). Expand to all Tier 2 adapters (8 agents: Aider, Codex CLI, Continue.dev, GitHub Copilot CLI, Gemini CLI, Amazon Q, Goose, Windsurf). Single-repo dependency graph enabled.
 
-Инструмент считается работающим, если пять метрик сходятся к целевым значениям за 8 недель использования.
+### 4.1 Scope
 
-### 12.1 Authorship Confidence Score (ACS)
+**Modules implemented:**
 
-Микро-опрос: после каждого `caf review` сессии автор отвечает на вопрос «Мог бы я написать этот код с нуля, если бы мне дали задачу?» от 1 до 5. Среднее за неделю — ACS.
+- Mental Model Reconstructor (полная функциональность)
+- SM-2 algorithm (🔥 — proven, simple)
+- Три типа карточек: `why`, `what_if_remove`, `where_handled`
+- Single-repo dependency graph (`.caf/mental-model/graph.yml`)
+- Blindspots detection
+- TUI review session (🔥, see UI.md §4) — full-screen, split-view, keyboard shortcuts
+- TUI heatmap (see UI.md §6)
+- TUI file tour (see UI.md §8)
+- Adapter for **Aider** (Tier 2, pre-session via wrapper)
+- Adapter for **Codex CLI** (Tier 2, partial)
+- Adapter for **Continue.dev** (Tier 2, native)
+- Adapter for **GitHub Copilot CLI** (Tier 2, wrapper)
+- Adapter for **Gemini CLI** (Tier 2, wrapper)
+- Adapter for **Amazon Q Developer CLI** (Tier 2, wrapper)
+- Adapter for **Goose** (Tier 2, native)
+- Adapter for **Windsurf** (Tier 2, partial)
 
-**Target:** ≥3.5.
+**Adapters shipped (cumulative):**
 
-**Interpretation.** Ниже 3.0 → MMR генерирует слишком простые карточки, либо в проекте есть целые модули, которые автор не контролирует.
+| Adapter | Tier | Status |
+|---|---|---|
+| Universal LSP fallback 🔥 | 4 | ✓ |
+| Universal pre-commit hook 🔥 | n/a | ✓ |
+| opencode, Claude Code, Cursor, Cline, KiloCode | 1 | ✓ |
+| Aider, Codex CLI, Continue.dev, GH Copilot, Gemini, Amazon Q, Goose, Windsurf | 2 | ✓ |
+| **Total explicit:** 13 + universal | | |
 
-### 12.2 Decision Coverage
+**Coverage:** 25+ agents via universal + 13 enhanced.
 
-Доля нетривиальных коммитов со связанной decision-записью.
+**New CLI commands:**
 
-**Target:** ≥90%.
+- `caf review` 🔥 — full-screen TUI SRS session
+- `caf review --hard` / `--blindspots` / `--regenerate --since 7d` / `--stats`
+- `caf heatmap` — ASCII heatmap владения
+- `caf tour <file>` — TUI guided file tour
+- `caf sync` — обновить single-repo graph (cross-repo в PROD)
 
-### 12.3 Mental Model Reach
+**TUI screens added:**
 
-Доля файлов в репо (взвешенная по LOC), покрытых хотя бы одной SRS-карточкой.
+- Review session (UI.md §4)
+- Heatmap (UI.md §6)
+- File tour (UI.md §8)
 
-**Target:** ≥70%.
+### 4.2 Deliverables
 
-### 12.4 Recall Rate
+- Working MMR с SM-2
+- TUI review session (🔥 full-screen, split-view)
+- Single-repo graph builder (Go-only via `go list -json`)
+- 8 новых Tier 2 адаптеров
+- Wrapper scripts: `caf-wrap aider`, `caf-wrap codex`, etc.
+- Документация: card type taxonomy, SRS configuration, blindspots methodology
+- Pilot: расширение до 5-10 репо
 
-Доля карточек в `caf review`, на которые автор ответил с оценкой ≥3.
+### 4.3 Exit criteria
 
-**Target:** ≥75%.
+1. Mental Model Reach ≥70% на пилотных репо
+2. Recall Rate ≥75% после 4 недель использования MMR
+3. Authorship Confidence Score ≥3.0 (целевое ≥3.5 достигается в PROD)
+4. TUI review session completion rate ≥80% (users finish sessions, not abandon)
+5. Все Tier 2 адаптеры работают на macOS + Linux
+6. Heatmap render <200ms на репо до 1000 файлов
 
-### 12.5 Agent Diversity (NEW in v0.2)
+### 4.4 What's NOT in BETA
 
-Шенноновская энтропия распределения сессий по агентам за последние 30 дней. Высокая энтропия = автор использует несколько агентов осознанно (а не один агент для всего).
+- MCP server — приходит в PROD
+- Кросс-репо sync automation — приходит в PROD
+- Tier 3 adapters (Tabnine, Cody, Trae, etc.) — приходят в PROD
+- Multi-language support — приходит в FUTURE
+- LLM-assisted card generation — приходит в FUTURE
+- Web dashboard — приходит в FUTURE
 
-**Target:** H ≥ 1.0 (примерно соответствует 3 активным агентам с сопоставимым объёмом).
+### 4.5 Risks
 
-**Interpretation.** Если H близко к 0 — автор полагается на один агент, что повышает риск слепых зон (один агент имеет одинаковые biases). Если H очень высока (>2.0) — возможно, автор тратит слишком много времени на переключение контекста между агентами без ясной причины.
-
-Метрики хранятся в `.caf/reviews/*.log` и агрегируются командой `caf report --metrics`.
+| Risk | Probability | Impact | Mitigation |
+|---|---|---|---|
+| SM-2 too aggressive, users burn out | high | high | Default cap 15 cards/session; `caf config set review.max_cards 10`; track session duration telemetry |
+| TUI review UX feels cramped on small terminals | medium | medium | Responsive design (UI.md §12.2); minimum 60 cols; compact mode |
+| Card generation produces low-quality questions | high | medium | Pilot with 3+ repos before BETA release; iterate on card templates |
+| Tier 2 wrappers fail on agent updates | medium | medium | Each adapter isolated; CI tests cover happy path; manual smoke test before release |
+| Graph builder fails on large repos (>10k files) | medium | high | Streaming graph build; lazy loading; benchmark on kubernetes/kubernetes before release |
 
 ---
 
-## 13. Out of Scope (v0.2)
+## 5. Phase: PROD (8-10 weeks)
 
-Сознательно вынесено за рамки текущей версии спецификации:
+**EN summary.** Add MCP server with 5 tools + 3 prompts (🔥 `caf.first_person_explain` is the killer feature). Cross-repo sync automation. All Tier 3 adapters (12 agents). All success metrics tracked. 1.0 release.
 
-- **Web-дашборд.** CLI + MCP покрывают дневные задачи; визуализация графов отложена до FUTURE (см. ROADMAP.md).
-- **Мульти-пользовательский режим.** Сейчас инструмент для одного автора; sync через `git push`/`pull` работает, но без слияния конфликтующих decisions. Multi-user требует per-author attribution в карточках.
-- **Поддержка языков кроме Go в первой итерации.** Анализ импортов и графа зависимостей в v0.2 завязан на `go list`. Python/TypeScript/Rust добавляются по фазам roadmap.
-- **Автоматическая генерация decision из LLM.** v0.2 требует ручного заполнения шаблона автором. LLM-assisted pre-fill — опциональная фича FUTURE с явным opt-in флагом `--ai-prefill`.
-- **Real-time collaboration через CRDT.** Если несколько авторов одновременно работают в одном репо, конфликтующие `.caf/` изменения разрешаются через стандартный git merge. CRDT-семантика отложена.
+### 5.1 Scope
 
-Полный список отложенных идей — см. `BACKLOG.md`.
+**Modules implemented:**
+
+- MCP server (`caf-mcp`) с 5 tools и 3 prompts
+- `caf.first_person_explain` 🔥 через LLM (killer feature)
+- Cross-repo sync automation (`caf sync` обновляет graph из зависимых репо)
+- TUI reports view (`caf report`, see UI.md §10)
+- Success metrics instrumentation
+- `caf report --metrics` aggregation
+- Tier 3 adapters (12 agents): Tabnine, Sourcegraph Cody, Trae, Bolt, Zed AI, Roo Code, Augment, Plandex, OpenHands, Devika, GPT Engineer, Mentat, Sweep, Void, OryaAgent
+
+**Adapters shipped (cumulative):**
+
+| Adapter | Tier | Status |
+|---|---|---|
+| Universal LSP fallback 🔥 | 4 | ✓ |
+| Universal pre-commit hook 🔥 | n/a | ✓ |
+| Tier 1 (5 agents) | 1 | ✓ |
+| Tier 2 (8 agents) | 2 | ✓ |
+| Tier 3 (12 agents) | 3 | ✓ (wrapper-only) |
+| **Total explicit:** 25 + universal | | |
+
+**Coverage:** 25+ agents via universal + 25 enhanced (all explicit).
+
+**New CLI commands:**
+
+- `caf report --day` / `--week` / `--ownership` / `--agent <id>` / `--metrics`
+- `caf sync` — обновляет кросс-репо graph (real cross-repo support)
+- `caf hook post-commit --repo <path>` — добавляет trailers в git history
+
+**MCP tools:**
+
+- `caf.context` — текущий контекст репо
+- `caf.provenance` — история сессий, затронувших файл/строку
+- `caf.decisions` — поиск decisions
+- `caf.mental_model` — SRS-карточки
+- `caf.first_person_explain` 🔥 — флагманский tool (first-person narrative)
+
+**MCP prompts:**
+
+- `caf.pre_session_brief`
+- `caf.code_review_with_provenance`
+- `caf.archaeology`
+
+**Cross-repo sync:**
+
+- `caf sync` автоматически определяет локально клонированные репо через `~/.caf/repos.yml` registry
+- Pullит `manifest.yml` из каждого dependee репо
+- Создаёт карточки типа `review-because-interface-changed`
+
+### 5.2 Deliverables
+
+- MCP server runnable via `caf mcp serve` (stdio) и `caf mcp serve --transport sse` (HTTP)
+- Cross-repo sync с реальными пилотными репо (5+ связанных репо)
+- All 25 explicit adapters + universal LSP
+- TUI reports view with metrics
+- 1.0 release tag
+
+### 5.3 Exit criteria
+
+1. Все 5 метрик успеха достигают целевых значений на пилотных репо за 8 недель:
+   - ACS ≥3.5
+   - Decision Coverage ≥90%
+   - Mental Model Reach ≥70%
+   - Recall Rate ≥75%
+   - Agent Diversity H ≥1.0
+   - Adapter Coverage ≥70% native (NEW v0.3)
+2. MCP server работает с opencode, Claude Code, Cline, KiloCode, Goose (тесты на каждом клиенте)
+3. Cross-repo sync корректно обнаруживает изменившиеся интерфейсы в пилотном multi-repo setup
+4. Все 25 explicit adapters проходят contract tests на CI
+5. `caf.first_person_explain` produces factually accurate narratives (no LLM hallucination on `.caf/`-grounded facts)
+6. README, ARCHITECT.md, UI.md, ROADMAP.md, BACKLOG.md, ADR.md — все согласованы с реализацией
+
+### 5.4 What's NOT in PROD
+
+- Multi-user mode — FUTURE
+- Multi-language support (Python, TypeScript, Rust) — FUTURE
+- Web dashboard — FUTURE
+- LLM-assisted decision pre-fill — FUTURE
+- CRDT для real-time collaboration — FUTURE
+
+### 5.5 Risks
+
+| Risk | Probability | Impact | Mitigation |
+|---|---|---|---|
+| LLM hallucinates in `first_person_explain` | high | high | Strict grounding in `.caf/` data; LLM only paraphrases, never invents facts; ground-truth tests |
+| MCP protocol changes break clients | medium | medium | Pin to MCP spec version; contract tests per client |
+| Cross-repo sync slow on large topologies | medium | medium | Parallel fetching; cache `manifest.yml` for 1 hour |
+| Tier 3 wrapper scripts brittle across 12 agents | high | medium | Each adapter isolated; CI smoke tests; community contributions welcome |
+| TUI performance degrades on huge repos | medium | high | Performance budgets enforced (UI.md §0.3); benchmarks in CI; alert on >2x regression |
+
+---
+
+## 6. Phase: FUTURE (open-ended)
+
+**EN summary.** Open-ended phase. Items here are directional, not committed. Includes: multi-language support, multi-user mode, web UI (visualizations only), LLM-assisted features, CRDT, plugin API, IDE plugins. Items may be promoted to numbered releases (1.1, 2.0) as they mature.
+
+### 6.1 Multi-language support
+
+- **Python adapter**: AST-парсинг через `ast` module + `pip show`
+- **TypeScript adapter**: `tsc --listFiles` + tsconfig `paths`
+- **Rust adapter**: `cargo metadata` + `cargo tree`
+- **Java adapter**: Maven/Gradle dependency tree
+- **Universal LSP enhancement**: extend Tier 4 fallback to handle more languages automatically
+
+### 6.2 Multi-user mode
+
+- Per-author attribution в карточках
+- Conflict resolution rules для `ease_factor`
+- Team analytics: `caf report --team`
+- SSO integration (GitHub OAuth, GitLab OAuth)
+
+### 6.3 Web dashboard (visualizations only)
+
+- Read-only view на `.caf/` данные
+- **Interactive graph visualization (D3.js)** — единственное, что нельзя в TUI
+- Real-time heatmap владения
+- Export в PDF/Markdown для offline review
+- **NOT replacing TUI** — TUI remains primary
+
+### 6.4 LLM-assisted features
+
+- `--ai-prefill` для `caf decisions new`: LLM предлагает черновик decision
+- Smart card generation: LLM генерирует более качественные вопросы
+- Decision auto-summarization
+- All LLM features opt-in; default is LLM-free для privacy
+
+### 6.5 CRDT for real-time collaboration
+
+- CRDT-семантика для `cards.yml`
+- Автоматическое слияние при `git pull` без ручного conflict resolution
+- Library candidate: `yjs` или `automerge`
+
+### 6.6 Plugin API
+
+- Custom card types через plugin interface
+- Custom adapters через `caf adapters register <path-to-binary>`
+- Custom report formats
+- Plugin marketplace (community-driven)
+
+### 6.7 IDE plugins
+
+- VSCode extension: inline provenance tooltips, "Why is this line here?" hover
+- JetBrains plugin
+- Neovim plugin
+
+### 6.8 CI/CD integrations
+
+- GitHub Action: `caf report --check` as PR status check
+- GitLab CI integration
+- Slack notifications: daily `caf report --day` summary
+
+### 6.9 Exit criteria for FUTURE items
+
+FUTURE items не имеют timeline, но должны иметь:
+
+1. Clear problem statement
+2. Design sketch (минимальный ADR)
+3. Pilot user
+4. Success metric
+
+Без этих четырёх пунктов item остаётся в BACKLOG.
+
+---
+
+## 7. Cross-phase Concerns
+
+### 7.1 Testing strategy
+
+| Test layer | Coverage target | Phase |
+|---|---|---|
+| Unit tests (core modules) | ≥80% | MVP |
+| TUI snapshot tests (UI.md §14.4) | all screens | MVP |
+| Adapter contract tests | all 25 adapters | MVP (universal + 2), ALPHA (+3), BETA (+8), PROD (+12) |
+| Integration tests (`.caf/` round-trip) | critical paths | ALPHA |
+| E2E tests (real agent runs) | 1 per adapter, smoke test | BETA |
+| Performance benchmarks (UI.md §0.3) | all budgets enforced | MVP |
+| Property-based tests (SM-2 algorithm) | invariant: ease ∈ [1.3, 3.0] | BETA |
+| Terminal compat tests | 8 terminals (UI.md §12.1) | BETA |
+
+### 7.2 Documentation strategy
+
+| Doc | Phase | Owner |
+|---|---|---|
+| README.md (quick start) | MVP | maintainer |
+| ARCHITECT.md | MVP, updates per phase | maintainer |
+| UI.md | MVP (TUI screens), updates per phase | maintainer |
+| ROADMAP.md | MVP, updates per phase | maintainer |
+| BACKLOG.md | ALPHA, ongoing | maintainer |
+| ADR.md | MVP, ongoing | maintainer |
+| Adapter development guide | ALPHA | adapter authors |
+| User guide (CLI reference) | BETA | maintainer |
+| MCP integration guide | PROD | maintainer |
+| Migration guides (between phases) | per phase | maintainer |
+
+### 7.3 Release strategy
+
+- Semantic versioning: `0.x.y` до PROD, `1.0.0` на PROD release
+- Changelog в `CHANGELOG.md`, генерируется из conventional commits
+- GitHub Releases с бинарниками для Linux/macOS/Windows
+- Migration guide для каждой мажорной версии
+
+### 7.4 Backwards compatibility
+
+- `.caf/` schema evolves additively. Новые поля optional.
+- Adapter interface стабилен внутри мажорной версии.
+- При breaking changes — `caf migrate` команда с auto-upgrade.
+
+---
+
+## 8. Phase Transitions
+
+### 8.1 MVP → ALPHA
+
+**Trigger:**
+
+- MVP exit criteria met on pilot repo
+- Universal fallback works for ≥3 different agents (verified empirically)
+- At least 1 external early adopter using `caf` for ≥2 weeks
+- Adapter contract test suite stable
+
+**Migration:**
+
+- `caf init` для существующих MVP-репо: добавляет `decisions/` directory
+- `caf migrate v0.2-to-v0.3` (если schema изменилась)
+
+### 8.2 ALPHA → BETA
+
+**Trigger:**
+
+- ALPHA exit criteria met
+- Decision Coverage ≥90% on 2+ pilot repos
+- TUI decision editor avg fill time ≤30s
+- At least 5 external users
+
+**Migration:**
+
+- `caf init` добавляет `mental-model/` directory
+- Первый запуск `caf review --regenerate` для создания карточек из существующих decisions
+
+### 8.3 BETA → PROD
+
+**Trigger:**
+
+- BETA exit criteria met
+- Mental Model Reach ≥70% on 3+ pilot repos
+- Recall Rate ≥75% sustained for 4 weeks
+- All 25 adapters shipped
+- `caf.first_person_explain` produces accurate narratives (no hallucination)
+
+**Migration:**
+
+- `caf init` добавляет MCP configuration
+- `caf sync` для построения кросс-репо графа
+
+### 8.4 PROD → FUTURE
+
+**Trigger:**
+
+- PROD 1.0 released
+- 6 months of stable usage
+- At least 50 active users
+- FUTURE items prioritized via community feedback
+
+FUTURE items могут быть промотированы в numbered release (1.1, 2.0) по мере готовности.
+
+---
+
+## 9. Resourcing (rough estimates)
+
+| Phase | Maintainer hours/week | Community PRs expected |
+|---|---|---|
+| MVP | 15-20 | 0-2 |
+| ALPHA | 20-25 | 2-5 |
+| BETA | 25-30 | 5-10 |
+| PROD | 20-25 (stabilization) | 10-15 |
+| FUTURE | variable | 15+ |
+
+При full-time engagement (1 maintainer, 40h/week) сроки сжимаются примерно в 2 раза.
+
+**🔥 80/20 implication:** high-leverage features (universal hook, LSP fallback, dashboard) — small effort, big value. Most of MVP budget should go to these, not to custom adapters for Tier 2/3 agents.
+
+---
+
+## 10. Open Questions
+
+Вопросы, требующие решения до или во время соответствующих фаз:
+
+1. **MVP:** Должен ли `caf init --auto-detect` предлагать все обнаруженные адаптеры или только первый? — Решение: предлагать все, с пометкой рекомендуемого.
+2. **MVP:** Universal LSP fallback — какой LSP server по умолчанию для Go? `gopls` — но он может быть не установлен. — Решение: bundle `gopls` в `caf` binary или требовать явную установку.
+3. **ALPHA:** Какой порог `triviality_threshold_loc` по умолчанию? — Решение: 50 (см. ADR-004), пересматривается по данным.
+4. **BETA:** Какой LLM использовать для `first_person_explain` — z-ai-web-dev-sdk, локальная модель, или configurable? — Решение: configurable, с z-ai-web-dev-sdk как default.
+5. **PROD:** Должен ли `caf sync` работать с приватными репо? — Решение: да, через git credential helper.
+6. **FUTURE:** Должен ли multi-user mode быть backward-compatible с single-user `.caf/`? — Решение: да, через optional `author` field.
+
+Эти вопросы будут решены через ADRs по мере приближения к соответствующим фазам.
+
+---
+
+## 11. v0.2 → v0.3 Migration Notes
+
+### 11.1 What changed
+
+| Aspect | v0.2 | v0.3 |
+|---|---|---|
+| Agent count | 9 explicit | 25 explicit + universal LSP |
+| Default install | `caf init` (no args = nothing) | `caf init` (no args = universal hook + LSP) 🔥 |
+| Adapter tiers | 3 tiers | 4 tiers (added Tier 4 universal LSP) |
+| Prioritization | feature-parity across agents | 🔥 80/20 prioritization |
+| UI | CLI output (text-based) | TUI-first (dashboard, full-screen review) |
+| Pre-commit hook | per-adapter | 🔥 universal (works for all agents) |
+
+### 11.2 Migration path
+
+1. **`.caf/` schema:** additive changes only — `agent_tier`, `auto_detected`, `ui` config section. Old `.caf/` continues to work.
+2. **`caf init` behavior:** v0.3 `caf init` (no args) installs universal hook. v0.2 users who ran `caf init --agent <id>` get the same explicit adapter, plus universal hook as bonus.
+3. **CLI commands:** all v0.2 commands still work. New: `caf dashboard`, `caf heatmap`, `caf tour`, `caf adapters list` (TUI).
+4. **No breaking changes:** v0.2 configs work in v0.3 without modification.
+
+### 11.3 What's deprecated in v0.3
+
+Nothing. v0.3 is purely additive.
+
+---
+
+## 12. Success Measurement
+
+### 12.1 Per-phase metrics
+
+| Phase | Primary metric | Target |
+|---|---|---|
+| MVP | Universal hook fires for ≥3 different agents | ≥3 agents |
+| ALPHA | Decision Coverage on pilot repos | ≥90% |
+| BETA | Recall Rate sustained 4 weeks | ≥75% |
+| PROD | All 6 success metrics at target | all met |
+| FUTURE | (per item, see BACKLOG) | per item |
+
+### 12.2 Adoption metrics (post-PROD)
+
+| Metric | Target (12 months post-1.0) |
+|---|---|
+| GitHub stars | ≥500 |
+| Active users (weekly) | ≥100 |
+| Adapters contributed by community | ≥5 new |
+| Languages supported | ≥3 (Go + 2) |
+| Issues closed | ≥80% within 30 days |

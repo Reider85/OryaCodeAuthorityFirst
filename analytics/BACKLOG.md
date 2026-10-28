@@ -1,7 +1,8 @@
 # CodeAuthorityFirst — BACKLOG.md
 
-> **Версия / Version:** 0.2
+> **Версия / Version:** 0.3 (80/20 prioritized, UI backlog added)
 > **Назначение / Purpose:** catalog of ideas, features, and improvements considered but **not committed to any roadmap phase**. Items here are directional, not promises. Promotion to a roadmap phase requires: (1) clear problem statement, (2) design sketch, (3) pilot user, (4) success metric — see ROADMAP.md section 6.10.
+> **Принцип приоритезации / Prioritization:** 🔥 80/20 — high-leverage items marked; these get disproportionate resources. See ADR-015.
 > **Язык / Language:** bilingual — Russian body, English summary per theme
 > **Аудитория / Audience:** maintainers, contributors, anyone proposing a feature
 
@@ -30,18 +31,19 @@
 
 ## 1. Themes
 
-| # | Theme | Description |
-|---|---|---|
-| A | Performance & Scalability | оптимизация для больших репо, lazy loading, streaming |
-| B | UX & DX | TUI improvements, IDE plugins, onboarding |
-| C | Integrations | CI/CD, chat platforms, project management |
-| D | AI & LLM Features | smart card generation, decision summarization, AI review |
-| E | Languages | support beyond Go |
-| F | Enterprise | SSO, audit, compliance, on-prem |
-| G | Multi-user & Collaboration | team mode, real-time sync, conflict resolution |
-| H | Extensibility | plugin API, custom card types, marketplace |
-| I | Analytics & Reporting | advanced metrics, trend analysis, dashboards |
-| J | Quality & Reliability | error handling, recovery, observability of CAF itself |
+| # | Theme | Description | 🔥 80/20 items |
+|---|---|---|---|
+| A | Performance & Scalability | оптимизация для больших репо, lazy loading, streaming | 2 |
+| B | UX & DX | TUI improvements, IDE plugins, onboarding | 5 |
+| C | Integrations | CI/CD, chat platforms, project management | 2 |
+| D | AI & LLM Features | smart card generation, decision summarization, AI review | 1 |
+| E | Languages | support beyond Go | 1 |
+| F | Enterprise | SSO, audit, compliance, on-prem | 0 |
+| G | Multi-user & Collaboration | team mode, real-time sync, conflict resolution | 0 |
+| H | Extensibility | plugin API, custom card types, marketplace | 1 |
+| I | Analytics & Reporting | advanced metrics, trend analysis, dashboards | 2 |
+| J | Quality & Reliability | error handling, recovery, observability of CAF itself | 2 |
+| **K** | **UI Enhancements (NEW v0.3)** | **TUI improvements beyond v0.3 baseline, web UI, IDE plugins** | **3** |
 
 ---
 
@@ -621,7 +623,102 @@
 
 ---
 
-## 12. Rejected Items
+## 12. Theme K: UI Enhancements (NEW v0.3)
+
+UI фичи, выходящие за рамки v0.3 TUI baseline (см. [UI.md](./UI.md)). Большинство — FUTURE.
+
+### K-001: Multi-repo dashboard 🔥 80/20
+
+- **Status:** proposed
+- **Problem:** у автора 5+ репо, нужно видеть все метрики в одном `caf dashboard` вызове.
+- **Sketch:** `caf dashboard --all-repos` сканирует `~/.caf/repos.yml` и показывает aggregate metrics в TUI. Multi-tab interface: один tab на репо + aggregate tab.
+- **Open questions:** layout — вкладки или split-view? Memory budget при 50+ репо?
+- **Dependencies:** PROD (после `caf sync` для multi-repo registry).
+
+### K-002: Interactive graph visualization (web UI)
+
+- **Status:** draft
+- **Problem:** кросс-репо dependency graph неудобно смотреть в ASCII; нужны interactive zoom/pan/collapse.
+- **Sketch:** web UI (read-only) с D3.js force-directed graph. Запускается `caf ui graph`, открывает localhost:7777. ONLY для visualization; editing остаётся в TUI.
+- **Open questions:** security — только localhost binding? Auth?
+- **Dependencies:** FUTURE (после cross-repo sync в PROD).
+
+### K-003: VSCode extension with inline provenance 🔥 80/20
+
+- **Status:** proposed
+- **Problem:** пользователь должен переключаться в терминал для `caf who`, что прерывает flow.
+- **Sketch:** VSCode extension показывает provenance tooltip при hover над строкой. Inline gutter icons для файлов с active decisions. Command palette: `CAF: Show file tour`, `CAF: Why this line`.
+- **Open questions:** communication с `caf` binary — spawn process или LSP server mode?
+- **Dependencies:** FUTURE.
+
+### K-004: JetBrains plugin
+
+- **Status:** idea
+- **Problem:** тот же, что K-003, но для JetBrains IDE.
+- **Sketch:** Kotlin-based plugin, тот же функционал.
+- **Dependencies:** FUTURE.
+
+### K-005: Neovim plugin
+
+- **Status:** draft (community contribution welcome)
+- **Problem:** тот же, что K-003, но для Neovim.
+- **Sketch:** Lua plugin, integrates with existing LSP ecosystem. `:CafWho` command, virtual text для provenance hints.
+- **Dependencies:** FUTURE.
+
+### K-006: Voice-first `caf review`
+
+- **Status:** idea
+- **Problem:** на ходу (walking, commuting) неудобно отвечать на карточки текстом.
+- **Sketch:** `caf review --voice` использует TTS/ASR. Карточка озвучивается, ответ голосом.
+- **Open questions:** ASR quality for technical terms? On-device или cloud?
+- **Dependencies:** FUTURE.
+
+### K-007: Animated transitions in TUI
+
+- **Status:** idea
+- **Problem:** transitions между экранами резкие; тяжело понять, что изменилось.
+- **Sketch:** плавные transitions через bubbletea transitions API (где поддерживается). 100ms max — не блокирует UX.
+- **Dependencies:** PROD (после стабилизации v0.3 TUI).
+
+### K-008: Customizable TUI themes
+
+- **Status:** idea
+- **Problem:** только 3 встроенных темы (dark/light/auto); пользователи могут хотеть custom.
+- **Sketch:** `~/.caf/themes/<name>.yml` с color overrides. `caf config set ui.theme <name>`.
+- **Dependencies:** BETA.
+
+### K-009: Notification badges in dashboard
+
+- **Status:** idea
+- **Problem:** пользователь не видит, что появились новые blindspots, без явного refresh.
+- **Sketch:** real-time notification badges на widgets (red dot с count).
+- **Dependencies:** PROD.
+
+### K-010: Command palette (`:` + fuzzy search)
+
+- **Status:** draft
+- **Problem:** 25+ команд CLI — пользователь не помнит все.
+- **Sketch:** `:` в любом TUI screen открывает fuzzy-search command palette. Аналог VSCode `Ctrl+Shift+P`.
+- **Open questions:** discovery — как пользователи узнают о `:`? Hint в status bar?
+- **Dependencies:** PROD.
+
+### K-011: Mouse support in TUI
+
+- **Status:** idea
+- **Problem:** keyboard-only — неудобно для новых пользователей, привыкших к mouse.
+- **Sketch:** опциональная mouse support через bubbletea `tea.WithMouseCellMotion`. Click на widget → фокус. Scroll в списках. Не заменяет keyboard.
+- **Dependencies:** BETA.
+
+### K-012: TUI accessibility audit
+
+- **Status:** proposed
+- **Problem:** TUI может иметь accessibility issues (screen reader compat, color blind).
+- **Sketch:** audit с `aria2` эквивалентом для terminal. Document в UI.md §12.3.
+- **Dependencies:** PROD.
+
+---
+
+## 13. Rejected Items
 
 Идеи, которые были рассмотрены и осознанно отклонены. Оставлены здесь для исторического контекста.
 
@@ -670,7 +767,7 @@
 
 ---
 
-## 13. How to Promote a Backlog Item to Roadmap
+## 14. How to Promote a Backlog Item to Roadmap
 
 Чтобы перевести item из BACKLOG в ROADMAP (MVP/ALPHA/BETA/PROD/FUTURE), необходимо:
 
@@ -688,7 +785,7 @@
 
 ---
 
-## 14. How to Add a New Backlog Item
+## 15. How to Add a New Backlog Item
 
 1. Создать GitHub Issue с label `backlog`.
 2. Использовать шаблон из секции 0.
@@ -704,25 +801,28 @@ Maintainers периодически (раз в квартал) ревьюят b
 
 ---
 
-## 15. Statistics
+## 16. Statistics
 
-На момент v0.2:
+На момент v0.3:
 
-| Theme | Items | Proposed | Draft | Idea |
-|---|---|---|---|---|
-| A: Performance | 6 | 0 | 2 | 4 |
-| B: UX & DX | 10 | 3 | 2 | 5 |
-| C: Integrations | 7 | 3 | 1 | 3 |
-| D: AI & LLM | 9 | 2 | 0 | 7 |
-| E: Languages | 8 | 0 | 2 | 6 |
-| F: Enterprise | 7 | 2 | 0 | 5 |
-| G: Multi-user | 6 | 0 | 1 | 5 |
-| H: Extensibility | 6 | 1 | 1 | 4 |
-| I: Analytics | 7 | 2 | 2 | 3 |
-| J: Quality | 8 | 3 | 2 | 3 |
-| **Rejected** | 7 | — | — | — |
-| **Total** | **81** | **13** | **13** | **45** |
+| Theme | Items | 🔥 80/20 | Proposed | Draft | Idea |
+|---|---|---|---|---|---|
+| A: Performance | 6 | 2 | 0 | 2 | 4 |
+| B: UX & DX | 10 | 5 | 3 | 2 | 5 |
+| C: Integrations | 7 | 2 | 3 | 1 | 3 |
+| D: AI & LLM | 9 | 1 | 2 | 0 | 7 |
+| E: Languages | 8 | 1 | 0 | 2 | 6 |
+| F: Enterprise | 7 | 0 | 2 | 0 | 5 |
+| G: Multi-user | 6 | 0 | 0 | 1 | 5 |
+| H: Extensibility | 6 | 1 | 1 | 1 | 4 |
+| I: Analytics | 7 | 2 | 2 | 2 | 3 |
+| J: Quality | 8 | 2 | 3 | 2 | 3 |
+| **K: UI (NEW v0.3)** | **12** | **3** | **3** | **3** | **6** |
+| **Rejected** | 7 | — | — | — | — |
+| **Total** | **93** | **19** | **16** | **15** | **51** |
 
-Из 81 item'а 13 proposed (готовы к promotion discussion), 13 draft (есть rough design), 45 idea (нужен design). 7 rejected (контекст сохранён).
+**🔥 80/20 items:** 19 из 93 (20%) — высокореверсивные фичи, prioritized в roadmap.
 
-Это означает, что backlog живой — 25% items имеют draft или proposed status, и любой contributor может взять любой item и развить до proposed.
+Из 86 active items: 16 proposed (готовы к promotion discussion), 15 draft (есть rough design), 51 idea (нужен design). 7 rejected (контекст сохранён).
+
+Это означает, что backlog живой — 36% items имеют draft или proposed status, и любой contributor может взять любой item и развить до proposed.
