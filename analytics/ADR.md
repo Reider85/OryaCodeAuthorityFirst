@@ -1,664 +1,695 @@
----
-doc: ARD
-layer: requirements
-version: 0.4.0-triz2
+﻿---
+doc: ADR
+layer: adr
+version: 0.3.1-triz
 language: bilingual
 status: stable
-audience: [architects, maintainers, contributors, LLM-agents reasoning about WHY this system exists]
-related: [ARCHITECT.md, ROADMAP.md, BACKLOG.md, UI.md, ADR.md, OryaCodeAuthorityFirst.md]
-depends_on: [ADR-015, ADR-007, ADR-008, ADR-001, ADR-009, ADR-013, ADR-014]
-supercedes: [OryaCodeAuthorityFirst.md v0.1 (historical vision document)]
+audience: [agents, maintainers, contributors]
+related: [ARCHITECT.md, UI.md, ROADMAP.md, BACKLOG.md]
+depends_on: [ADR-001, ADR-002, ADR-003, ADR-004, ADR-005, ADR-009, ADR-010, ADR-011, ADR-012, ADR-013, ADR-014, ADR-015]
 invariants:
-  - {id: INV-ARD-001, statement: "Every functional requirement carries an 80/20 verdict: 🔥 high-leverage, ◐ supporting, ○ nice-to-have. Resources allocated proportionally.", criticality: high, enforced_by: "quarterly review + caf invariants check (ADR-029 proposed)"}
-  - {id: INV-ARD-002, statement: "Every requirement maps to ≥1 success metric from ROADMAP §5.3 and ≥1 ADR from ADR.md", criticality: high, enforced_by: "caf doc-check (proposed)"}
-  - {id: INV-ARD-003, statement: "TRIZ analysis (40 principles + IQR + ARIZ-85B + 9-screen) is mandatory for every NFR conflict; resolution documented inline", criticality: high, enforced_by: "PR review checklist"}
-  - {id: INV-ARD-004, statement: "Authorship-first is the prime directive — no requirement may dilute it; conflicts resolved in favor of authorship", criticality: critical, enforced_by: "ADR-006 (first-person voice), ADR-015 (80/20)"}
-  - {id: INV-ARD-005, statement: "System grows ideality (TRIZ): provenance + decisions + SRS occupy zero author attention at steady state", criticality: high, enforced_by: "ACS ≥3.5 + Decision Coverage ≥90% sustained 8 weeks (ROADMAP §5.3)"}
-  - {id: INV-ARD-006, statement: "No external infrastructure required for MVP/ALPHA/BETA (single binary + git + agent hooks); PROD adds opt-in LLM only", criticality: high, enforced_by: "ADR-001, ADR-008, ADR-014"}
+  - {id: INV-ADR-001, statement: ".caf/ storage committed in-repo; reconsider only if .caf/ exceeds 50 MB per repo", criticality: high, enforced_by: "caf doctor size-check"}
+  - {id: INV-ADR-002, statement: "SM-2 algorithm; ease_factor тИИ [1.3, 3.0]; reconsider if fleet-wide recall <60% after 90d", criticality: high, enforced_by: "property-based tests in CI"}
+  - {id: INV-ADR-003, statement: "Hooks fail-safe; caf binary missing тЖТ warn-and-continue, never block session", criticality: critical, enforced_by: "adapter contract tests"}
+  - {id: INV-ADR-004, statement: "Triviality threshold = 50 LOC (excluding imports/formatting/test-duplicates); configurable per-repo", criticality: medium, enforced_by: ".caf/config.yml"}
+  - {id: INV-ADR-005, statement: "YAML 1.2 for structured, Markdown for human-readable; pin gopkg.in/yaml.v3", criticality: high, enforced_by: "yamllint in CI"}
+  - {id: INV-ADR-009, statement: "Every adapter implements Adapter interface (ID/Capabilities/Install/Uninstall/Detect); canonical events: pre-session, post-edit, pre-commit", criticality: critical, enforced_by: "interface contract tests, 25-adapter matrix in CI"}
+  - {id: INV-ADR-013, statement: "Universal LSP fallback is Tier 4 default; LSP startup budget ~500ms (gopls, small repo); cache graph in .caf/mental-model/graph.yml", criticality: high, enforced_by: "caf sync benchmark"}
+owned_contracts:
+  - "Adapter interface (Go): ID() string; Capabilities() CapabilityMatrix; Install() error; Uninstall() error; Detect() bool"
+  - "LanguageAdapter interface (Go): ID() string; Detect() bool; ScanImports() []Import; BuildSymbolGraph() SymbolGraph; ResolveExternalRepo() RepoRef"
+  - "Canonical event contract: {pre-session, post-edit, pre-commit} ├Ч {native, wrapper, watcher, universal}"
+  - "ADR schema fields: Status, Date, Phase, Context, Chosen, Rejected alternatives, Trade-offs, Trigger to reconsider"
 agent_routing:
-  - {task: "Understand why this project exists", see: [§1 Vision, §2 Problem decomposition]}
-  - {task: "Add a new feature", see: [§4 Functional Requirements, §0 80/20 verdict table]}
-  - {task: "Add a new non-functional constraint", see: [§5 Non-Functional Requirements, §6 TRIZ conflict resolution]}
-  - {task: "Audit requirement coverage", see: [§9 Trace Matrix]}
-  - {task: "Resolve a requirements conflict", see: [§6 TRIZ Analysis, §7 ARIZ-85B cases]}
-trace_to_code:
-  - "(ARD is requirements layer; code paths mapped via ARCHITECT.md trace matrix)"
+  - {task: "Add new AI agent adapter", see: [ADR-009, ADR-012], backlog: E-007}
+  - {task: "Add new language adapter", see: [ADR-011], backlog: [E-001, E-002, E-003, E-004, E-005, E-006, E-007, E-008]}
+  - {task: "Modify .caf/ storage schema", see: [ADR-001, ADR-005], backlog: [A-005, J-008]}
+  - {task: "Change SRS card generation", see: [ADR-002], backlog: [D-002, D-007, H-001]}
+  - {task: "Change UI strategy (TUI vs Web)", see: [ADR-014], backlog: [K-002, K-010]}
+  - {task: "Adjust triviality threshold", see: [ADR-004], config: ".caf/config.yml triviality_threshold_loc"}
 ui_budgets_affected:
-  - "All FR marked 🔥 80/20 cascade to UI.md performance budgets"
-  - "FR-SEC-* (security) add ≤5s startup budget for signature verification"
-  - "FR-OBS-* (observability) add <50ms per-operation tracing overhead"
+  - "ADR-013: LSP startup ~500ms"
+  - "ADR-014: TUI first paint <100ms; frame render <16ms; keystroke <50ms"
+  - "ADR-010: caf-watch debounce 5s; polling fallback 30s"
+trace_to_code:
+  - "internal/caf/adapter.go тАФ Adapter, LanguageAdapter interfaces"
+  - "internal/caf/hooks/*.go тАФ pre-session/post-edit/pre-commit hook contracts"
+  - "internal/caf/storage/ тАФ .caf/ folder read/write"
+  - "internal/caf/srs/sm2.go тАФ SM-2 implementation"
+  - "internal/caf/lsp/fallback.go тАФ Tier 4 universal LSP fallback"
 ---
 
-# CodeAuthorityFirst — ARD.md
-# Architectural Requirements Document / Архитектурный документ требований
+# CodeAuthorityFirst тАФ ADR.md
 
-> **Версия / Version:** 0.4.0-triz2 (post-TRIZ-2 pass: ARD created de novo, fills the gap left by v0.3.1-triz which only had ADR; applies 80/20 to requirements themselves; applies TRIZ 40 principles + IQR + ARIZ-85B + 9-screen scheme to requirement conflicts)
-> **Назначение / Purpose:** capture WHY this system exists, WHAT it must do, WHAT constraints bound it, and HOW we know it works. ARD sits above ARCHITECT (which captures HOW it is structured) and ROADMAP (which captures WHEN it ships). ADR captures individual architectural decisions; ARD captures the requirement space those decisions serve.
-> **Принцип приоритизации / Prioritization principle:** 🔥 80/20 — every requirement carries an 80/20 verdict. Resources allocated proportionally. See [ADR-015](./ADR.md#adr-015-8020-prioritization-principle).
-> **Язык / Language:** bilingual — Russian body, English summary per section
-> **Аудитория / Audience:** architects proposing changes, maintainers auditing coverage, contributors proposing features, LLM agents traversing the codebase to understand intent
-> **Связанные документы:** [ARCHITECT.md](./ARCHITECT.md) · [ROADMAP.md](./ROADMAP.md) · [BACKLOG.md](./BACKLOG.md) · [UI.md](./UI.md) · [ADR.md](./ADR.md) · [OryaCodeAuthorityFirst.md](./OryaCodeAuthorityFirst.md) (historical v0.1 vision)
+> **╨Т╨╡╤А╤Б╨╕╤П / Version:** 0.3.1-triz (post-TRIZ pass: cross-refs repaired, @invariant flags added, Tier-3 count reconciled)
+> **╨Э╨░╨╖╨╜╨░╤З╨╡╨╜╨╕╨╡ / Purpose:** Architecture Decision Records тАФ formal log of architectural choices, rejected alternatives, and trigger conditions for reconsideration. ADRs follow the same format as Decision Log entries but cover system-wide choices rather than code-level ones.
+> **╨п╨╖╤Л╨║ / Language:** bilingual тАФ Russian body, English summary per ADR
+> **╨Р╤Г╨┤╨╕╤В╨╛╤А╨╕╤П / Audience:** maintainers, contributors proposing architectural changes, LLM agents traversing the codebase
+> **╨б╨▓╤П╨╖╨░╨╜╨╜╤Л╨╡ ╨┤╨╛╨║╤Г╨╝╨╡╨╜╤В╤Л:** [ARCHITECT.md](./ARCHITECT.md) ┬╖ [UI.md](./UI.md) ┬╖ [ROADMAP.md](./ROADMAP.md) ┬╖ [BACKLOG.md](./BACKLOG.md)
 
----
-
-## 0. 80/20 Verdict Table (Summary)
-
-**EN summary.** Every functional and non-functional requirement in this document is tagged with an 80/20 verdict. The verdict determines how resources are allocated. This is the application of ADR-015 (80/20 prioritization) to requirements themselves — not just to features.
-
-| Verdict | Meaning | Resource allocation | % of requirements |
-|---------|---------|---------------------|-------------------|
-| 🔥 **80/20** | High-leverage: 20% effort → 80% value. Core to product existence. | Disproportionate. Cannot be cut without breaking the product. | ~20% |
-| ◐ **Supporting** | Required to make 🔥 work, but not itself the value driver. | Proportional. Cut only if 🔥 is preserved. | ~50% |
-| ○ **Nice-to-have** | Quality-of-life; deferred to FUTURE unless cheap. | Minimal. Promote to ◐ only with pilot user + metric (ROADMAP §6.9). | ~30% |
-
-**Allocation rule.** Of total engineering capacity: 60% to 🔥, 30% to ◐, 10% to ○. This is the operationalization of Pareto. When a sprint is over capacity, ○ items are cut first, then ◐ items that are not blockers for 🔥.
-
-**TRIZ linkage.** Each verdict also encodes a TRIZ ideality judgement: 🔥 items increase ideality (value/cost ratio) the most. ○ items may even decrease ideality (more code, same value) and should be deferred unless they are cheap. See §6 TRIZ Analysis.
+> **TRIZ-pass changelog (v0.3.0 тЖТ v0.3.1-triz).**
+> 1. Four broken cross-references repaired (ARCHITECT.md ┬з3.3.2 capability matrix, ┬з6.5 fail-safe, ┬з5.2 config тАФ all previously pointed to a duplicate-of-ROADMAP file). New ARCHITECT.md now contains the capability matrix as `┬з1.1 Capability matrix`, fail-safe behavior as `┬з2.5.5 Fail-safe contract`, and config schema as `┬з7.5 Config schema`. All ADR links below use the new anchors.
+> 2. Tier-3 agent count reconciled: list now shows 12 agents (OryaAgent and Augment Code promoted/deduped тАФ see ADR-012). "25 explicit" arithmetic is now correct.
+> 3. `@invariant` tags embedded in the `Trigger to reconsider` field of every accepted ADR тАФ these are the machine-readable seeds for the future `caf invariants check` MVP command.
+> 4. Per-ADR `trace_to_code` and `agent_routing` fields added to YAML front-matter (above), so an agent opening this file can route to the right ADR by task without reading every entry.
+> 5. Stale v0.2 string in ADR-005 trigger rewritten to v0.3 wording.
 
 ---
 
-## 1. Vision
+## 0. ADR Format
 
-### 1.1 Problem statement
-
-**EN summary.** When code in `Orya*`-style repositories is written by AI agents (opencode, Claude Code, Cursor, 25+ others), the human author loses their mental map of decisions and rejected alternatives. Git log records "what changed"; it does not record "what was considered and rejected", "which prompt produced this", or "why this approach over the obvious alternative". Without that map, safe evolution collapses: every change is taken in a vacuum, regressions accumulate, and architectural discussion degenerates to "ask the agent". CodeAuthorityFirst restores authorship by automatically capturing provenance, decision context, and applying spaced repetition to keep the mental map alive.
-
-Когда код пишется AI-агентом, автор теряет ментальную карту принятых решений и отвергнутых альтернатив. Git log фиксирует «что изменилось», но не «что рассматривалось и было отвергнуто», «какой промпт породил это», «почему выбран этот подход, а не очевидная альтернатива». Без этой карты безопасная эволюция коллапсирует: каждое изменение принимается в вакууме, регрессии накапливаются, а архитектурная дискуссия вырождается в «спроси у агента».
-
-`CodeAuthorityFirst` восстанавливает авторство, автоматически фиксируя provenance, контекст решений и применяя интервальное повторение для поддержания ментальной карты в активном состоянии. Это не инструмент для написания кода и не замена AI-агенту — это слой авторской памяти поверх существующего workflow.
-
-### 1.2 Why now (TRIZ 9-screen: super-system trend)
-
-**EN summary.** The super-system (AI-coding ecosystem) is in a phase transition: from "AI as assistant" (2022-2024, Copilot autocomplete) to "AI as author" (2025-2027, agentic sessions writing entire modules). Authorship-tools market is forming now; first-mover advantage is real but window closes within ~18 months. CodeAuthorityFirst enters the window when the pain is acute but no incumbent has crystallized the category.
-
-Сверхсистема (AI-coding ecosystem) находится в фазовом переходе: от «AI как ассистент» (2022-2024, Copilot autocomplete) к «AI как автор» (2025-2027, агенные сессии, пишущие целые модули). Рынок инструментов авторства формируется сейчас; преимущество первого игрока реально, но окно закроется в течение ~18 месяцев.
-
-```mermaid
-timeline
-    title AI-Coding Ecosystem Phase Transition (9-screen: super-system)
-    section 2022-2024 "AI as Assistant"
-        Copilot autocomplete : Human writes 90% : AI suggests 10% : Authorship intact
-    section 2025-2026 "AI as Co-author"  
-        Agentic sessions : Human approves 50% : AI writes 50% : Authorship eroding
-    section 2027+ "AI as Author"
-        Autonomous PRs : Human reviews 10% : AI writes 90% : Authorship crisis
-```
-
-**TRIZ Principle 25 (Self-service) applied.** The super-system trend is toward autonomous agents. CodeAuthorityFirst must not require human action to capture provenance — the system must capture itself. This drives the hooks-first architecture (ADR-003) and the universal pre-commit hook (🔥 80/20 feature #1).
-
-### 1.3 Prime directive
-
-> **Authorship-first.** Главная метрика — не покрытие кода тестами и не скорость разработки, а субъективная уверенность автора: «я могу объяснить этот код так, как будто написал его сам». Любая фича оценивается через этот критерий. (Source: OryaCodeAuthorityFirst.md §2)
-
-This directive is invariant INV-ARD-004. Every requirement in this document is tested against it: does this requirement increase, preserve, or dilute authorship? Requirements that dilute authorship are rejected (see §8 Rejected Requirements).
-
----
-
-## 2. Problem Decomposition
-
-### 2.1 Five sub-problems (TRIZ 9-screen: system decomposition)
-
-```mermaid
-graph TD
-    A[Authorship crisis<br/>prime problem] --> B[Provenance problem<br/>where did code come from?]
-    A --> C[Decision amnesia<br/>why was X chosen over Y?]
-    A --> D[Mental model decay<br/>4-6 weeks → forgotten]
-    A --> E[Cross-repo blindness<br/>5 repos, no shared map]
-    A --> F[Agent diversity<br/>30+ agents, no common context]
-    
-    B --> B1[FR-PROV-*]
-    C --> C1[FR-DEC-*]
-    D --> D1[FR-SRS-*]
-    E --> E1[FR-CRS-*]
-    F --> F1[FR-ADP-*]
-    
-    style A fill:#e06c75,color:#fff
-    style B fill:#e5c07b
-    style C fill:#e5c07b
-    style D fill:#e5c07b
-    style E fill:#e5c07b
-    style F fill:#e5c07b
-```
-
-Each sub-problem decomposes to a cluster of functional requirements (FR-*). The decomposition is the foundation of §4.
-
-### 2.2 Stakeholders
-
-| Stakeholder | Interest | Power | Concern |
-|-------------|----------|-------|---------|
-| Solo developer using AI agents | Authorship preservation | High (decision-maker) | "Will this slow me down?" |
-| Team lead of AI-assisted team | Onboarding new members | Medium | "Can a new hire understand AI-written code?" |
-| OSS maintainer accepting AI PRs | Quality gate | Medium | "Did the contributor actually understand what they merged?" |
-| Enterprise architect | Compliance, audit trail | High (blocker) | "Can we prove provenance for SOC2?" |
-| AI agent (opencode, Claude Code, etc.) | Context injection | High (consumer) | "Give me context.md so I don't re-derive decisions" |
-| MCP-aware client (Cursor, Cline) | Tool integration | Medium | "Expose caf.* tools over MCP" |
-| LLM backend (z-ai-web-dev-sdk, Ollama) | Grounded narrative generation | Medium | "Don't hallucinate; ground in .caf/ facts" |
-
----
-
-## 3. Success Criteria (OKR binding)
-
-**EN summary.** Success criteria are the OKRs of the system. Each criterion maps to one or more functional requirements (§4) and is measured by a concrete metric (ROADMAP §5.3). Criteria are inherited from OryaCodeAuthorityFirst.md §12 and refined.
-
-| ID | Criterion | Target | Phase | Owning FRs | Owning ADRs |
-|----|-----------|--------|-------|------------|-------------|
-| SC-1 | Authorship Confidence Score (ACS) | ≥3.5 sustained 4 weeks | BETA→PROD | FR-SRS-001..004 | ADR-002, ADR-006 |
-| SC-2 | Decision Coverage | ≥90% non-trivial commits | ALPHA→PROD | FR-DEC-001..005 | ADR-003, ADR-004 |
-| SC-3 | Mental Model Reach | ≥70% files covered | BETA | FR-SRS-005, FR-PROV-004 | ADR-002, ADR-013 |
-| SC-4 | Recall Rate | ≥75% sustained 4 weeks | BETA→PROD | FR-SRS-003, FR-SRS-006 | ADR-002 |
-| SC-5 | Agent Diversity (Shannon H) | ≥1.0 | PROD | FR-ADP-001..005 | ADR-009, ADR-012 |
-| SC-6 | Adapter Coverage (native) | ≥70% of explicit adapters | PROD | FR-ADP-006 | ADR-012, ADR-013 |
-| SC-7 | TUI first paint | <100ms | MVP | FR-UI-001 | ADR-014, INV-UI-001 |
-| SC-8 | Hook fail-safe rate | 100% (never blocks session) | MVP | FR-REL-001 | ADR-003, INV-ARCH-004 |
-| SC-9 | LLM hallucination rate in `caf.first_person_explain` | 0 on .caf/-grounded facts | PROD | FR-AI-001, FR-REL-002 | ADR-006, INV-ADR-006 |
-| SC-10 | `.caf/` size per repo | <50 MB | MVP→PROD | FR-PERF-005 | ADR-001, INV-ADR-001 |
-
-**OKR cascade.** Each success criterion cascades to a quarterly OKR. For example, SC-1 (ACS ≥3.5) becomes the Q1 objective "Authors report confident ownership of AI-generated code", with key results: (a) ACS ≥3.0 by end of BETA pilot week 4; (b) ACS ≥3.5 by PROD week 8; (c) ≥5 pilot users reporting ACS ≥3.5 for ≥4 consecutive weeks.
-
----
-
-## 4. Functional Requirements
-
-Functional requirements are grouped by the sub-problem they solve (§2.1). Each carries an 80/20 verdict (§0) and traces to success criteria (§3) and ADRs.
-
-### 4.1 FR-PROV: Provenance (🔥 80/20 cluster)
-
-**EN summary.** Provenance requirements capture "where did this code come from, in which AI session, from which prompt, producing which iterations". Provenance is the foundation layer — Decision Log and MMR cannot function without it.
-
-| ID | Requirement | Verdict | Maps to | ADR | Phase |
-|----|-------------|---------|---------|-----|-------|
-| FR-PROV-001 | Every AI agent session gets a unique `session_id` and automatically logs to `.caf/sessions/<id>.yml` | 🔥 80/20 | SC-2 | ADR-001, ADR-003 | MVP |
-| FR-PROV-002 | Session log contains: started_at, ended_at, agent, model, initial_prompt, iterations[], files_touched[], commit_sha, decisions_made[], voice_signature | 🔥 80/20 | SC-2 | ADR-001, ADR-005 | MVP |
-| FR-PROV-003 | `caf who <file:line>` returns session, prompt, iteration for any line | 🔥 80/20 | SC-1 | ADR-003 | MVP |
-| FR-PROV-004 | `caf when --pattern <regex> <path>` returns when a code pattern first appeared | ◐ Supporting | SC-3 | ADR-001 | ALPHA |
-| FR-PROV-005 | `caf why <file>` links file to Decision Log entries | 🔥 80/20 | SC-1, SC-2 | ADR-003, ADR-004 | ALPHA |
-| FR-PROV-006 | Sessions log is auto-pruned after 90 days unless referenced by a decision (keep provenance tight) | ○ Nice-to-have | SC-10 | ADR-001 | PROD |
-
-**TRIZ Principle 5 (Combining) applied to FR-PROV-001/002.** Session_id combines git trailer (for cross-reference) + timestamp (for ordering) + random suffix (for uniqueness). One identifier serves three purposes — no separate "git trailer ID" vs "session ID" vs "log ID".
-
-**TRIZ Principle 26 (Copying) applied to FR-PROV-003.** `caf who` mirrors `git blame` ergonomics (line-addressable, instant). Developers already know `git blame`; we copy the interaction pattern to eliminate learning cost. The copying is intentional — innovation here would slow adoption.
-
-### 4.2 FR-DEC: Decision Log (🔥 80/20 cluster)
-
-**EN summary.** Decision Log requirements capture "what was considered, what was chosen, what was rejected, what triggers reconsideration". The distinctive feature (vs. ADR) is that rejected alternatives are first-class — they are the long-term value.
-
-| ID | Requirement | Verdict | Maps to | ADR | Phase |
-|----|-------------|---------|---------|-----|-------|
-| FR-DEC-001 | Every non-trivial edit (>50 LOC, excluding imports/formatting/tests — see ADR-004) requires a decision record or `CAF-Trivial: true` trailer | 🔥 80/20 | SC-2 | ADR-003, ADR-004 | ALPHA |
-| FR-DEC-002 | Decision record contains: id, title, date, repo, session, files[], status, context, chosen, rejected_alternatives[], trade_offs, trigger_to_reconsider, @invariant tag | 🔥 80/20 | SC-2 | ADR-001, ADR-005 | ALPHA |
-| FR-DEC-003 | `caf decisions new` provides TUI editor with autocomplete for files/tags/agent (90s → 25s fill time, 🔥 80/20) | 🔥 80/20 | SC-2 | ADR-014 | ALPHA |
-| FR-DEC-004 | `caf decisions --gaps` surfaces non-trivial commits without a linked decision | 🔥 80/20 | SC-2 | ADR-003 | ALPHA |
-| FR-DEC-005 | `caf decisions --search <query>` performs full-text search across all decision records, including rejected alternatives | ◐ Supporting | SC-2 | ADR-005 | ALPHA |
-| FR-DEC-006 | Decisions are never deleted; supersession is the only path (`Status: superseded by ADR-NNN`) | ◐ Supporting | SC-2 | ADR (template §0) | MVP |
-| FR-DEC-007 | Each decision carries `@invariant` tag for properties that must hold across future commits | ◐ Supporting | SC-2, SC-8 | ADR (template §0), ADR-029 (proposed) | PROD |
-
-**TRIZ Principle 10 (Preliminary action) applied to FR-DEC-001.** Pre-commit hook prepares the decision record BEFORE the commit lands. This is preliminary action: the friction happens before the irreversible action (commit), not after. The 30-second interruption is the price of long-term memory.
-
-**TRIZ Principle 11 (Beforehand cushioning) applied to FR-DEC-002.** The `trigger_to_reconsider` field is a beforehand cushion: it pre-records the conditions under which the decision should be revisited. When the trigger fires (e.g., `.caf/` exceeds 50 MB), the system knows to revisit ADR-001 — no human needs to remember.
-
-### 4.3 FR-SRS: Mental Model Reconstructor (🔥 80/20 cluster)
-
-**EN summary.** MMR requirements capture "spaced repetition of code knowledge". Without SRS, the mental map decays in 4-6 weeks (cognitive science). SM-2 algorithm (Anki-compatible, since 1987) provides the schedule.
-
-| ID | Requirement | Verdict | Maps to | ADR | Phase |
-|----|-------------|---------|---------|-----|-------|
-| FR-SRS-001 | Three card types: `why` (fact recall), `what_if_remove` (abstract reasoning), `where_handled` (trace through code) | 🔥 80/20 | SC-1, SC-3 | ADR-002 | BETA |
-| FR-SRS-002 | SM-2 algorithm: ease_factor ∈ [1.3, 3.0], interval = max(1d, prior × ease × grade_modifier) | 🔥 80/20 | SC-1, SC-4 | ADR-002, INV-ARCH-006 | BETA |
-| FR-SRS-003 | `caf review` runs daily SRS session, ~10 min, 10-15 cards due | 🔥 80/20 | SC-1, SC-4 | ADR-014 | BETA |
-| FR-SRS-004 | Cards auto-generated from decisions (Type 1) and dependency graph (Types 2, 3) | 🔥 80/20 | SC-3 | ADR-002, ADR-011 | BETA |
-| FR-SRS-005 | `caf review --blindspots` surfaces files with no SRS card coverage | ◐ Supporting | SC-3 | ADR-002 | BETA |
-| FR-SRS-006 | `caf review --hard` shows only cards with low ease (memory struggling) | ○ Nice-to-have | SC-4 | ADR-002 | BETA |
-| FR-SRS-007 | Per-card-type ease baseline: Type 2 (what_if_remove) starts 2.0 (harder), Type 1 starts 2.5 (standard) — adaptive difficulty (BACKLOG D-007) | ○ Nice-to-have | SC-4 | ADR-002 (proposed supersession) | FUTURE |
-
-**TRIZ Principle 35 (Parameter change) applied to FR-SRS-002.** SM-2's ease_factor is the parameter that changes state — it adapts to the user's actual recall performance. This is the system "learning" the user without ML. The adaptation is mechanical (rule-based), transparent, and debuggable — qualities lost in ML-based schedulers like FSRS.
-
-**TRIZ Principle 2 (Taking out) applied to FR-SRS-001.** We "take out" the answer from the card — the user produces the answer internally before revealing. This is the active recall principle: passive reading does not consolidate memory; active production does. The card design forces production.
-
-### 4.4 FR-CRS: Cross-repo Sync (◐ Supporting cluster)
-
-**EN summary.** Cross-repo requirements capture "when one repo's interface changes, which decisions in dependent repos become stale?". Five `Orya*` repos (or any polyrepo setup) share a mental graph via `manifest.yml`.
-
-| ID | Requirement | Verdict | Maps to | ADR | Phase |
-|----|-------------|---------|---------|-----|-------|
-| FR-CRS-001 | Each repo has `.caf/manifest.yml` declaring depends_on[] and exposes[] | ◐ Supporting | SC-3 | ADR-001 | PROD |
-| FR-CRS-002 | `caf sync` detects locally-cloned repos via `~/.caf/repos.yml` registry | ◐ Supporting | SC-3 | ADR-001 | PROD |
-| FR-CRS-003 | When interface in repo A changes, repo B (depending on A) gets a "review-because-interface-changed" card | 🔥 80/20 | SC-3 | ADR-001, ADR-011 | PROD |
-| FR-CRS-004 | Manifest cache TTL = 1 hour in `~/.caf/manifest-cache/` | ◐ Supporting | SC-3 | (config schema) | PROD |
-| FR-CRS-005 | Private repos supported via git credential helper | ◐ Supporting | SC-3 | ADR-022 (future) | PROD |
-
-### 4.5 FR-ADP: Adapter Pattern (🔥 80/20 cluster)
-
-**EN summary.** Adapter requirements capture "25+ AI agents need integration; universal fallback covers 100%". The capability matrix makes each adapter's limitations explicit.
-
-| ID | Requirement | Verdict | Maps to | ADR | Phase |
-|----|-------------|---------|---------|-----|-------|
-| FR-ADP-001 | Each agent implements `Adapter` interface: ID, Capabilities, Install, Uninstall, Detect (5 methods) | 🔥 80/20 | SC-5, SC-6 | ADR-009, INV-ARCH-002 | MVP |
-| FR-ADP-002 | Capability matrix is a first-class artifact: 3 canonical events × {native, wrapper, watcher, universal} per adapter | 🔥 80/20 | SC-6 | ADR-009 | MVP |
-| FR-ADP-003 | Universal pre-commit hook fires for all 25+ agents (🔥 80/20 feature #1) | 🔥 80/20 | SC-2, SC-6 | ADR-003, ADR-010 | MVP |
-| FR-ADP-004 | Universal LSP fallback (Tier 4) covers any LSP-supporting language with zero config | 🔥 80/20 | SC-6 | ADR-013, INV-ARCH-003 | MVP |
-| FR-ADP-005 | `caf init --auto-detect` finds installed agents in <5s and recommends with marker | 🔥 80/20 | SC-5 | ADR-012 | MVP |
-| FR-ADP-006 | 25 explicit adapters ship across 4 tiers (5+8+12) + 1 universal = 28 total coverage | ◐ Supporting | SC-6 | ADR-012 | MVP→PROD |
-| FR-ADP-007 | Adapter contract tests: 25 × 3 events = 78 cases in CI | ◐ Supporting | SC-6 | ADR-009 | MVP→PROD |
-
-**TRIZ Principle 1 (Segmentation) applied to FR-ADP-001.** Adapter is segmented into 5 methods — each can be tested independently, each can be implemented independently. Adding a new agent = adding one file under `internal/adapters/<agent>/`. Segmentation enables parallel development and parallel testing.
-
-**TRIZ Principle 13 (The other way round) applied to FR-ADP-003.** Instead of "agent tells caf about commits", we invert: "git tells caf about commits via pre-commit hook". The universal hook is agent-agnostic — git is the common denominator. This is why one hook covers 25+ agents: we don't ask agents anything.
-
-### 4.6 FR-UI: User Interface (🔥 80/20 cluster)
-
-**EN summary.** UI requirements capture "TUI-first, sub-100ms response, keyboard-only operation possible". Three UI-velocity patterns (Critical CSS, Islands, Skeleton/SWR) are native to the TUI stack.
-
-| ID | Requirement | Verdict | Maps to | ADR | Phase |
-|----|-------------|---------|---------|-----|-------|
-| FR-UI-001 | TUI first paint <100ms on pilot repos | 🔥 80/20 | SC-7 | ADR-014, INV-UI-001 | MVP |
-| FR-UI-002 | Frame render <16ms (60fps) for scroll/redraw | ◐ Supporting | SC-7 | ADR-014, INV-UI-002 | MVP |
-| FR-UI-003 | Keystroke response <50ms for simple actions | ◐ Supporting | SC-7 | ADR-014, INV-UI-003 | MVP |
-| FR-UI-004 | Every async data load returns Skeleton{} immediately, then DataLoadedMsg swaps (SWR pattern) | 🔥 80/20 | SC-7 | INV-UI-004 | MVP |
-| FR-UI-005 | Screens mount lazily on first navigation (Islands/partial hydration analogue) | ◐ Supporting | SC-7 | INV-UI-005 | MVP |
-| FR-UI-006 | Lipgloss pre-computes style strings at startup (Critical CSS analogue) | ◐ Supporting | SC-7 | INV-UI-006 | MVP |
-| FR-UI-007 | Universal keyboard map: `?` help, `q`/`Ctrl+C` quit, `Esc` back, `j`/`k` vim-style, `Enter` activate | ◐ Supporting | SC-7 | ADR-014 | MVP |
-| FR-UI-008 | 11 TUI screens: onboarding, dashboard, review, decisions list/detail/editor, heatmap, adapters, file tour, reports, settings | ◐ Supporting | SC-7 | ADR-014 | MVP→PROD |
-| FR-UI-009 | Color-blind friendly: pair color with text/symbol, never color-only | ◐ Supporting | SC-7 | (accessibility) | BETA |
-| FR-UI-010 | Responsive layout: ≥140 cols full grid, 100-139 2-col, 60-99 single stacked, <60 compact | ◐ Supporting | SC-7 | ADR-014 | MVP |
-
-### 4.7 FR-AI: LLM Features (◐ Supporting cluster, PROD phase)
-
-**EN summary.** LLM requirements capture "first-person narrative generation, grounded in `.caf/` facts, no hallucination". The killer feature is `caf.first_person_explain` MCP tool.
-
-| ID | Requirement | Verdict | Maps to | ADR | Phase |
-|----|-------------|---------|---------|-----|-------|
-| FR-AI-001 | `caf.first_person_explain` MCP tool returns LLM-generated first-person narrative grounded in `.caf/` facts | 🔥 80/20 | SC-9 | ADR-006, INV-ADR-006 | PROD |
-| FR-AI-002 | LLM only paraphrases `.caf/`-grounded facts; never invents; if facts missing, returns "no provenance for this file" | 🔥 80/20 | SC-9 | ADR-006, INV-ADR-006 | PROD |
-| FR-AI-003 | LLM backend configurable: `z-ai-web-dev-sdk` (default), local Ollama, custom endpoint | ◐ Supporting | SC-9 | ADR-017 (future) | PROD |
-| FR-AI-004 | `caf decisions new --ai-prefill` drafts decision fields from diff; user edits; opt-in | ◐ Supporting | SC-2 | ADR-017 (future) | PROD |
-| FR-AI-005 | Graceful degradation: if LLM unavailable, template-based fallback narrative (no LLM, just string formatting) | ◐ Supporting | SC-9 | ADR-006, BACKLOG J-007 | PROD |
-| FR-AI-006 | On-premise LLM deployment for enterprise (no diff leaves the network) | ○ Nice-to-have | SC-9 | ADR-017 (future), BACKLOG F-004 | PROD |
-
-### 4.8 FR-SEC: Security (NEW in v0.4-triz2, ◐ Supporting cluster)
-
-**EN summary.** Security requirements were implicit in v0.3.1-triz; v0.4-triz2 makes them explicit. Threat model: malicious `.caf/` content from cloned repos, supply-chain attacks via adapters, LLM data exfiltration.
-
-| ID | Requirement | Verdict | Maps to | ADR | Phase |
-|----|-------------|---------|---------|-----|-------|
-| FR-SEC-001 | `.caf/` content from untrusted repos is parsed in sandboxed YAML parser (no `os.Execute`, no file writes outside `.caf/`) | ◐ Supporting | SC-8 | ADR-005, ADR-022 (future) | ALPHA |
-| FR-SEC-002 | Adapters are signed (GPG/cosign); `caf adapters install` verifies signature before install | ◐ Supporting | SC-8 | ADR-028 (future), ADR-022 (future) | PROD |
-| FR-SEC-003 | LLM calls never include full file contents; only diff summaries + decision records (privacy) | 🔥 80/20 | SC-9 | ADR-006, ADR-017 (future) | PROD |
-| FR-SEC-004 | `caf config set llm.backend local-ollama` enables fully offline mode (no data leaves machine) | ◐ Supporting | SC-9 | ADR-017 (future), BACKLOG F-004 | PROD |
-| FR-SEC-005 | Audit log: `.caf/audit.log` append-only with hash chain (Merkle-style); `caf audit --since 7d` | ○ Nice-to-have | SC-8 | BACKLOG F-002 | FUTURE |
-| FR-SEC-006 | No telemetry by default; opt-in via `caf config set telemetry.enabled true`; no content sent | ◐ Supporting | SC-8 | BACKLOG J-004, ADR-019 (future) | PROD |
-
-**TRIZ Principle 22 (Blessing in disguise) applied to FR-SEC-003.** The privacy constraint (don't send full files to LLM) is also a quality constraint: LLM hallucinates less when given less context. The constraint that "protects" also "improves". This is a TRIZ blessing — the disadvantage (limited context) becomes an advantage (less hallucination).
-
-### 4.9 FR-OBS: Observability (NEW in v0.4-triz2, ◐ Supporting cluster)
-
-**EN summary.** Observability requirements capture "how do we know the system is healthy in production?". OpenTelemetry integration; metrics export to Prometheus/Grafana.
-
-| ID | Requirement | Verdict | Maps to | ADR | Phase |
-|----|-------------|---------|---------|-----|-------|
-| FR-OBS-001 | Every `caf` command emits OpenTelemetry span (command name, duration, exit code) | ◐ Supporting | SC-8 | (new ADR needed) | PROD |
-| FR-OBS-002 | `.caf/metrics.jsonl` rolling log of all success metrics (ACS, coverage, recall) — daily snapshot | ◐ Supporting | SC-1..6 | ADR-015 | PROD |
-| FR-OBS-003 | `caf metrics --export prometheus` exposes HTTP endpoint `/metrics` for Prometheus scrape | ◐ Supporting | SC-8 | BACKLOG I-005 | PROD |
-| FR-OBS-004 | `caf doctor` runs health checks: `.caf/` integrity, adapter health, LSP availability, hook installation | 🔥 80/20 | SC-8 | BACKLOG J-001 | ALPHA |
-| FR-OBS-005 | Grafana dashboard template shipped in `docs/grafana/caf-dashboard.json` | ○ Nice-to-have | SC-8 | BACKLOG I-005 | FUTURE |
-
-### 4.10 FR-PERF: Performance (◐ Supporting cluster)
-
-**EN summary.** Performance requirements are inherited from UI.md §0.3 (universal performance budget) and made explicit at the requirements layer.
-
-| ID | Requirement | Verdict | Maps to | ADR | Phase |
-|----|-------------|---------|---------|-----|-------|
-| FR-PERF-001 | `caf dashboard` first paint <100ms on repo with 1000 sessions | 🔥 80/20 | SC-7 | ADR-014, INV-UI-001 | MVP |
-| FR-PERF-002 | `caf review` card render <50ms (no LLM) | ◐ Supporting | SC-7 | INV-UI-002 | BETA |
-| FR-PERF-003 | `caf heatmap` render <200ms on 247-file repo; <500ms incremental recompute | ◐ Supporting | SC-7 | INV-UI-007 | BETA |
-| FR-PERF-004 | `caf sync` on 10k-file repo <1s (incremental, not full parse) | ◐ Supporting | SC-3 | BACKLOG A-003 | PROD |
-| FR-PERF-005 | `.caf/` size per repo <50 MB (mitigations: lazy loading, streaming parser, git-lfs for archives) | ◐ Supporting | SC-10 | ADR-001, INV-ADR-001 | MVP→PROD |
-| FR-PERF-006 | LLM-dependent operations <3s (with skeleton + spinner, never blocking UI) | ◐ Supporting | SC-7 | INV-UI-004 | PROD |
-
-### 4.11 FR-REL: Reliability (🔥 80/20 cluster)
-
-**EN summary.** Reliability requirements capture "the system must never block the user's work". Fail-safe is the prime reliability directive.
-
-| ID | Requirement | Verdict | Maps to | ADR | Phase |
-|----|-------------|---------|---------|-----|-------|
-| FR-REL-001 | Hook execution is fail-safe: `caf` binary missing → warn-and-continue, never block session/commit | 🔥 80/20 | SC-8 | ADR-003, INV-ARCH-004 | MVP |
-| FR-REL-002 | `caf.first_person_explain` degrades gracefully: LLM down → template-based fallback (INV-ADR-006 preserved) | 🔥 80/20 | SC-9 | ADR-006, BACKLOG J-007 | PROD |
-| FR-REL-003 | `caf doctor` detects and self-heals `.caf/` after git rebase/reset (rebuilds index from YAML source of truth) | 🔥 80/20 | SC-8 | BACKLOG J-001 | ALPHA |
-| FR-REL-004 | `caf review` crash mid-session loses no progress (atomic writes, incremental save after each card) | ◐ Supporting | SC-8 | BACKLOG J-002 | MVP |
-| FR-REL-005 | Adapter failure in one adapter does not block other adapters (error isolation) | ◐ Supporting | SC-8 | ADR-009 | MVP |
-| FR-REL-006 | `caf backup` creates tarball to S3 or local; `caf restore` reverses | ○ Nice-to-have | SC-8 | BACKLOG J-006 | FUTURE |
-
----
-
-## 5. Non-Functional Requirements
-
-NFRs are constraints on HOW the system achieves FRs. Each NFR has a measurable target and traces to one or more FRs.
-
-### 5.1 NFR-PERF: Performance envelope
-
-| ID | Constraint | Target | Owning FRs |
-|----|-----------|--------|------------|
-| NFR-PERF-01 | Latency P95 for any CLI command | <500ms (no LLM) / <3s (LLM) | FR-UI-001..003, FR-AI-001 |
-| NFR-PERF-02 | Throughput: `caf sync` on monorepo (100 services) | <30s (with caching) | FR-CRS-002, FR-PERF-004 |
-| NFR-PERF-03 | Memory footprint: `caf dashboard` resident | <50 MB | FR-UI-001, FR-PERF-001 |
-| NFR-PERF-04 | `.caf/` storage budget per repo | <50 MB | FR-PERF-005 |
-| NFR-PERF-05 | Cold start: `caf init` to first useful output | <30s (auto-detect + install) | FR-ADP-005 |
-
-### 5.2 NFR-REL: Reliability envelope
-
-| ID | Constraint | Target | Owning FRs |
-|----|-----------|--------|------------|
-| NFR-REL-01 | Hook fail-safe rate | 100% (never blocks session/commit) | FR-REL-001 |
-| NFR-REL-02 | Data loss tolerance | 0 cards lost on crash (atomic writes) | FR-REL-004 |
-| NFR-REL-03 | LLM hallucination rate on `.caf/`-grounded facts | 0 (no fabricated decisions) | FR-AI-002, SC-9 |
-| NFR-REL-04 | Adapter isolation: one adapter failure blocks | 0 other adapters | FR-REL-005 |
-
-### 5.3 NFR-SEC: Security envelope
-
-| ID | Constraint | Target | Owning FRs |
-|----|-----------|--------|------------|
-| NFR-SEC-01 | `.caf/` parser sandbox | No `os.Execute`, no file writes outside `.caf/` | FR-SEC-001 |
-| NFR-SEC-02 | Adapter signature verification | 100% of community adapters signed | FR-SEC-002 |
-| NFR-SEC-03 | LLM data minimization | Only diff summaries + decision records sent; never full files | FR-SEC-003 |
-| NFR-SEC-04 | Telemetry opt-in | 0 bytes sent without explicit opt-in | FR-SEC-006 |
-
-### 5.4 NFR-USE: Usability envelope
-
-| ID | Constraint | Target | Owning FRs |
-|----|-----------|--------|------------|
-| NFR-USE-01 | Onboarding time (fresh repo to first `caf dashboard`) | <30s | FR-ADP-005, FR-UI-001 |
-| NFR-USE-02 | Decision editor fill time | <30s (with autocomplete) | FR-DEC-003 |
-| NFR-USE-03 | Daily SRS review time | ~10 min (10-15 cards) | FR-SRS-003 |
-| NFR-USE-04 | Keyboard-only operation completeness | 100% (no mouse required) | FR-UI-007 |
-
-### 5.5 NFR-MAINT: Maintainability envelope
-
-| ID | Constraint | Target | Owning FRs |
-|----|-----------|--------|------------|
-| NFR-MAINT-01 | Test coverage (unit) | ≥80% | (cross-cutting) |
-| NFR-MAINT-02 | Adapter contract tests | 25×3=78 cases in CI | FR-ADP-007 |
-| NFR-MAINT-03 | Property-based tests for SM-2 | 1000 random card generations, ease ∈ [1.3, 3.0] | FR-SRS-002 |
-| NFR-MAINT-04 | Documentation drift | 0 (caf doc-check verifies cross-refs) | ADR-029 (proposed) |
-| NFR-MAINT-05 | Backwards compatibility | `.caf/` schema additive across major versions | ADR-001, INV-ADR-001 |
-
----
-
-## 6. TRIZ Analysis
-
-### 6.1 Application of 40 inventive principles (selected, high-impact)
-
-**EN summary.** Of the 40 TRIZ inventive principles, the following have direct application to CodeAuthorityFirst. Each principle is mapped to a requirement or ADR it shaped. Principles not listed had no high-impact application in this domain.
-
-| Principle | Application | Owning ADR/FR | Outcome |
-|-----------|-----------|---------------|---------|
-| 1. Segmentation | Adapter interface split into 5 independent methods | ADR-009, FR-ADP-001 | New adapter = 1 file; parallel test/dev |
-| 2. Taking out | SRS card "takes out" the answer — user produces internally | ADR-002, FR-SRS-001 | Active recall replaces passive reading |
-| 5. Combining | `session_id` combines git trailer + timestamp + randomness | ADR-001, FR-PROV-001 | One ID serves 3 purposes |
-| 10. Preliminary action | Pre-commit hook prepares decision BEFORE commit lands | ADR-003, FR-DEC-001 | Friction before irreversible action |
-| 11. Beforehand cushioning | `trigger_to_reconsider` field pre-records revisit conditions | ADR template, FR-DEC-007 | System self-triggers re-evaluation |
-| 13. The other way round | Git tells caf about commits (not agent tells caf) | ADR-003, FR-ADP-003 | Universal coverage via git, not 25 agent APIs |
-| 15. Dynamicity | Capability matrix is data-driven, not hardcoded | ADR-009, FR-ADP-002 | New tier = data change, not code change |
-| 22. Blessing in disguise | LLM data minimization also reduces hallucination | FR-SEC-003, FR-AI-002 | Privacy constraint improves quality |
-| 25. Self-service | Hooks capture provenance automatically, no manual `caf log` | ADR-003, FR-PROV-001 | Capture rate ~100% vs <30% manual |
-| 26. Copying | `caf who` mirrors `git blame` ergonomics | FR-PROV-003 | Zero learning curve |
-| 28. Mechanics substitution | LLM paraphrases; rules ground; humans approve | ADR-006, FR-AI-002 | LLM amplifies, doesn't replace |
-| 35. Parameter change | SM-2 ease_factor adapts to user recall | ADR-002, FR-SRS-002 | Mechanical adaptation, no ML needed |
-| 36. Phase transition | CLI → MCP shifts integration cost to consumers | FR-AI-001, FR-ADP-002 | One MCP server serves all MCP clients |
-
-### 6.2 IQR (Ideal Final Result)
-
-**IQR-1 (system level).** The ideal CodeAuthorityFirst occupies zero author attention at steady state. The author writes code with AI agents, commits, and periodically reviews. `.caf/` populates itself via hooks; decisions are prompted only at the friction point (pre-commit); SRS cards surface in the daily review. The author never explicitly invokes `caf log` or `caf decisions new` (except via the pre-commit prompt). 
-
-**IQR-2 (component level).** The ideal `.caf/` storage does not exist as a separate artifact — it IS the git history, augmented. Future state: `.caf/` shrinks to near-zero by inlining provenance trailers into git commit messages and storing decision records as git notes. The `.caf/` folder becomes a cache, not a source of truth; git itself is the source of truth. This is the long-term direction (FUTURE).
-
-**IQR-3 (process level).** The ideal SRS review session takes zero time — the author answers cards as part of the natural workflow (e.g., when opening a file in the editor, the relevant "why" card surfaces as a hover tooltip). The 10-minute daily review session is a transitional compromise until IDE plugins (BACKLOG B-001..B-003) make SRS ambient.
-
-### 6.3 ARIZ-85B: LLM hallucination contradiction
-
-**EN summary.** The hardest technical contradiction in the system: `caf.first_person_explain` needs an LLM to produce fluent first-person narrative, but LLMs hallucinate, and hallucinated decisions are worse than no narrative at all (they fabricate authorship). ARIZ-85B resolves this by separating the function (paraphrase) from the constraint (no invention).
-
-**Step 1: Problem formulation.**
-- Technical contradiction 1: LLM produces fluent narrative (improves) but introduces hallucination risk (worsens).
-- Technical contradiction 2: Restricting LLM to template-based output eliminates hallucination (improves) but loses fluency and personalization (worsens).
-
-**Step 2: Resource analysis.**
-- Available resources: `.caf/` facts (decisions, sessions, provenance), LLM capability (paraphrase), template structure, git history.
-- Harmful resources: LLM training data biases, model tendency to "fill in" missing context.
-
-**Step 3: Ideal final result.**
-The LLM produces a fluent first-person narrative using ONLY facts present in `.caf/`. If facts are missing, the LLM explicitly says "no provenance for this file" rather than inventing. The narrative reads naturally but every sentence is traceable to a `.caf/` source.
-
-**Step 4: Resolution.**
-Apply Principle 28 (Mechanics substitution): substitute the LLM's "generation" function with "paraphrase" function. The LLM does not generate content; it paraphrases existing content. This is enforced by:
-1. **Prompt engineering**: system prompt says "You are paraphrasing `.caf/` facts. Do not add information. If a fact is missing, say 'no provenance'."
-2. **Grounding check**: post-generation, the narrative is parsed and each claim is matched against `.caf/` source. Unmatched claims trigger fallback to template.
-3. **Test suite**: a corpus of `.caf/` fixtures with known facts; LLM output is verified against the corpus. Any unmatched claim fails the test (NFR-REL-03: 0 hallucination).
-
-This is codified in ADR-006, INV-ADR-006: "LLM only paraphrases `.caf/`-grounded facts, never invents."
-
-**Step 5: Verification.**
-- SC-9 (LLM hallucination rate = 0 on `.caf/`-grounded facts) is the measurable target.
-- Test suite (BACKLOG J-005, fuzzing for `.caf/` parser) extended to include LLM hallucination tests.
-
-### 6.4 9-Screen Scheme (Multi-screen thinking)
-
-```mermaid
-graph TD
-    subgraph "9-Screen: CodeAuthorityFirst System"
-        subgraph "Super-system"
-            SS_PAST["Past:<br/>Git, Anki, ADRs<br/>pre-2025 primitives"]
-            SS_PRESENT["Present:<br/>30+ AI agents<br/>MCP protocol<br/>LSP standard"]
-            SS_FUTURE["Future:<br/>Autonomous PRs<br/>agent marketplaces<br/>provenance regulation"]
-        end
-        subgraph "System"
-            S_PAST["Past:<br/>v0.1 OryaSkill<br/>single agent<br/>manual caf log"]
-            S_PRESENT["Present:<br/>v0.4 CodeAuthorityFirst<br/>25 agents<br/>hooks + LSP + MCP"]
-            S_FUTURE["Future:<br/>v1.0+<br/>multi-user<br/>IDE plugins<br/>provenance-as-protocol"]
-        end
-        subgraph "Sub-system"
-            SUB_PAST["Past:<br/>flat YAML<br/>monolithic hooks"]
-            SUB_PRESENT["Present:<br/>layered .caf/<br/>capability matrix<br/>SM-2 + IQR-grounded LLM"]
-            SUB_FUTURE["Future:<br/>git-notes-native<br/>distributed cards<br/>CRDT"]
-        end
-    end
-    
-    SS_PAST -.-> SS_PRESENT
-    SS_PRESENT -.-> SS_FUTURE
-    S_PAST -.-> S_PRESENT
-    S_PRESENT -.-> S_FUTURE
-    SUB_PAST -.-> SUB_PRESENT
-    SUB_PRESENT -.-> SUB_FUTURE
-    
-    SS_PRESENT -.-> S_PRESENT
-    S_PRESENT -.-> SUB_PRESENT
-```
-
-**Insight from 9-screen analysis.** The super-system future (autonomous PRs, provenance regulation) suggests that provenance capture must become a protocol, not a tool. The sub-system future (git-notes-native, CRDT) suggests the storage layer will dissolve into git itself. The system-level present (CodeAuthorityFirst v0.4) is the transitional form — explicit `.caf/` folder, explicit hooks. The trajectory is toward dissolution.
-
-**Strategic implication.** CodeAuthorityFirst should not over-invest in `.caf/`-as-storage; it should invest in `.caf/`-as-cache that can be regenerated from git + git-notes. This preserves the option to dissolve `.caf/` in v2.0 without losing data. (Captured as a constraint in §7.)
-
----
-
-## 7. Constraints
-
-**EN summary.** Constraints are non-negotiable boundaries within which the system must operate. They are inherited from ADRs and from external context (technology choices, ecosystem constraints).
-
-| ID | Constraint | Source | Implication |
-|----|-----------|--------|-------------|
-| C-01 | Single Go binary distribution; no runtime dependencies | ADR-008, ADR-014 | No Node.js, no Python, no Electron; all CGO optional |
-| C-02 | `.caf/` committed in-repo; YAML 1.2 + Markdown only | ADR-001, ADR-005 | No SQLite, no binary formats; checkout-time-travel preserved |
-| C-03 | TUI-first; web UI deferred to FUTURE | ADR-014 | Sub-100ms first paint; SSH/Docker/CI coverage |
-| C-04 | Hooks fail-safe; never block session/commit | ADR-003, INV-ARCH-004 | `.caf/` corruption → warn, not block |
-| C-05 | Adapter interface stable within major version; 5 methods | ADR-009, INV-ARCH-002 | New methods = default-implemented; signatures never change |
-| C-06 | `.caf/` schema additive across major versions | ADR-001, INV-ADR-001 | Old fields never removed; `caf migrate` for breaking changes |
-| C-07 | No external infrastructure required for MVP/ALPHA/BETA | (new in v0.4) | No database, no server, no LLM in MVP/ALPHA/BETA |
-| C-08 | LLM is opt-in; default works without LLM | ADR-017 (future), FR-AI-003 | Privacy by default; LLM only in PROD with explicit config |
-| C-09 | `.caf/` is cache-friendly; can be regenerated from git + decisions | (new in v0.4, from 9-screen) | Storage layer must remain regenerable; dissolution option preserved |
-| C-10 | Authorship-first is prime; no requirement may dilute it | INV-ARD-004 | Conflicts resolved in favor of authorship |
-
----
-
-## 8. Assumptions
-
-| ID | Assumption | Risk if wrong | Mitigation |
-|----|-----------|---------------|-----------|
-| A-01 | AI agents will continue to support git hooks (or wrappers can simulate them) | HIGH — if agents move to MCP-only, hook coverage drops | ADR-013 universal LSP + ADR-010 wrapper/watcher fallback chain |
-| A-02 | Users want first-person narrative (not third-person or passive) | MEDIUM — cultural variation | ADR-006 with `trigger_to_reconsider` for multi-user mode (FUTURE) |
-| A-03 | SM-2 is sufficient; FSRS not needed | LOW — well-tested algorithm | ADR-002 trigger: if recall <60% fleet-wide after 90 days |
-| A-04 | 50 LOC triviality threshold is correct for typical repos | MEDIUM — too aggressive or too permissive | ADR-004 configurable per-repo via `.caf/config.yml` |
-| A-05 | LSP is available for target languages (Go, Python, TS, Rust, Java, C#) | LOW — LSP is standard | ADR-013 falls back to filesystem-only for non-LSP languages |
-| A-06 | `.caf/` will stay under 50 MB per repo for textual data | LOW — text is small | ADR-001 trigger: if exceeded, hybrid YAML + git-lfs |
-| A-07 | Users will tolerate 30-second decision-prompt friction at pre-commit | MEDIUM — adoption risk | Mitigation: autocomplete (FR-DEC-003); `CAF-Trivial: true` bypass |
-| A-08 | MCP protocol will remain stable (Anthropic not breaking it) | MEDIUM — external dependency | Pin MCP spec version; contract tests against pinned version |
-| A-09 | The 80/20 verdict assignments in §4 are correct | MEDIUM — misallocation of resources | Quarterly re-evaluation (ADR-015 step 5) |
-
----
-
-## 9. Trace Matrix
-
-**EN summary.** Every requirement traces to (a) a success criterion, (b) an ADR, and (c) a phase. This matrix is the bidirectional traceability that lets an agent or auditor verify coverage in both directions.
-
-| FR/NFR | Success Criterion | ADR | Phase | BACKLOG items affected |
-|--------|-------------------|-----|-------|------------------------|
-| FR-PROV-001..006 | SC-2, SC-3 | ADR-001, ADR-003, ADR-005 | MVP→ALPHA | A-002, A-003, A-005, J-001, J-008 |
-| FR-DEC-001..007 | SC-2 | ADR-003, ADR-004, ADR-005, ADR-014 | ALPHA | H-006, D-001, J-008 |
-| FR-SRS-001..007 | SC-1, SC-3, SC-4 | ADR-002, ADR-011, ADR-014 | BETA | D-002, D-004, D-007, H-001 |
-| FR-CRS-001..005 | SC-3 | ADR-001, ADR-011, ADR-022 (future) | PROD | A-003, A-006, C-006 |
-| FR-ADP-001..007 | SC-5, SC-6 | ADR-009, ADR-010, ADR-012, ADR-013 | MVP→PROD | E-001..E-008, H-002, H-005 |
-| FR-UI-001..010 | SC-7 | ADR-014 | MVP→PROD | K-001..K-012 |
-| FR-AI-001..006 | SC-9 | ADR-006, ADR-017 (future) | PROD | D-001, D-002, D-003, D-008, J-007 |
-| FR-SEC-001..006 | SC-8, SC-9 | ADR-005, ADR-022 (future), ADR-028 (future) | ALPHA→PROD | F-001..F-007 (new gaps) |
-| FR-OBS-001..005 | SC-8 | (new ADR needed), ADR-015 | PROD | I-001, I-005, J-001, J-004 |
-| FR-PERF-001..006 | SC-7, SC-10 | ADR-001, ADR-014 | MVP→PROD | A-001, A-002, A-003, A-005 |
-| FR-REL-001..006 | SC-8, SC-9 | ADR-003, ADR-006, ADR-009 | MVP→PROD | J-001, J-002, J-006, J-007 |
-
----
-
-## 10. Rejected Requirements (TRIZ-informed rejections)
-
-**EN summary.** Some requirements were considered and rejected. Documenting rejections preserves the reasoning — future contributors who re-propose these ideas can be pointed here.
-
-| ID | Rejected requirement | Rejection reason | TRIZ principle invoked |
-|----|---------------------|------------------|------------------------|
-| RR-01 | Real-time collaborative editing of `.caf/` files | Decisions are mostly write-once; real-time adds CRDT complexity for marginal value | Principle 3 (Local quality): decisions don't need real-time; they need durability |
-| RR-02 | AI agent that automatically fills decisions without human approval | LLM hallucination risk without grounding; violates authorship-first (INV-ARD-004) | Principle 28 (Mechanics substitution): LLM amplifies human, doesn't replace |
-| RR-03 | Mobile app for `caf review` | Voice-first review (BACKLOG D-006) covers use case without platform-specific dev | Principle 4 (Asymmetry): voice works on mobile without an app |
-| RR-04 | Gamification (badges, streaks) | Contradicts first-person voice (ADR-006); creates gaming incentives | Principle 22 (Blessing in disguise): seriousness is a feature, not a bug |
-| RR-05 | Public leaderboard of ACS scores | ACS is subjective; public comparison creates gaming risk | Principle 22 (Blessing in disguise): private progress is honest progress |
-| RR-06 | Automatic decision generation from git log | Git log lacks alternatives/trade-offs; LLM would invent reasons (NFR-REL-03 violation) | Principle 28 (Mechanics substitution): human generates, not LLM |
-| RR-07 | Blockchain-based provenance | Git history already tamper-evident; blockchain adds complexity, no value | Principle 1 (Segmentation): don't add layers when one suffices |
-
----
-
-## 11. Open Architectural Questions
-
-These questions require future ADRs to resolve. They are listed here so contributors know what is undecided.
-
-| # | Question | Phase needed | Owning ADR (future) | Trace |
-|---|----------|--------------|---------------------|-------|
-| 1 | `caf init --auto-detect` — offer all detected adapters, or auto-install recommended only? | MVP | (TBD) | FR-ADP-005 |
-| 2 | Default LSP server for Go: bundle `gopls` in `caf` binary, or require install? | MVP | ADR-026 | FR-ADP-004, FR-REL-001 |
-| 3 | LLM backend default: `z-ai-web-dev-sdk` vs local Ollama vs configurable? | PROD | ADR-017 | FR-AI-003 |
-| 4 | Multi-user conflict resolution for `ease_factor`: minimum wins or latest wins? | FUTURE | ADR-016 | FR-SRS-002, BACKLOG G-001 |
-| 5 | Adapter contribution governance: marketplace vs GitHub-only? | FUTURE | ADR-018, ADR-028 | FR-ADP-001, FR-SEC-002 |
-| 6 | Telemetry data ownership: anonymous-only vs attributed? | PROD | ADR-019, ADR-027 | FR-SEC-006 |
-| 7 | Schema migration strategy for breaking changes (when v2.0 happens)? | ALPHA | ADR-020 | FR-PERF-005, C-06 |
-| 8 | Card type extension: built-in vs plugin? | FUTURE | ADR-021 | FR-SRS-001 |
-| 9 | Cross-repo sync security: signed manifests? | PROD | ADR-022 | FR-CRS-005, FR-SEC-002 |
-| 10 | Web UI scope (when FUTURE arrives)? | FUTURE | ADR-025 | FR-UI-008 |
-| 11 | `caf invariants check` enforcement of `@invariant` tags in pre-commit? | MVP (proposed) | ADR-029 | FR-DEC-007, FR-REL-001 |
-| 12 | Observability: OpenTelemetry tracing sampling rate? | PROD | (new ADR needed) | FR-OBS-001 |
-
----
-
-## 12. v0.3.1-triz → v0.4.0-triz2 Changelog
-
-**What changed in this version:**
-
-1. **ARD created de novo.** v0.3.1-triz had ADR (decision records) but no ARD (requirements document). This file fills that gap. ARD sits above ARCHITECT and ROADMAP; it captures WHY and WHAT, leaving HOW (ARCHITECT) and WHEN (ROADMAP) to their respective files.
-
-2. **80/20 applied to requirements themselves.** ADR-015 (80/20) was applied to features in v0.3.1-triz; v0.4.0-triz2 extends it to every functional and non-functional requirement. The verdict table (§0) operationalizes Pareto at the requirements layer.
-
-3. **TRIZ 40 principles systematically applied.** §6.1 maps 13 high-impact principles to specific requirements and ADRs. v0.3.1-triz mentioned TRIZ but did not enumerate principle-by-principle application.
-
-4. **ARIZ-85B applied to hardest contradiction.** §6.3 walks through ARIZ-85B for the LLM hallucination contradiction, producing the grounding-based resolution (ADR-006, INV-ADR-006). This was implicit before; v0.4.0-triz2 makes it explicit and auditable.
-
-5. **9-screen scheme applied to roadmap.** §6.4 visualizes past/present/future at super-system, system, and sub-system levels. The insight (`.caf/` should be cache-friendly, regenerable from git) is captured as constraint C-09 — a new constraint that did not exist in v0.3.1-triz.
-
-6. **Security requirements made explicit.** §4.8 (FR-SEC-001..006) is new. v0.3.1-triz had security scattered across ADRs; v0.4.0-triz2 consolidates it as a first-class requirement cluster.
-
-7. **Observability requirements made explicit.** §4.9 (FR-OBS-001..005) is new. OpenTelemetry integration, `caf doctor`, Prometheus export — these were backlog items; v0.4.0-triz2 promotes them to requirements.
-
-8. **Rejected requirements documented.** §10 preserves the reasoning for rejected ideas (blockchain, mobile app, gamification, etc.) so future contributors don't re-propose them.
-
-9. **Open questions enumerated.** §11 lists 12 open architectural questions, each with the phase it's needed and the future ADR that will resolve it.
-
-10. **Bidirectional traceability.** §9 trace matrix ensures every FR maps to SC + ADR + phase + backlog items. An agent opening this file can navigate to any related artifact.
-
----
-
-## 13. How to Add a New Requirement
-
-1. Identify the sub-problem (§2.1) the requirement addresses. If it doesn't fit any sub-problem, either (a) the requirement is out of scope, or (b) a new sub-problem needs to be added.
-2. Assign an FR ID in the format `FR-<cluster>-<NNN>`, where cluster is one of PROV, DEC, SRS, CRS, ADP, UI, AI, SEC, OBS, PERF, REL.
-3. Tag the requirement with an 80/20 verdict (§0): 🔥, ◐, or ○.
-4. Map to at least one success criterion (§3) and one ADR (in ADR.md).
-5. If the requirement introduces a TRIZ conflict, document the resolution in §6.
-6. If the requirement is rejected (cannot be implemented or contradicts prime directive), move it to §10 with rejection reason.
-7. Open a PR. Review period: 1 week (minor) / 2 weeks (major — anything touching storage, hooks, or adapter contracts).
-8. On merge, update §9 trace matrix and §11 open questions if applicable.
-
-**Requirement template:**
+╨Ъ╨░╨╢╨┤╨░╤П ADR ╤Б╨╗╨╡╨┤╤Г╨╡╤В ╨╡╨┤╨╕╨╜╨╛╨╝╤Г ╤И╨░╨▒╨╗╨╛╨╜╤Г. ╨и╨░╨▒╨╗╨╛╨╜ ╨╜╨░╨╝╨╡╤А╨╡╨╜╨╜╨╛ ╨╝╨╕╨╜╨╕╨╝╨░╨╗╨╡╨╜, ╤З╤В╨╛╨▒╤Л ╨░╨│╨╡╨╜╤В ╨╝╨╛╨│ ╨┐╨░╤А╤Б╨╕╤В╤М ADR ╨╛╨┤╨╜╨╕╨╝ ╨┐╤А╨╛╤Е╨╛╨┤╨╛╨╝ ╨╕ ╨╕╨╖╨▓╨╗╨╡╨║╨░╤В╤М `Status`, `Date`, `Phase`, `Chosen` ╨╕ `Trigger` ╨▒╨╡╨╖ ╨╜╨╡╤З╤С╤В╨║╨╛╨│╨╛ ╨┐╨╛╨╕╤Б╨║╨░.
 
 ```markdown
-### FR-<CLUSTER>-<NNN>: <Title>
+### ADR-NNN: Title
 
-**Verdict:** 🔥 80/20 | ◐ Supporting | ○ Nice-to-have
-**Phase:** MVP | ALPHA | BETA | PROD | FUTURE
-**Maps to:** SC-N, ADR-NNN
-**BACKLOG items:** [list]
+**Status:** proposed | accepted | deprecated | superseded by ADR-MMM
+**Date:** YYYY-MM-DD
+**Phase introduced:** MVP | ALPHA | BETA | PROD | FUTURE
 
-**Statement.** (one sentence, testable)
+**Context.** (╨┐╨╛╤З╨╡╨╝╤Г ╨╜╤Г╨╢╨╜╨╛ ╤А╨╡╤И╨╡╨╜╨╕╨╡, ╨║╨░╨║╨╕╨╡ ╨▓╨░╤А╨╕╨░╨╜╤В╤Л ╤А╨░╤Б╤Б╨╝╨╛╤В╤А╨╡╨╜╤Л)
 
-**Acceptance criteria.** (concrete, measurable)
+**Chosen.** (╤З╤В╨╛ ╨▓╤Л╨▒╤А╨░╨╜╨╛)
 
-**TRIZ principle applied:** (if any; see §6.1)
+**Rejected alternatives.** (╤З╤В╨╛ ╨╜╨╡ ╨▓╤Л╨▒╤А╨░╨╜╨╛ ╨╕ ╨┐╨╛╤З╨╡╨╝╤Г)
 
-**Open questions.** (if any; see §11)
+**Trade-offs.** (╤З╤В╨╛ ╨╝╤Л ╨╛╤В╨┤╨░╨╗╨╕ ╨╖╨░ ╨▓╤Л╨▒╤А╨░╨╜╨╜╨╛╨╡ ╤А╨╡╤И╨╡╨╜╨╕╨╡)
+
+**Trigger to reconsider.** (╨┐╤А╨╕ ╨║╨░╨║╨╕╤Е ╤Г╤Б╨╗╨╛╨▓╨╕╤П╤Е ╨╜╤Г╨╢╨╜╨╛ ╨▓╨╡╤А╨╜╤Г╤В╤М╤Б╤П ╨║ ╤Н╤В╨╛╨╝╤Г ADR)
+@invariant: <╨║╨╛╤А╨╛╤В╨║╨╛╨╡ ╤Г╤В╨▓╨╡╤А╨╢╨┤╨╡╨╜╨╕╨╡ ╨╕╨╜╨▓╨░╤А╨╕╨░╨╜╤В╨░, ╨║╨╛╤В╨╛╤А╨╛╨╡ ╨░╨│╨╡╨╜╤В ╨╝╨╛╨╢╨╡╤В ╨┐╤А╨╛╨▓╨╡╤А╨╕╤В╤М>
+@trace: [ADR-NNN тЖТ backlog-item-id | code-path | UI-section]
 ```
+
+ADRs **╨╜╨╡ ╤Г╨┤╨░╨╗╤П╤О╤В╤Б╤П** тАФ ╨┐╤А╨╕ ╤Б╨╝╨╡╨╜╨╡ ╤А╨╡╤И╨╡╨╜╨╕╤П ╨┐╤А╨╡╨┤╤Л╨┤╤Г╤Й╨░╤П ADR ╨┐╨╛╨╝╨╡╤З╨░╨╡╤В╤Б╤П `superseded by ADR-MMM`, ╨╕ ╤Б╨╛╨╖╨┤╨░╤С╤В╤Б╤П ╨╜╨╛╨▓╨░╤П. ╨н╤В╨╛ ╤Б╨╛╤Е╤А╨░╨╜╤П╨╡╤В ╨╕╤Б╤В╨╛╤А╨╕╤З╨╡╤Б╨║╨╕╨╣ ╨║╨╛╨╜╤В╨╡╨║╤Б╤В ╨┤╨╗╤П ╨▒╤Г╨┤╤Г╤Й╨╕╤Е ╨╝╨╡╨╣╨╜╤В╨╡╨╣╨╜╨╡╤А╨╛╨▓ ╨╕ ╨┤╨╗╤П ╨░╨│╨╡╨╜╤В╨╛╨▓, ╨║╨╛╤В╨╛╤А╤Л╨╡ ╨╝╨╛╨│╤Г╤В ╤Б╤В╨╛╨╗╨║╨╜╤Г╤В╤М╤Б╤П ╤Б╨╛ ╤Б╤В╨░╤А╤Л╨╝ ╨║╨╛╨┤╨╛╨╝, ╨╜╨░╨┐╨╕╤Б╨░╨╜╨╜╤Л╨╝ ╨┐╨╛╨┤ ╨┐╤А╨╡╨┤╤Л╨┤╤Г╤Й╨╕╨╝ ╤А╨╡╤И╨╡╨╜╨╕╨╡╨╝.
+
+╨Ъ╨░╨╢╨┤╤Л╨╣ ADR ╨╜╨╡╤Б╤С╤В ╤В╤А╨╕ ╤Г╤А╨╛╨▓╨╜╤П ╨╕╨╜╤Д╨╛╤А╨╝╨░╤Ж╨╕╨╕ ╨┤╨╗╤П ╨░╨│╨╡╨╜╤В╨░: (1) **Status** тАФ ╨╖╨░╨║╤А╤Л╤В╨╛╨╡ ╨┐╨╡╤А╨╡╤З╨╕╤Б╨╗╨╡╨╜╨╕╨╡ `proposed | accepted | deprecated | superseded by ADR-MMM`, ╨┐╨░╤А╤Б╨╕╤В╤Б╤П ╨╛╨┤╨╜╨╕╨╝ regex; (2) **Trigger to reconsider** тАФ ╤Г╤Б╨╗╨╛╨▓╨╕╤П ╨┐╨╡╤А╨╡╤Б╨╝╨╛╤В╤А╨░, ╨║╨╛╤В╨╛╤А╤Л╨╡ ╤Д╨╛╤А╨╝╨╕╤А╤Г╤О╤В decision tree: ┬л╨╡╤Б╨╗╨╕ ╨╝╨╡╤В╤А╨╕╨║╨░ ╨┐╤А╨╛╤Б╨╡╨╗╨░ ╨╜╨╕╨╢╨╡ ╨┐╨╛╤А╨╛╨│╨░ тЖТ ╨┐╨╡╤А╨╡╤Б╨╝╨░╤В╤А╨╕╨▓╨░╨╡╨╝┬╗; (3) **@invariant tag** тАФ ╨║╤А╨░╤В╨║╨╛╨╡ ╤Г╤В╨▓╨╡╤А╨╢╨┤╨╡╨╜╨╕╨╡, ╨║╨╛╤В╨╛╤А╨╛╨╡ ╨┤╨╛╨╗╨╢╨╜╨╛ ╨╛╤Б╤В╨░╨▓╨░╤В╤М╤Б╤П ╨╕╤Б╤В╨╕╨╜╨╜╤Л╨╝ ╨▓╨╛ ╨▓╤Б╨╡╤Е ╨║╨╛╨╝╨╝╨╕╤В╨░╤Е. ╨Э╨░╤А╤Г╤И╨╡╨╜╨╕╨╡ `@invariant` ╨┤╨╛╨╗╨╢╨╜╨╛ ╨▒╨╗╨╛╨║╨╕╤А╨╛╨▓╨░╤В╤М merge ╨▓ pre-commit hook (FUTURE: `caf invariants check` ╨║╨╛╨╝╨░╨╜╨┤╨░, ╤Б╨╝. ADR Backlog ADR-029).
 
 ---
 
-## 14. How This Document Relates to Others
+## ADR-001: Storage location тАФ in-repo `.caf/` vs separate database
 
-```mermaid
-graph TD
-    ARD["ARD.md<br/>(this file)<br/>WHY + WHAT"] --> ARCHITECT["ARCHITECT.md<br/>HOW (structure)"]
-    ARD --> ROADMAP["ROADMAP.md<br/>WHEN (phases)"]
-    ARD --> ADR["ADR.md<br/>DECISIONS (architectural)"]
-    ARD --> BACKLOG["BACKLOG.md<br/>PARKED IDEAS"]
-    ARD --> UI["UI.md<br/>HOW (interface)"]
-    
-    ARCHITECT -.-> ADR
-    ROADMAP -.-> ADR
-    ROADMAP -.-> BACKLOG
-    UI -.-> ARCHITECT
-    BACKLOG -.-> ADR
-    
-    ORYA["OryaCodeAuthorityFirst.md<br/>v0.1 historical vision<br/>(superceded by ARD v0.4)"] -.-> ARD
-    
-    style ARD fill:#61afef,color:#fff
-    style ARCHITECT fill:#98c379,color:#fff
-    style ROADMAP fill:#98c379,color:#fff
-    style ADR fill:#e5c07b,color:#000
-    style BACKLOG fill:#e5c07b,color:#000
-    style UI fill:#98c379,color:#fff
-    style ORYA fill:#5c6370,color:#fff
-```
+**Status:** accepted
+**Date:** 2026-10-28
+**Phase introduced:** MVP
 
-- **ARD (this file)** answers "why does this system exist, what must it do, what bounds it". It is the source of truth for requirements.
-- **ARCHITECT** answers "how is the system structured to meet these requirements". It is the source of truth for code structure, layers, invariants.
-- **ROADMAP** answers "when do these requirements ship, in what phase, with what exit criteria". It is the source of truth for sequencing.
-- **ADR** answers "what architectural decisions were made, what alternatives rejected, what triggers reconsideration". Each ADR traces to one or more ARD requirements.
-- **BACKLOG** answers "what ideas are parked, not yet committed". Each backlog item, if promoted, traces to a new ARD requirement.
-- **UI** answers "how does the user interact with the system". Each UI screen traces to one or more ARD UI requirements.
-- **OryaCodeAuthorityFirst.md** (v0.1 historical vision) is superceded by ARD v0.4.0-triz2. It is kept as a historical record; the v0.1 vision is preserved in spirit but the ARD is the canonical requirements source.
+**EN summary.** Storage for provenance, decisions, and SRS cards is committed alongside code as YAML/Markdown in `.caf/` folder. Rejected SQLite (breaks checkout time-travel) and centralized Postgres (SPOF, offline-unfriendly). Reconsider only if `.caf/` exceeds 50 MB in a single repo.
+
+**Context.** Provenance, decisions, and SRS cards need persistent storage. Options: (a) YAML/Markdown files in `.caf/` committed to git, (b) SQLite database per repo (git-ignored), (c) centralized Postgres for all repos using CAF.
+
+**Chosen.** (a) In-repo `.caf/` folder, committed.
+
+**Rejected alternatives.**
+
+- **SQLite per repo.** Gives query performance, but breaks the "checkout time travel" property тАФ `git checkout` to an old commit would not restore the mental map state at that commit. Requires separate backup strategy and complicates cross-repo queries.
+- **Centralized Postgres.** Allows cross-repo queries natively, but introduces a SPOF and forces auth/network model. Excludes offline work and contradicts the "Provenance by default" principle (any barrier between code and provenance reduces capture rate).
+
+**Trade-offs.**
+
+- (+) `git checkout` = mental map time travel; perfect sync between code and authorship data.
+- (+) No infrastructure dependency; works offline.
+- (+) `.caf/` diffable in PRs, reviewable in code review.
+- (-) Slower queries on large `.caf/` (mitigated by `index.yml` files and lazy loading тАФ see BACKLOG A-005).
+- (-) Merge conflicts possible on frequently-updated files like `cards.yml` (mitigated by CRDT in FUTURE тАФ see BACKLOG G-002).
+
+**Trigger to reconsider.** If `.caf/` exceeds 50 MB in a single repo (unlikely for textual data, but possible for high-churn repos), evaluate hybrid: text files for current state, archived snapshots in compressed bundles committed as `git-lfs` assets.
+@invariant: .caf/ folder is committed in-repo and additive across major versions; .caf/ size per repo stays under 50 MB.
+@trace: ADR-001 тЖТ BACKLOG A-005 (memory-mapped index), BACKLOG G-002 (CRDT), BACKLOG J-008 (schema versioning)
+
+---
+
+## ADR-002: SRS algorithm тАФ SM-2 vs FSRS vs Leitner
+
+**Status:** accepted
+**Date:** 2026-10-28
+**Phase introduced:** BETA
+
+**EN summary.** SM-2 (Anki-compatible, since 1987) chosen for spaced repetition. FSRS rejected as overkill; Leitner rejected as too coarse. Reconsider if recall rate <60% fleet-wide after 90 days.
+
+**Context.** Mental Model Reconstructor needs a spaced-repetition algorithm.
+
+**Chosen.** SM-2 (the algorithm used by Anki since 1987).
+
+**Rejected alternatives.**
+
+- **FSRS (Free Spaced Repetition Scheduler).** More accurate, modern (2023+), but requires more parameters and a learning curve for the user to grade retention. Overkill for code ownership use case where the goal is "is the author still confident", not "what is the optimal review schedule".
+- **Leitner system.** Simpler, but coarser intervals; does not adapt to per-card difficulty and tends to over-review easy cards.
+
+**Trade-offs.**
+
+- (+) Well-understood, battle-tested algorithm; users coming from Anki recognize it immediately.
+- (+) Simple to implement; predictable behavior.
+- (-) Less accurate than FSRS for cards with very high or very low difficulty.
+- (-) Does not model card-type-specific difficulty (see BACKLOG D-007 as future improvement).
+
+**Trigger to reconsider.** If recall rate consistently <60% across the fleet after 90 days of usage, evaluate FSRS тАФ it might better model difficulty of "abstract reasoning" cards (type 2) vs "fact recall" cards (type 1).
+@invariant: ease_factor тИИ [1.3, 3.0] for every active card; revisit interval = max(1d, prior_interval ├Ч ease_factor ├Ч grade_modifier).
+@trace: ADR-002 тЖТ BACKLOG D-007 (per-card-type ease), BACKLOG H-001 (custom card types), code: internal/caf/srs/sm2.go
+
+---
+
+## ADR-003: Hooks vs explicit CLI calls
+
+**Status:** accepted
+**Date:** 2026-10-28
+**Phase introduced:** MVP (pre-session, post-edit), ALPHA (pre-commit)
+
+**EN summary.** Provenance and decisions are recorded via agent hooks (automatic), not explicit CLI commands. Rejected explicit CLI due to capture rate collapse under time pressure. Hooks are fail-safe тАФ if `caf` binary is unavailable, agents continue with a warning.
+
+**Context.** Provenance and decisions could be recorded via hooks (automatic) or via explicit `caf log` commands (manual).
+
+**Chosen.** Hooks.
+
+**Rejected alternatives.**
+
+- **Explicit CLI.** Author calls `caf log --session <id>` after each agent session. Most flexible, but fails the "Provenance by default" principle тАФ humans skip manual steps under time pressure, and capture rate collapses to <30% within 2 weeks of real use.
+
+**Trade-offs.**
+
+- (+) Automatic capture; authorship data complete without user effort.
+- (-) Hooks are slightly fragile (require agents to support hook events `pre-session` / `post-edit` / `pre-commit`).
+- (-) Hook failures may block agent operation if not handled carefully.
+
+**Mitigation:** fail-safe behavior тАФ if `caf` binary is unavailable, agent continues with a warning. Sessions are never blocked by `caf` issues (see ARCHITECT.md ┬з2.5.5 Fail-safe contract).
+
+**Trigger to reconsider.** If a major supported agent removes hook support entirely, fall back to a daemon polling git history with a 30-second interval. Less real-time, but preserves the "Provenance by default" property. See also BACKLOG A-003 (incremental sync) as related work.
+@invariant: Hook execution is fail-safe тАФ `caf` binary missing тЖТ warn-and-continue, never block session/commit.
+@trace: ADR-003 тЖТ ARCHITECT.md ┬з2.5.5 (fail-safe contract), BACKLOG A-003 (incremental sync), code: internal/caf/hooks/*.go
+
+---
+
+## ADR-004: Triviality threshold тАФ 50 LOC
+
+**Status:** accepted
+**Date:** 2026-10-28
+**Phase introduced:** ALPHA
+
+**EN summary.** 50 lines (excluding imports, formatting, test-duplicates) chosen as threshold for "non-trivial" edits requiring decision records. 30 too aggressive; 100 too permissive; AST-based complexity too brittle. Reconsider if coverage <70% or false-positive rate >40%.
+
+**Context.** `post-edit` and `pre-commit` hooks need a threshold above which an edit is considered "non-trivial" and requires a decision record.
+
+**Chosen.** 50 lines, excluding imports, formatting, and test-duplicates.
+
+**Rejected alternatives.**
+
+- **30 lines.** Too aggressive; would block too many legitimate refactors and increase false-positive rate beyond 40%.
+- **100 lines.** Too permissive; many architectural decisions happen in 50-90 line changes (e.g., adding a new middleware, replacing an interface implementation).
+- **Per-file AST complexity delta.** Theoretically correct, but expensive to compute and brittle across languages тАФ Go and Python have different AST models, and any future language support would require new heuristics.
+
+**Trade-offs.**
+
+- (+) Simple to compute; predictable.
+- (+) Aligns with empirical observation that most architectural decisions happen in 40-90 line changes.
+- (-) Misses "small but architectural" changes (e.g., single-line interface signature change).
+- (-) May over-trigger on large but mechanical refactors (e.g., rename across 200 files).
+
+**Mitigation for "small but architectural":** `caf decisions new --files <path>` allows manual creation of decision records for any change, regardless of LOC threshold.
+
+**Mitigation for "large but mechanical":** `CAF-Trivial: true` trailer allows bypass for legitimate cases.
+
+**Trigger to reconsider.** If decision coverage consistently <70% with 50-line threshold, lower to 30. If false-positive rate >40% (authors frequently mark `trivial: true` on substantive changes), raise to 75. Threshold is configurable per-repo via `.caf/config.yml` (see ARCHITECT.md ┬з7.5 Config schema).
+@invariant: triviality_threshold_loc default = 50; overrides via .caf/config.yml; CAF-Trivial: true trailer bypasses for mechanical large refactors.
+@trace: ADR-004 тЖТ ARCHITECT.md ┬з7.5 (config schema), BACKLOG H-006 (.caf/rules.lua custom predicates), code: internal/caf/triviality/threshold.go
+
+---
+
+## ADR-005: Schema format тАФ YAML/Markdown vs JSON vs protobuf
+
+**Status:** accepted
+**Date:** 2026-10-28
+**Phase introduced:** MVP
+
+**EN summary.** YAML 1.2 for structured storage (`sessions/*.yml`, `cards.yml`, `graph.yml`, `manifest.yml`, `config.yml`); Markdown for human-readable decisions and context. Rejected JSON (no comments, poor diff) and Protobuf (binary kills git diff). Reconsider only for streaming queries over millions of cards тАФ hybrid YAML+SQLite (BACKLOG A-005) is the planned escape hatch.
+
+**Context.** `.caf/` schema needs a format that is human-readable, git-diffable, and rich enough for structured data.
+
+**Chosen.** YAML for structured (`sessions/*.yml`, `cards.yml`, `graph.yml`, `manifest.yml`, `config.yml`); Markdown for human-readable (`decisions/*.md`, `context.md`). YAML 1.2 spec is pinned; library is `gopkg.in/yaml.v3`.
+
+**Rejected alternatives.**
+
+- **JSON.** Universally parseable, but no comments, poor git diff for nested structures, no multi-line strings тАФ write-once decisions become unreadable.
+- **Protobuf.** Compact and fast, but binary тАФ kills git diff, code review, and any chance of "checkout time travel" reading by humans. Also requires schema compilation step.
+
+**Trade-offs.**
+
+- (+) YAML whitespace-sensitivity mitigated by pinning spec and using `yaml.v3` (which preserves comments and round-trips cleanly).
+- (+) Markdown is the natural language for decisions тАФ prose + headings + code blocks.
+- (-) YAML is slower to parse than JSON for large files (mitigated by streaming parser тАФ BACKLOG A-002).
+- (-) YAML merge conflicts are real (mitigated by CRDT тАФ BACKLOG G-002).
+
+**Mitigation:** pin YAML 1.2 spec, use `gopkg.in/yaml.v3`, lint with `yamllint` in CI. Every YAML file in `.caf/` starts with `# yaml-language-server: $schema=../schemas/<file>.json` for IDE autocomplete.
+
+**Trigger to reconsider.** None for v0.3 scope. Revisit only if streaming queries over millions of cards become a real workload тАФ at that scale, hybrid YAML+SQLite (BACKLOG A-005) is preferable to a full format migration.
+@invariant: YAML 1.2 + gopkg.in/yaml.v3; every .caf/ YAML file declares $schema in first comment; no JSON-only or binary format in .caf/.
+@trace: ADR-005 тЖТ BACKLOG A-002 (streaming parser), BACKLOG A-005 (hybrid SQLite), BACKLOG J-008 (schema versioning), code: internal/caf/storage/yaml.go
+
+---
+
+## ADR-006: First-person voice in generated narratives
+
+**Status:** accepted
+**Date:** 2026-10-28
+**Phase introduced:** PROD (with `caf.first_person_explain`)
+
+**EN summary.** LLM-generated narratives use first-person voice ("I chose X because Y"). Rejected third-person (psychological distance) and passive (zero agency). Reconsider only if multi-user mode is added тАФ first-person becomes ambiguous without per-author attribution.
+
+**Context.** `caf.first_person_explain` MCP tool generates a narrative from `.caf/` data. The narrative voice affects whether the author internalizes the decision.
+
+**Chosen.** First person ("I chose X because Y").
+
+**Rejected alternatives.**
+
+- **Third person ("Anna chose X because Y").** Psychological distance; the brain treats it as someone else's decision, not one's own.
+- **Passive ("X was chosen because Y").** Zero agency; the author is erased from their own decision history.
+
+**Trade-offs.**
+
+- (+) Cognitive trick: "When you say 'I chose X because Y', your brain accepts the decision as your own." Aligns with narrative psychology research on self-talk and identity consolidation.
+- (+) Aligns with ADR-001's "in-repo, owned-by-author" philosophy тАФ the author owns the decision both legally and psychologically.
+- (-) Ambiguous in multi-user mode (FUTURE) тАФ "I" could refer to any author.
+
+**Trigger to reconsider.** If multi-user mode is added (FUTURE, BACKLOG G-001), first-person becomes ambiguous, need per-author attribution ("As Anna, I chose..."). Implement via `author: <id>` field in every session/decision тАФ `.caf/` schema stays additive.
+@invariant: Generated narratives use first-person voice; LLM only paraphrases .caf/-grounded facts, never invents.
+@trace: ADR-006 тЖТ BACKLOG G-001 (multi-user mode), BACKLOG D-001 (LLM pre-fill), BACKLOG D-008 (multi-session narratives), code: internal/caf/mcp/first_person.go
+
+---
+
+## ADR-007: Project naming тАФ `CodeAuthorityFirst` (universal) vs `OryaSkill` (Orya-specific)
+
+**Status:** accepted
+**Date:** 2026-10-28
+**Phase introduced:** v0.2 universalization
+
+**EN summary.** `CodeAuthorityFirst` chosen as the project name (universal, OSS-friendly). `OryaSkill` (v0.1, Orya-tied) rejected as too narrow. No foreseeable trigger to reconsider.
+
+**Context.** The project was named `OryaSkill` in v0.1 (tied to a single Orya ecosystem). v0.2 widened the scope to all AI agents writing code.
+
+**Chosen.** `CodeAuthorityFirst` тАФ universal, descriptive, no trademark conflicts.
+
+**Rejected alternatives.**
+
+- **OryaSkill.** Too narrow тАФ excludes non-Orya agents.
+- **OryaCodeAuthorityFirst.** Intermediate hybrid; still carries Orya prefix unnecessarily.
+- **CodeAuthor / CodeOwnership / AuthorshipTool.** Generic; lacks the "First" emphasis on Provenance by Default.
+- **Prompt2Code / CodeProvenance.** Provenance-only framing; misses the SRS / mental-model side.
+- **Anki4Code.** Cute, but Anki is a trademark (Rice Coconut / Damien Elmes); legal risk.
+
+**Trade-offs.**
+
+- (+) Descriptive; "First" emphasizes the principle of "Provenance by Default".
+- (+) No trademark conflicts as of 2026-10-28.
+- (-) Long name (20 chars); abbreviated as `caf` for CLI (see ADR-008).
+
+**Trigger to reconsider.** None foreseeable.
+@invariant: Project name = CodeAuthorityFirst; CLI binary = caf (see ADR-008); OryaAgent is one consumer, not the project identity.
+@trace: ADR-007 тЖТ ADR-008 (CLI binary name), ADR-012 (OryaAgent registry placement)
+
+---
+
+## ADR-008: CLI binary name тАФ `caf` vs `orya` vs `caf-first`
+
+**Status:** accepted
+**Date:** 2026-10-28
+**Phase introduced:** v0.2
+
+**EN summary.** `caf` chosen as the CLI binary name (CodeAuthorityFirst abbreviation). Pre-adoption check on 2026-10-28 confirmed no `caf` CLI exists in Homebrew, Debian apt, npm, PyPI, crates.io. Unrelated `caf.toolkit` Python library exists (climate science) but is not a CLI. Trigger: rename to `caf-cli` or `codeauth` if a major package manager adopts `caf` for another tool.
+
+**Context.** v0.1 used `orya` as the CLI binary. v0.2 universalized the project; the binary name needed to follow.
+
+**Chosen.** `caf` (CodeAuthorityFirst abbreviation).
+
+**Rejected alternatives.**
+
+- **`orya`.** Tied to Orya ecosystem; contradicts universal scope (ADR-007).
+- **`caf-first`.** Redundant; "First" is the principle, not part of the name.
+- **`codeauth` (8 chars).** Acceptable, but loses the `caf`-as-acronym connection.
+- **`caf-cli`.** Redundant; CLIs don't need `-cli` suffix (cf. `git`, not `git-cli`).
+- **`auth`.** Conflicts with authentication tooling.
+- **`first`.** Ambiguous; collides with `first` as a Unix pipeline concept.
+
+**Trade-offs.**
+
+- (+) 3 chars; fast to type (close to `git` muscle memory).
+- (+) Memorable; pronounceable.
+- (-) Collision risk with future package manager entries.
+
+**Mitigation:** pre-adoption check (2026-10-28): `caf` is not in Homebrew core, Debian apt, npm, PyPI, or crates.io. Unrelated `caf.toolkit` Python library exists (climate science) but is not a CLI. We monitor for conflicts.
+
+**Trigger to reconsider.** If a major package manager adopts `caf` for another tool, rename to `caf-cli` or `codeauth`. Migration: `caf migrate v0.3-to-v0.4-rename` aliases old binary name for one major version.
+@invariant: CLI binary name = `caf`; subcommands are git-style (caf <verb> [args]); no nested subcommands beyond 2 levels.
+@trace: ADR-008 тЖТ ADR-007 (project name), code: cmd/caf/main.go
+
+---
+
+## ADR-009: Agent adapter pattern тАФ pluggable adapters with capability matrix
+
+**Status:** accepted
+**Date:** 2026-10-28
+**Phase introduced:** v0.2
+
+**EN summary.** Each AI agent gets a pluggable adapter implementing the `Adapter` interface. Adapters declare a capability matrix (which canonical events they support natively vs via fallback). Core CAF never calls agent-specific APIs directly. The capability matrix is a first-class artifact documented in ARCHITECT.md ┬з1.1 and tested in CI per adapter.
+
+**Context.** v0.1 had monolithic `if agent == "opencode"` branches scattered through the codebase. Adding a new agent required touching 6+ files and risking regressions in unrelated agents.
+
+**Chosen.** Pluggable adapter pattern with capability matrix.
+
+- Each adapter implements `Adapter` interface: `ID() string`, `Capabilities() CapabilityMatrix`, `Install() error`, `Uninstall() error`, `Detect() bool`.
+- Adapters declare 3 canonical events: `pre-session`, `post-edit`, `pre-commit` тАФ each marked as `native` / `wrapper` / `watcher` / `universal` (Tier 4 fallback).
+- Core CAF never calls agent-specific APIs directly тАФ only through the `Adapter` interface.
+
+**Rejected alternatives.**
+
+- **Monolithic `if agent == "opencode"`.** v0.1 anti-pattern; adding an agent = touching 6+ files.
+- **Per-agent forks (`caf-opencode`, `caf-claude-code`).** Distribution nightmare; users would need to install the right binary per agent.
+- **Runtime API detection.** Fragile тАФ agent binaries change their CLI surface without warning.
+- **MCP-only integration.** MCP is one transport, not all agents support it; excludes pre-MCP agents.
+
+**Trade-offs.**
+
+- (+) New adapter = one file under `internal/adapters/<agent>/`; no core changes.
+- (+) Capability matrix is explicit and testable.
+- (+) Fallback strategy is data-driven (see ADR-010, ADR-013).
+- (-) Every adapter must implement `Install()`/`Uninstall()` even if no-op; boilerplate.
+- (-) Capability matrix drift: adapter authors can over-declare capabilities. Mitigated by contract tests in CI (one test per cell of the 25-adapter ├Ч 3-event matrix = 75 cases).
+
+**Capability matrix location:** documented in [ARCHITECT.md ┬з1.1 Capability matrix](./ARCHITECT.md#11-capability-matrix) as a parseable table. Surfaced to users via `caf adapters list` (see [UI.md ┬з7](./UI.md#7-adapters-manager-caf-adapters-list)).
+
+**Trigger to reconsider.** If a future agent introduces a fundamentally new event type (e.g., `pre-deploy`, `post-test`), extend the canonical event contract (non-breaking, tracked via new ADR). If the matrix grows beyond 50 adapters, consider auto-generated tiers from agent capabilities rather than manual tier assignment.
+@invariant: Adapter interface (5 methods) is stable within a major version; canonical events are exactly {pre-session, post-edit, pre-commit} until ADR-NNN says otherwise.
+@trace: ADR-009 тЖТ ARCHITECT.md ┬з1.1 (capability matrix), ADR-010 (fallback strategy), ADR-012 (agent registry), ADR-013 (Tier 4 universal LSP), code: internal/caf/adapter.go
+
+---
+
+## ADR-010: Fallback strategy тАФ wrapper scripts + filesystem watcher + universal git hook
+
+**Status:** accepted
+**Date:** 2026-10-28
+**Phase introduced:** ALPHA (wrapper scripts), BETA (filesystem watcher)
+
+**EN summary.** Three-tier fallback for agents that lack native hooks: (1) `caf-wrap <agent> <prompt>` wrapper prepends `context.md`; (2) `caf-watch` filesystem watcher daemon with 5-second debounce; (3) universal `.git/hooks/pre-commit` shell script. Rejected 30s polling (latency too high), inotify-only (no pre-session), and skip-on-missing-hook (violates Provenance by default).
+
+**Context.** Not all agents support all 3 canonical events natively (see ADR-009). Without a fallback, the "Provenance by default" principle collapses for ~80% of agents.
+
+**Chosen.** Three-tier fallback:
+
+1. **Wrapper scripts.** `caf-wrap <agent> <prompt>` prepends `context.md` to the agent's prompt. Installed via `caf init --agent <id>` as a shell alias (`alias cursor='caf-wrap cursor'`).
+2. **Filesystem watcher daemon.** `caf-watch` runs as a daemon, watches `.git/`, `.caf/sessions/`, and the working tree. Writes session logs with up to 5-second delay (debounce). Aggregates iterations by time windows.
+3. **Universal `.git/hooks/pre-commit`.** Shell script installed by `caf init` (no args). Fires for all agents including those without any explicit adapter. This is the **Tier 4 universal fallback** (see ADR-013).
+
+**Rejected alternatives.**
+
+- **Polling git history every 30 seconds.** Latency too high for `post-edit` semantics тАФ by the time we record, the agent has moved to the next file.
+- **inotify-only.** No `pre-session` event possible; agents start their sessions in arbitrary ways.
+- **Require all agents to support all events.** Infeasible тАФ most agents support at most 1 of 3 events natively.
+- **Skip functionality for unsupported events.** Violates "Provenance by default" (see ADR-003).
+
+**Trade-offs.**
+
+- (+) Coverage: 100% of agents get at least the universal `pre-commit` hook; ~95% get `post-edit` via wrapper or watcher.
+- (+) User can install wrapper for any agent, even one without an explicit adapter.
+- (-) Wrapper aliases are intrusive (modify user's shell rc).
+- (-) `caf-watch` daemon consumes CPU even when no session is active (mitigated by: opt-in via `caf init`, exits when no session active for 30 minutes).
+
+**Trigger to reconsider.** If an agent adds native hook support, update its capability matrix entry, retire the wrapper script for that agent, surface the change in `caf adapters list` with "native now, wrapper retired" status.
+@invariant: caf-watch debounce = 5s; daemon exits after 30 minutes of inactivity; wrapper alias format = "alias <agent>='caf-wrap <agent>'".
+@trace: ADR-010 тЖТ ADR-009 (adapter pattern), ADR-013 (Tier 4 universal LSP), code: internal/caf/watch/daemon.go, internal/caf/wrap/wrap.go
+
+---
+
+## ADR-011: Multi-language support тАФ per-language graph adapters, Go-first
+
+**Status:** accepted
+**Date:** 2026-10-28
+**Phase introduced:** MVP (Go), FUTURE (Python/TS/Rust/etc.)
+
+**EN summary.** Per-language graph adapters implementing `LanguageAdapter` interface (`ID`, `Detect`, `ScanImports`, `BuildSymbolGraph`, `ResolveExternalRepo`). Go first (dogfooding + predictable imports), Python second (AI/ML prevalence), TS third (web ecosystem). Rejected LSP-only (no external-repo resolution), tree-sitter universal (loses symbol resolution), single-language only. Trigger: 3+ community PRs for a language тЖТ prioritize.
+
+**Context.** Mental Model Reconstructor needs symbol graph + cross-repo dependency resolution. Each language has its own import system, build system, and symbol resolution rules.
+
+**Chosen.** Per-language graph adapters, each implementing `LanguageAdapter` interface: `ID() string`, `Detect() bool`, `ScanImports() []Import`, `BuildSymbolGraph() SymbolGraph`, `ResolveExternalRepo() RepoRef`. Go first (dogfooding тАФ the tool is in Go, and Go's import system is predictable), Python second (AI/ML prevalence), TypeScript third (web ecosystem). The universal LSP fallback (ADR-013) covers all other languages at lower quality.
+
+**Rejected alternatives.**
+
+- **LSP-only.** LSP gives symbol resolution but not external-repo resolution (it stops at "this symbol is imported from `pkg/foo`"). For Mental Model Reach, we need to resolve `pkg/foo` to a specific repo + commit.
+- **Universal AST via tree-sitter.** Loses language-specific semantics тАФ Go interfaces, Python decorators, Rust traits all need different treatment.
+- **Language-agnostic.** Too vague тАФ loses all the language-specific knowledge that makes the graph useful.
+- **Single-language only (Go).** Excludes the entire Python/ML ecosystem, which is half the AI-coding market.
+
+**Trade-offs.**
+
+- (+) Each language gets the best-quality graph (native AST + native import resolution).
+- (+) Long-tail covered by LSP fallback (ADR-013).
+- (-) Maintenance: 6+ language adapters to keep in sync.
+- (-) Onboarding: a new language requires a new adapter, ~1-2 weeks of work.
+
+**Long-tail mitigation:** BACKLOG E-007 universal LSP adapter тАФ if it proves sufficient for тЙе80% of new languages, deprecate per-language adapters for the long tail.
+
+**Trigger to reconsider.** If 3+ community PRs for a new language accumulate, prioritize that language. If E-007 proves sufficient for тЙе80% of languages, consider deprecating per-language adapters.
+@invariant: Per-language adapters implement LanguageAdapter (5 methods); Go is always present (dogfooding); Tier 4 LSP fallback always present.
+@trace: ADR-011 тЖТ BACKLOG E-001..E-008 (per-language adapters), BACKLOG E-007 (universal LSP), code: internal/caf/lang/*.go
+
+---
+
+## ADR-012: Expanded agent registry тАФ 25 agents in 4 tiers
+
+**Status:** accepted
+**Date:** 2026-10-28
+**Phase introduced:** v0.3
+
+**EN summary.** 25 explicitly supported agents in 4 tiers. Tier 1 (5): opencode, Claude Code, Cline, Cursor, KiloCode тАФ full native hook support. Tier 2 (8): Aider, Codex CLI, Continue.dev, GitHub Copilot CLI, Gemini CLI, Amazon Q Developer CLI, Goose, Windsurf тАФ partial native + wrapper. Tier 3 (12): Tabnine, Sourcegraph Cody, Trae, Bolt, Zed AI, Roo Code, Plandex, OpenHands, Devika, GPT Engineer, Mentat, Sweep тАФ wrapper-only. Tier 4 (universal): LSP-based fallback (ADR-013). Total: 25 explicit + universal = 28 with fallback coverage.
+
+**Context.** v0.2 supported 9 agents. The AI coding landscape has grown to 30+ tools; without expanding, the tool would miss the majority of new agents. Universal fallback (ADR-013) covers all of them at lower quality, but explicit adapters deliver 3-5├Ч better UX.
+
+**Chosen.** 25 explicitly supported agents in 4 tiers:
+
+- **Tier 1 (5 agents тАФ full native hook support):** opencode, Claude Code, Cline, Cursor, KiloCode.
+- **Tier 2 (8 agents тАФ partial native + wrapper):** Aider, Codex CLI, Continue.dev, GitHub Copilot CLI, Gemini CLI, Amazon Q Developer CLI, Goose, Windsurf.
+- **Tier 3 (12 agents тАФ wrapper-only):** Tabnine, Sourcegraph Cody, Trae, Bolt, Zed AI, Roo Code, Plandex, OpenHands, Devika, GPT Engineer, Mentat, Sweep. Note: in v0.3.1-triz, OryaAgent is removed from Tier 3 (it is the in-house consumer, listed separately in ┬з6.5 of ARCHITECT.md as a Tier-0 reference implementation) and Augment Code is renamed to "Augment" consistently across ADR-012 and ROADMAP ┬з5.1 to match the vendor's branding.
+- **Tier 4 (universal fallback):** LSP-based тАФ see ADR-013.
+
+**Rejected alternatives.**
+
+- **Per-agent forks (`caf-opencode`, `caf-claude-code`).** Distribution nightmare.
+- **Monolithic `if agent == "..."` branches.** v0.1 anti-pattern.
+- **Runtime API detection.** Fragile.
+- **Curated 9-agent subset (v0.2).** Under-represents the landscape.
+- **MCP-only.** Excludes pre-MCP agents.
+
+**Trade-offs.**
+
+- (+) ~95% coverage via explicit adapters; 100% via universal fallback.
+- (+) Tiered UX clarity тАФ `caf adapters list` shows tiers, users know what to expect.
+- (-) 25 adapters need updates when agents change their hook APIs.
+- (-) Test matrix is 25├Ч3 = 75 cases (must run in CI).
+
+**Capability matrix:** see [ARCHITECT.md ┬з1.1 Capability matrix](./ARCHITECT.md#11-capability-matrix) for the per-adapter breakdown.
+
+**Trigger to reconsider.** If the ecosystem consolidates to 5 dominant agents, shrink the registry and demote the rest to universal fallback. If a new agent category emerges (e.g., autonomous PR-review agents), add a new tier.
+@invariant: Tier count = 4; Tier 4 (universal LSP fallback) always present; "25 explicit" arithmetic = 5+8+12.
+@trace: ADR-012 тЖТ ARCHITECT.md ┬з1.1 (capability matrix), ADR-009 (adapter pattern), ADR-013 (Tier 4 LSP), BACKLOG E-007 (universal LSP adapter тАФ deduplicated with Tier 4)
+
+---
+
+## ADR-013: Universal LSP fallback (Tier 4)
+
+**Status:** accepted
+**Date:** 2026-10-28
+**Phase introduced:** v0.3 (MVP)
+
+**EN summary.** Universal LSP-based fallback for agents and languages without explicit adapters. LSP `textDocument/documentSymbol` + `workspace/symbol` for symbol graph; `caf-watch` 5-sec debounce for post-edit; universal `.git/hooks/pre-commit`; `caf-wrap <any-agent>` prepends `context.md`. Rejected agent-specific adapters for all 30+ (maintenance nightmare), skip functionality (violates Provenance by default), inotify-only (no symbols), tree-sitter universal (no symbol resolution). LSP startup budget ~500ms (gopls, small repo).
+
+**Context.** 30+ AI coding agents exist; 25 have explicit adapters (ADR-012). For the long tail and for users who don't want to install an adapter, we need a zero-config fallback.
+
+**Chosen.** LSP-based universal fallback:
+
+- `textDocument/documentSymbol` + `workspace/symbol` for the symbol graph.
+- `caf-watch` (5-sec debounce, see ADR-010) for post-edit.
+- Universal `.git/hooks/pre-commit` (installed by `caf init`).
+- `caf-wrap <any-agent>` prepends `context.md` to any agent's prompt.
+
+**Rejected alternatives.**
+
+- **Agent-specific adapters for all 30+.** Maintenance nightmare тАФ 1-2 weeks per adapter, and the long tail is not high-value.
+- **Skip functionality for unknown agents.** Violates "Provenance by default" (ADR-003).
+- **inotify-only (no symbols).** Captures file changes but no symbol resolution тАФ Mental Model Reconstructor cannot work.
+- **Universal AST via tree-sitter.** No symbol resolution тАФ same problem.
+- **Per-language graph adapters only (no LSP).** ADR-011 strategy, but excludes the long-tail languages.
+
+**Trade-offs.**
+
+- (+) Zero-config coverage of all 30+ agents and all LSP-supporting languages.
+- (+) ЁЯФе 80/20: 80% of agent value with 20% of effort.
+- (-) Lower quality than explicit adapters (no MCP, wrapper semantics, 5-sec delay).
+- (-) LSP startup cost ~500ms for `gopls` on small repo. Acceptable but not free.
+- (-) LSP not available for Bash/Makefile/Dockerfile. Filesystem-only mode for these.
+
+**Mitigation:** lazy-load LSP only on `caf sync` / `caf tour`. Cache graph in `.caf/mental-model/graph.yml`. Fall back further to filesystem-only mode if LSP server crashes 3 times in a session.
+
+**Capability matrix:** see [ARCHITECT.md ┬з1.1 Capability matrix](./ARCHITECT.md#11-capability-matrix) for how Tier 4 limitations are surfaced to users.
+
+**Trigger to reconsider.** If a new event type emerges (e.g., `pre-deploy`), extend canonical contract. If LSP adoption declines (e.g., agents move to a different protocol), evaluate alternatives. If LSP startup >2s for typical repos, evaluate lazy-loading improvements.
+@invariant: Tier 4 LSP fallback is the default zero-config layer; lazy-loaded on caf sync / caf tour; graph cached in .caf/mental-model/graph.yml.
+@trace: ADR-013 тЖТ ADR-010 (fallback strategy), ADR-011 (per-language adapters), BACKLOG E-007 (universal LSP adapter тАФ superseded by this ADR as accepted MVP), code: internal/caf/lsp/fallback.go
+
+---
+
+## ADR-014: TUI-first UI strategy
+
+**Status:** accepted
+**Date:** 2026-10-28
+**Phase introduced:** v0.3 (MVP dashboard, ALPHA review, BETA heatmap, PROD reports)
+
+**EN summary.** TUI-first UI strategy. Stack: Bubble Tea + Lipgloss + Bubbles + Glamour + termenv. Web UI deferred to FUTURE, read-only, only for visualizations impossible in TUI. Performance budgets enforced (sub-100ms first paint, sub-16ms frame render, sub-50ms keystroke response, see UI.md ┬з0.3). Keyboard-first; mouse optional (FUTURE K-011).
+
+**Context.** v0.2 had text-based CLI (`caf report` produced plain text). Users wanted interactive dashboards but a full web UI would require Node/browser/server stack, ~5-10├Ч the effort.
+
+**Chosen.** TUI-first.
+
+- Stack: Bubble Tea (framework), Lipgloss (styling), Bubbles list (virtualization for >1000 items), Glamour (markdown rendering), termenv (color detection).
+- Web UI deferred to FUTURE тАФ read-only, only for visualizations impossible in TUI (e.g., interactive D3.js graph).
+- Performance budgets enforced (see UI.md ┬з0.3): sub-100ms first paint, sub-16ms frame render (60fps), sub-50ms keystroke response, sub-3s LLM-dependent operations.
+- Keyboard-first; mouse optional (FUTURE K-011).
+
+**Rejected alternatives.**
+
+- **Web UI first.** 5-10├Ч more effort; requires Node/browser/server; no SSH/Docker/CI coverage; users in remote environments excluded.
+- **IDE plugins only.** Excludes vim/Emacs/terminal users; misses the "developer in SSH session" use case.
+- **Text-based CLI (v0.2).** No interactivity; cannot visualize heatmap or review session effectively.
+- **Electron.** Massive binary; wrong tool for a CLI-adjacent tool.
+
+**Trade-offs.**
+
+- (+) Sub-100ms startup, no bundle loading.
+- (+) Universal: SSH, Docker, CI, tmux.
+- (+) Keyboard-native тАФ aligns with vim/Emacs users.
+- (+) Single binary distribution тАФ no runtime dependencies.
+- (-) Limited viz (no D3.js graphs тАФ FUTURE web UI covers this).
+- (-) Terminal-dependent rendering (256-color vs truecolor; mitigated by termenv auto-detection, see UI.md ┬з12.1).
+- (-) Limited mouse support (mitigated by FUTURE K-011).
+
+**UI-velocity pattern alignment (TRIZ pass addition):** the TUI stack already implements the equivalent of three web-velocity patterns:
+
+1. **Critical CSS analogue.** Lipgloss pre-computes style strings at app startup; only the final render string is sent to the terminal on each frame, never the raw style rules. This is the same shape as inlining critical CSS and deferring non-critical: pre-compute, then emit minimal output per frame.
+2. **Islands / partial hydration analogue.** Bubble Tea screens mount lazily on first navigation (`tea.Cmd` returns `LoadScreenMsg`); a screen that is never opened costs zero render time. This is the same shape as Astro/RSC partial hydration тАФ only the islands that need interactivity are hydrated.
+3. **Skeleton / stale-while-revalidate analogue.** Every async data load returns a `Skeleton{}` placeholder immediately, then a `DataLoadedMsg` replaces it. The skeleton is the cached "stale" view; the new data is the "revalidate". This is the same shape as SWR in React: show stale immediately, swap to fresh in background.
+
+These analogues are not metaphors тАФ they are structurally the same pattern, just implemented for a TUI instead of a browser. Documenting them explicitly (in UI.md ┬з0.2 and ┬з13.1) helps agents reasoning about UI velocity apply their web knowledge directly.
+
+**Performance budgets:** enforced via UI.md ┬з0.3, with CI benchmarks alerting on >2├Ч regression.
+
+**Trigger to reconsider.** If a future requirement needs rich visualization impossible in TUI (e.g., interactive dependency graph with >1000 nodes), promote that specific feature to web UI. The TUI remains primary; web UI is additive.
+@invariant: TUI-first strategy; first paint <100ms; frame render <16ms; keystroke response <50ms; >2x CI regression triggers alert.
+@trace: ADR-014 тЖТ UI.md ┬з0.2 (TUI stack), UI.md ┬з0.3 (performance budget), UI.md ┬з13 (implementation notes), BACKLOG K-002 (interactive graph web UI), code: pkg/ui/tui.go
+
+---
+
+## ADR-015: 80/20 prioritization principle
+
+**Status:** accepted
+**Date:** 2026-10-28
+**Phase introduced:** v0.3 (all phases)
+
+**EN summary.** 80/20 (Pareto) chosen as the organizing framework for prioritization. Features marked ЁЯФе 80/20 get disproportionate resources тАФ they deliver 80% of value with 20% of effort. Perfectionism on low-value features is forbidden. 8 high-leverage features identified (universal pre-commit hook, auto-detect, LSP fallback, TUI dashboard, MCP `first_person_explain`, single Go binary, ASCII heatmap, SM-2 algorithm). Reconsider if metrics plateau despite 80/20 focus.
+
+**Context.** v0.2 attempted feature-parity with closed-source competitors. This led to thin investment across many features and no breakthroughs.
+
+**Chosen.** 80/20 (Pareto) as organizing framework.
+
+Five-step process:
+1. Identify high-leverage features (features that deliver 80% of value with 20% of effort).
+2. Mark them ЁЯФе 80/20 in ROADMAP and BACKLOG.
+3. Prioritize resources toward ЁЯФе 80/20 features.
+4. Forbid perfectionism on low-value features (no polishing a feature that 5% of users touch).
+5. Re-evaluate quarterly тАФ today's high-leverage feature is tomorrow's commodity.
+
+**High-leverage features list (8):**
+
+| # | Feature | Effort | Value | Why 80/20 |
+|---|---------|--------|-------|-----------|
+| 1 | Universal pre-commit hook | 2d | 90% coverage of agents | One hook fires for all 25+ agents |
+| 2 | Auto-detect (`caf init --auto-detect`) | 1d | 5minтЖТ30s onboarding | Removes friction; user has nothing to configure |
+| 3 | Universal LSP fallback (ADR-013) | 5d | Long-tail coverage | Zero-config support for all LSP languages |
+| 4 | TUI dashboard | 3d | Hub for all screens | Replaces 6 separate CLI commands |
+| 5 | `caf.first_person_explain` MCP tool | 5d | Killer feature for agents | LLM gets narrative-grade context |
+| 6 | Single Go binary | 1d | Zero-dep distribution | One file, no runtime |
+| 7 | ASCII heatmap | 1d | One-screen overview | Replaces 100-line text report |
+| 8 | SM-2 algorithm | 2d | Battle-tested SRS | Anki users recognize it instantly |
+
+**╨Ш╤В╨╛╨│╨╛:** 8 ╤Д╨╕╤З, ~20 ╨┤╨╜╨╡╨╣ effort, ~80% ╤Ж╨╡╨╜╨╜╨╛╤Б╤В╨╕. ╨н╤В╨╛ ╨╕ ╨╡╤Б╤В╤М MVP+ALPHA+BETA ╤П╨┤╤А╨╛.
+
+**Rejected alternatives.**
+
+- **Feature-parity with competitors.** Spreads thin; no breakthroughs.
+- **User-vote prioritization.** Slow; vocal minority dominates; loses long-bet features.
+- **Engineer-preference.** Misaligns with user value; engineers optimize for fun, not impact.
+- **Competitor-parity.** Feature bloat; race to the bottom on quality.
+
+**Trade-offs.**
+
+- (+) Concentrated investment in high-leverage features.
+- (+) Forbids perfectionism on low-value features тАФ quality stays high where it matters.
+- (-) Subjective "high-leverage" judgment тАФ mitigated by quarterly re-eval and objective success metrics.
+- (-) May ignore slow-to-realize features (e.g., CRDT) тАФ mitigated by reserving capacity in FUTURE phase.
+- (-) Risks under-investing in quality тАФ mitigated by treating quality as a ЁЯФе 80/20 feature itself ("a single bug in pre-commit hook blocks all users").
+
+**Quality is a ЁЯФе 80/20 feature itself:** a single bug in the universal pre-commit hook blocks all 25+ agents. Testing strategy (ROADMAP ┬з7.1) is non-negotiable.
+
+**Trigger to reconsider.** If metrics plateau (ACS, Recall, Decision Coverage) despite 80/20 focus, re-examine the high-leverage identification. If community consistently requests a non-ЁЯФе feature, consider promoting it. If the market shifts (e.g., agents move from CLI to MCP-first), re-evaluate the entire list.
+@invariant: 8 high-leverage features carry ЁЯФе 80/20 tag in ROADMAP ┬з0.1 and BACKLOG; quarterly re-eval mandatory; quality is non-negotiable.
+@trace: ADR-015 тЖТ ROADMAP.md ┬з0.1 (high-leverage features table тАФ same data), BACKLOG ┬з0 (Backlog Philosophy), BACKLOG ┬з14 (How to Promote тАФ 4 criteria)
+
+---
+
+## ADR Index
+
+| ADR | Title | Status | Phase | @invariant ID |
+|-----|-------|--------|-------|---------------|
+| ADR-001 | Storage location тАФ in-repo `.caf/` | accepted | MVP | INV-ADR-001 |
+| ADR-002 | SRS algorithm тАФ SM-2 | accepted | BETA | INV-ADR-002 |
+| ADR-003 | Hooks vs explicit CLI | accepted | MVP/ALPHA | INV-ADR-003 |
+| ADR-004 | Triviality threshold тАФ 50 LOC | accepted | ALPHA | INV-ADR-004 |
+| ADR-005 | Schema format тАФ YAML/Markdown | accepted | MVP | INV-ADR-005 |
+| ADR-006 | First-person voice | accepted | PROD | тАФ |
+| ADR-007 | Project naming тАФ `CodeAuthorityFirst` | accepted | v0.2 | тАФ |
+| ADR-008 | CLI binary name тАФ `caf` | accepted | v0.2 | тАФ |
+| ADR-009 | Agent adapter pattern | accepted | v0.2 | INV-ADR-009 |
+| ADR-010 | Fallback strategy | accepted | ALPHA/BETA | тАФ |
+| ADR-011 | Multi-language support | accepted | MVP/FUTURE | тАФ |
+| ADR-012 | Expanded agent registry тАФ 25 agents | accepted | v0.3 | INV-ADR-012 |
+| ADR-013 | Universal LSP fallback (Tier 4) | accepted | v0.3 | INV-ADR-013 |
+| ADR-014 | TUI-first UI strategy | accepted | v0.3 | INV-ADR-014 |
+| ADR-015 | 80/20 prioritization | accepted | v0.3 | INV-ADR-015 |
+
+**Total:** 15 ADRs, all `accepted`. None `deprecated` or `superseded` yet. The implicit v0.1 decisions (project name `OryaSkill`, CLI binary `orya`) were never formalized as ADRs тАФ ADR-007 and ADR-008 retroactively document the v0.2 supersession.
+
+---
+
+## How to Add a New ADR
+
+1. Identify the decision (architectural, not code-level тАФ code-level decisions go in the Decision Log, see BACKLOG ┬з0 template).
+2. Check existing ADRs тАФ does your decision supersede an existing one? If yes, mark the old one `Status: superseded by ADR-NNN`.
+3. Draft the new ADR using the ┬з0 template. Include the `@invariant` tag in the `Trigger to reconsider` field if the decision introduces a property that should hold across all future commits.
+4. Open a PR. Review period: 1 week (minor) / 2 weeks (major тАФ anything touching storage, hooks, or adapter contracts).
+5. Merge with `Status: accepted`, or mark `Status: proposed` for further discussion.
+
+**ADRs are never deleted тАФ supersession is the only path.** This preserves historical context for both human maintainers and LLM agents reasoning about legacy code.
+
+---
+
+## ADR Backlog (Future Decisions to Document)
+
+| Future ADR | Trigger | Phase | Trace |
+|------------|---------|-------|-------|
+| ADR-016 | Multi-user conflict resolution rules for `ease_factor` | FUTURE | BACKLOG G-001, ADR-002 |
+| ADR-017 | LLM backend selection (z-ai-web-dev-sdk vs local vs configurable) | PROD | BACKLOG D-001, F-004 |
+| ADR-018 | Plugin distribution (marketplace vs GitHub-only) | FUTURE | BACKLOG H-004 |
+| ADR-019 | Telemetry opt-in mechanism | PROD | BACKLOG J-004 |
+| ADR-020 | Schema migration strategy for breaking changes | ALPHA | BACKLOG J-008, ADR-005 |
+| ADR-021 | Card type extension (built-in vs plugin) | FUTURE | BACKLOG H-001, ADR-002 |
+| ADR-022 | Cross-repo sync security (signed manifests?) | PROD | BACKLOG C-006, ADR-001 |
+| ADR-023 | Per-language adapter versioning | FUTURE | ADR-011 |
+| ADR-024 | Mobile/voice-first review UX | FUTURE | BACKLOG D-006, K-006 |
+| ADR-025 | Web UI scope | FUTURE | ADR-014, BACKLOG K-002 |
+| ADR-026 | LSP server bundling (bundle gopls or require install?) | MVP (decision required before MVP ships) | ADR-013, ROADMAP ┬з10 Q2 |
+| ADR-027 | Telemetry data ownership | PROD | BACKLOG J-004 |
+| ADR-028 | Adapter contribution governance | PROD | ADR-009, ADR-012 |
+| ADR-029 (new, TRIZ-pass) | `caf invariants check` тАФ pre-commit enforcement of `@invariant` tags | MVP (proposed) | This file, ADR-003, ADR-015 |
