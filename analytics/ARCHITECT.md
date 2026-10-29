@@ -1,131 +1,120 @@
 ---
 doc: ARCHITECT
 layer: architecture
-version: 0.3.1-triz
+version: 0.4.0-triz2
 language: bilingual
 status: stable
-audience: [agents, maintainers, contributors, anyone reasoning about system boundaries]
-related: [ROADMAP.md, UI.md, BACKLOG.md, ADR.md]
-depends_on: [ADR-001, ADR-002, ADR-003, ADR-004, ADR-005, ADR-009, ADR-010, ADR-011, ADR-012, ADR-013, ADR-014, ADR-015]
+audience: [architects, maintainers, contributors, LLM-agents reasoning about system boundaries]
+related: [ARD.md, ROADMAP.md, UI.md, BACKLOG.md, ADR.md]
+depends_on: [ADR-001, ADR-002, ADR-003, ADR-004, ADR-005, ADR-009, ADR-010, ADR-011, ADR-012, ADR-013, ADR-014, ADR-015, ADR-029 (proposed)]
+supercedes: [ARCHITECT.md v0.3.1-triz (incremental update, not breaking)]
 invariants:
-  - {id: INV-ARCH-001, statement: "Storage layer (.caf/) is the single source of truth; index files are regenerable caches", criticality: critical, enforced_by: "caf doctor"}
+  - {id: INV-ARCH-001, statement: "Storage layer (.caf/) is the single source of truth; index files are regenerable caches; .caf/ itself is cache-friendly and regenerable from git + git-notes (C-09 from ARD)", criticality: critical, enforced_by: "caf doctor + caf invariants check (proposed)"}
   - {id: INV-ARCH-002, statement: "Adapter interface (5 methods) is stable within a major version; canonical events are exactly {pre-session, post-edit, pre-commit}", criticality: critical, enforced_by: "interface contract tests, 25×3=75 cases in CI"}
   - {id: INV-ARCH-003, statement: "Universal LSP fallback (Tier 4) is always present; lazy-loaded on caf sync / caf tour", criticality: high, enforced_by: "caf sync benchmark"}
   - {id: INV-ARCH-004, statement: "Hook execution is fail-safe: caf binary missing → warn-and-continue, never block session/commit", criticality: critical, enforced_by: "adapter contract tests"}
   - {id: INV-ARCH-005, statement: "TUI first paint <100ms on pilot repos; >2x CI regression triggers alert", criticality: high, enforced_by: "CI benchmark — see UI.md §0.3"}
   - {id: INV-ARCH-006, statement: "ease_factor ∈ [1.3, 3.0] for every active SRS card", criticality: high, enforced_by: "property-based tests"}
   - {id: INV-ARCH-007, statement: ".caf/ folder is committed in-repo and additive across major versions; .caf/ size per repo stays under 50 MB", criticality: high, enforced_by: "caf doctor size-check"}
-owned_contracts:
-  - "Adapter interface (Go): ID() string; Capabilities() CapabilityMatrix; Install() error; Uninstall() error; Detect() bool"
-  - "LanguageAdapter interface (Go): ID() string; Detect() bool; ScanImports() []Import; BuildSymbolGraph() SymbolGraph; ResolveExternalRepo() RepoRef"
-  - "Canonical event contract: {pre-session, post-edit, pre-commit} × {native, wrapper, watcher, universal}"
-  - ".caf/ schema: sessions/*.yml, decisions/*.md, mental-model/graph.yml, manifest.yml, config.yml, cards.yml"
-  - "MCP tool contract: caf.context, caf.provenance, caf.decisions, caf.mental_model, caf.first_person_explain"
+  - {id: INV-ARCH-008, statement: "LLM is opt-in; default installation works without LLM (no network calls in MVP/ALPHA/BETA)", criticality: high, enforced_by: "ADR-017 (future), FR-AI-003, FR-SEC-004"}
+  - {id: INV-ARCH-009, statement: "Adapter failure is isolated; one adapter crashing does not block other adapters or caf core", criticality: high, enforced_by: "error isolation in adapter registry"}
+  - {id: INV-ARCH-010, statement: ".caf/ parser is sandboxed: no os.Execute, no file writes outside .caf/, no network calls from parser", criticality: critical, enforced_by: "code review + static analysis in CI"}
+  - {id: INV-ARCH-011, statement: "Every caf command emits OpenTelemetry span (PROD); tracing overhead <50ms per operation", criticality: medium, enforced_by: "OTel SDK + CI benchmark"}
 agent_routing:
-  - {task: "Add new AI agent adapter", see: [§1 Capability matrix, ADR-009, ADR-012], backlog: [E-007, H-002]}
-  - {task: "Add new language adapter", see: [§6 FUTURE, ADR-011], backlog: [E-001, E-002, E-003, E-004, E-005, E-006, E-007, E-008]}
-  - {task: "Modify .caf/ storage schema", see: [§7.4 Backwards compatibility, ADR-001, ADR-005], backlog: [A-005, J-008]}
-  - {task: "Change TUI screen behavior", see: [UI.md, ADR-014], ui_budgets: UI.md §0.3}
-  - {task: "Add new SRS card type", see: [§4 BETA, ADR-002], backlog: [H-001, D-007]}
-  - {task: "Add MCP tool", see: [§5 PROD, ADR-006], backlog: [D-001, D-008]}
-  - {task: "Investigate invariant violation", see: [front-matter invariants, ADR.md @invariant tags]}
-  - {task: "Understand fail-safe behavior", see: [§2.5 Risks (fail-safe contract within)]}
+  - {task: "Add new AI agent adapter", see: [§3 Adapter pattern, ADR-009, ADR-012], backlog: E-007}
+  - {task: "Add new language adapter", see: [§4 Multi-language, ADR-011], backlog: [E-001..E-008]}
+  - {task: "Modify .caf/ storage schema", see: [§2 Storage layer, ADR-001, ADR-005], backlog: [A-005, J-008]}
+  - {task: "Change SRS card generation", see: [§5 SRS layer, ADR-002], backlog: [D-002, D-007, H-001]}
+  - {task: "Change UI strategy (TUI vs Web)", see: [ADR-014], backlog: [K-002, K-010]}
+  - {task: "Adjust triviality threshold", see: [ADR-004], config: ".caf/config.yml triviality_threshold_loc"}
+  - {task: "Add security control", see: [§8 Security architecture (NEW in v0.4-triz2)"], backlog: [F-001..F-007]}
+  - {task: "Add observability probe", see: [§9 Observability architecture (NEW in v0.4-triz2)"], backlog: [I-005, J-004]}
+  - {task: "Reason about LLM cost", see: [§10 Cost architecture (NEW in v0.4-triz2)"]}
 trace_to_code:
-  - "internal/caf/storage/ — .caf/ folder read/write (ADR-001, ADR-005)"
-  - "internal/caf/adapter.go — Adapter, LanguageAdapter interfaces (ADR-009, ADR-011)"
-  - "internal/caf/hooks/*.go — pre-session/post-edit/pre-commit hook contracts (ADR-003)"
-  - "internal/caf/lsp/fallback.go — Tier 4 universal LSP fallback (ADR-013)"
-  - "internal/caf/srs/sm2.go — SM-2 implementation (ADR-002)"
-  - "internal/caf/mcp/server.go — MCP server with 5 tools + 3 prompts (ADR-006)"
-  - "internal/caf/triviality/threshold.go — 50 LOC threshold (ADR-004)"
-  - "pkg/ui/ — TUI screens (ADR-014)"
-ui_budgets_enforced:
-  - first_paint: "<100ms"
-  - frame_render: "<16ms (60fps)"
-  - keystroke_response: "<50ms"
-  - llm_op: "<3s"
-  - file_op_10k_repo: "<1s"
-  - dashboard_full_load: "<500ms"
-  - dashboard_auto_refresh: "<50ms (incremental, only changed widgets)"
-  - card_render: "<50ms (no LLM)"
-  - session_save: "<100ms (incremental write)"
-  - list_render: "<50ms (virtualized)"
-  - filter_response: "<16ms (in-memory index)"
-  - autocomplete: "<50ms (pre-built index)"
-  - heatmap_render: "<200ms (247 files)"
-  - heatmap_recompute: "<500ms (incremental)"
-  - adapter_health_check: "<5s/adapter (<30s/25)"
-  - adapter_install: "<2s/adapter (parallel ≤5)"
-  - file_tour_first_paint: "<100ms"
-  - file_load: "<50ms (cached)"
-  - timeline_build: "<50ms (from .caf/sessions/ index)"
-  - lsp_startup: "~500ms (gopls, small repo)"
-  - animated_transitions: "≤100ms"
+  - "internal/caf/adapter.go — Adapter, LanguageAdapter interfaces"
+  - "internal/caf/hooks/*.go — pre-session/post-edit/pre-commit hook contracts"
+  - "internal/caf/storage/ — .caf/ folder read/write (sandboxed parser)"
+  - "internal/caf/srs/sm2.go — SM-2 implementation"
+  - "internal/caf/lsp/fallback.go — Tier 4 universal LSP fallback"
+  - "internal/caf/security/sandbox.go — YAML parser sandbox (NEW in v0.4-triz2)"
+  - "internal/caf/observability/otel.go — OpenTelemetry integration (NEW in v0.4-triz2)"
+  - "internal/caf/cost/tracker.go — LLM cost tracking (NEW in v0.4-triz2)"
+ui_budgets_affected:
+  - "ADR-013: LSP startup ~500ms"
+  - "ADR-014: TUI first paint <100ms; frame render <16ms; keystroke <50ms"
+  - "ADR-010: caf-watch debounce 5s; polling fallback 30s"
+  - "FR-SEC-001: sandboxed parser adds <10ms per YAML file (negligible)"
+  - "FR-OBS-001: OTel span emission adds <50ms per command (acceptable)"
 ---
 
 # CodeAuthorityFirst — ARCHITECT.md
+# Архитектурный документ / Architectural document
 
-> **Версия / Version:** 0.3.1-triz (post-TRIZ pass: this file is no longer a byte-identical duplicate of ROADMAP.md; content rewritten to focus on architectural evolution per phase. Capability matrix, fail-safe contract, and config schema now live in §1 / §2.5 / §7.4 respectively, fixing the four dangling cross-references from ADR.md.)
-> **Назначение / Purpose:** describes the **architectural components, layer boundaries, and code contracts** that ship per phase. Where ROADMAP answers "what features ship when", ARCHITECT answers "what architectural layers and contracts ship when, and what must remain invariant across them". Together with [ADR.md](./ADR.md), this file is the canonical reference for any agent reasoning about system boundaries before touching code.
-> **Язык / Language:** bilingual — Russian body, English summary per phase
-> **Аудитория / Audience:** maintainers, contributors proposing architectural changes, LLM agents traversing the codebase before writing code
-> **Связанные документы:** [ROADMAP.md](./ROADMAP.md) · [UI.md](./UI.md) · [BACKLOG.md](./BACKLOG.md) · [ADR.md](./ADR.md)
-
-> **How to read this file as an agent.** The YAML front-matter above is the machine-readable layer: it lists invariants, owned contracts, agent_routing (task → which sections to read), and trace_to_code (which Go paths implement which ADR). Read the front-matter first. Then read the §1 Capability matrix to know which adapter is in which tier. Only then drill into the per-phase sections.
-
----
-
-## 0. Roadmap Philosophy (v0.3)
-
-**EN summary.** The architecture is organized around four invariants: (1) `.caf/` is the single source of truth, all indices are regenerable caches; (2) the Adapter interface is stable within a major version, canonical events are exactly three; (3) hooks are fail-safe — `caf` binary missing means warn-and-continue, never block; (4) TUI-first, with web UI deferred to FUTURE and only for visualizations impossible in TUI. The 80/20 principle (ADR-015) determines which architectural components ship in which phase.
-
-Архитектурная философия v0.3 построена на четырёх инвариантах, которые остаются неизменными через все фазы:
-
-1. **🔥 INV-ARCH-001: `.caf/` — единственный source of truth.** Все `index.yml`, `graph.yml` и SQLite-кэши являются regenerable артефактами; `caf doctor` восстанавливает их из YAML source. Это означает, что любое предложение «давайте хранить graph в SQLite» встречает вопрос: «а является ли SQLite regenerable из YAML?» — если нет, нарушает инвариант.
-2. **🔥 INV-ARCH-002: Adapter interface стабилен внутри major version.** Пять методов (`ID()`, `Capabilities()`, `Install()`, `Uninstall()`, `Detect()`); три canonical events (`pre-session`, `post-edit`, `pre-commit`). Новые события требуют нового ADR (см. ADR-009 trigger).
-3. **🔥 INV-ARCH-004: Hooks fail-safe.** Если `caf` binary недоступен, агент продолжает работу с warning, но не блокируется. Это критично для принятия: один сбой pre-commit hook не должен ломать рабочий процесс автора.
-4. **INV-ARCH-005: TUI-first.** Бюджеты (first paint <100ms, frame render <16ms, keystroke <50ms) — часть архитектурного контракта, не оптимизация. Web UI отложен до FUTURE и только для визуализаций, невозможных в TUI.
-
-Дополнительно: v0.3 меняет v0.2 подход с "specific adapters first" на "universal fallback first" (см. ADR-013). Это значит, что 25+ агентов покрываются с первого дня MVP через universal LSP fallback, а явные адаптеры добавляются для enhanced UX, а не для base coverage.
-
-### 0.1 High-leverage features list (🔥 80/20)
-
-| # | Architectural component | Effort | Value | Why 80/20 | Phase |
-|---|-------------------------|--------|-------|-----------|-------|
-| 1 | Universal `.git/hooks/pre-commit` shell | 2d | 90% coverage of agents | One hook fires for all 25+ agents | MVP |
-| 2 | Auto-detect (`caf init --auto-detect`) | 1d | 5min→30s onboarding | Removes friction; user has nothing to configure | MVP |
-| 3 | Universal LSP fallback (ADR-013, Tier 4) | 5d | Long-tail coverage | Zero-config support for all LSP languages | MVP |
-| 4 | TUI dashboard | 3d | Hub for all screens | Replaces 6 separate CLI commands | MVP |
-| 5 | `caf.first_person_explain` MCP tool | 5d | Killer feature for agents | LLM gets narrative-grade context, grounded in `.caf/` | PROD |
-| 6 | Single Go binary | 1d | Zero-dep distribution | One file, no runtime; SSH/Docker/CI universal | MVP |
-| 7 | ASCII heatmap | 1d | One-screen overview | Replaces 100-line text report | BETA |
-| 8 | SM-2 algorithm | 2d | Battle-tested SRS | Anki users recognize it immediately; ease ∈ [1.3, 3.0] | BETA |
-
-**Итого:** 8 компонентов, ~20 дней effort, ~80% ценности. Это и есть MVP+ALPHA+BETA архитектурное ядро. См. также [ADR-015](./ADR.md#adr-015-8020-prioritization-principle) и [BACKLOG §0](./BACKLOG.md#0-backlog-philosophy) для процесса приоритезации.
+> **Версия / Version:** 0.4.0-triz2 (post-TRIZ-2 pass: security architecture added as §8; observability architecture added as §9; cost architecture added as §10; TRIZ 40 principles systematically mapped in §11; 9-screen scheme applied to evolution trajectory in §12; C-09 cache-friendly constraint from ARD enforced throughout)
+> **Назначение / Purpose:** capture HOW the system is structured — layers, components, contracts, invariants. ARCHITECT sits below ARD (which captures WHY + WHAT) and above UI (which captures HOW the user interacts). ARCHITECT is the source of truth for code structure; ADR is the source of truth for individual decisions.
+> **Принцип приоритизации / Prioritization principle:** 🔥 80/20 — high-leverage architectural components get disproportionate resources. See [ADR-015](./ADR.md#adr-015-8020-prioritization-principle).
+> **Язык / Language:** bilingual — Russian body, English summary per section
+> **Аудитория / Audience:** architects proposing changes, maintainers auditing invariants, contributors adding adapters/languages/screens, LLM agents traversing the codebase
+> **Связанные документы:** [ARD.md](./ARD.md) · [ROADMAP.md](./ROADMAP.md) · [UI.md](./UI.md) · [BACKLOG.md](./BACKLOG.md) · [ADR.md](./ADR.md)
 
 ---
 
-## 1. Phase Overview (v0.3)
+## 0. Architecture Overview (v0.4-triz2)
 
-**EN summary.** Five phases ship architectural components in this order: MVP ships storage, hooks, universal LSP fallback, TUI dashboard — the universal-coverage layer; ALPHA adds Decision Log and pre-commit validation; BETA adds Mental Model Reconstructor with SM-2 and three card types; PROD adds MCP server, cross-repo sync automation, and `caf.first_person_explain`; FUTURE adds multi-user, web UI (read-only), CRDT, plugins. The per-adapter Capability matrix is the table below; it is referenced from ADR-009 as a first-class artifact.
+**EN summary.** v0.4-triz2 architecture adds three new layers to v0.3.1-triz: Security (§8), Observability (§9), Cost (§10). The core four layers (Interface, Storage, Hooks, Adapter) are preserved with their contracts intact. The new layers are cross-cutting: they apply to all four core layers without modifying their contracts. This is TRIZ Principle 14 (Spherification) — the new concerns wrap the existing system as concentric shells, not invasive modifications.
 
-| Phase | Duration (est.) | Architectural layer shipped | Modules live | Agents supported | UI screens live | 🔥 80/20 components |
-|-------|-----------------|-----------------------------|--------------|-------------------|------------------|----------------------|
-| MVP | 2-3 wk | Storage + Hooks + Universal fallback + TUI hub | Provenance Tracker, `context.md` gen, Universal pre-commit hook, Universal LSP fallback, Auto-detect, TUI dashboard, TUI onboarding, TUI adapters manager | 25+ via universal LSP + Tier 1 (2 explicit) | Dashboard, Onboarding, Adapters manager | Universal pre-commit hook, Auto-detect, LSP fallback, TUI dashboard, Single Go binary |
-| ALPHA | 4-6 wk | Decision Log layer + pre-commit validation | Decision Log, TUI decisions list/editor/detail, pre-commit validation, Tier 1 +3 explicit adapters (Cursor, Cline, KiloCode) | 25+ via universal + 5 enhanced (Tier 1) | Decisions list, Decision detail, Decision editor | 80/20 autocomplete (90s→25s) |
-| BETA | 6-8 wk | Mental Model Reconstructor + SRS | MMR, SM-2 SRS, 3 card types, dependency graph, blindspots detection, TUI review session, TUI heatmap, TUI file tour | 25+ via universal + 13 enhanced (+8 Tier 2) | Review session, Heatmap, File tour | SM-2 algorithm, ASCII heatmap, TUI review session |
-| PROD | 8-10 wk | MCP server + cross-repo sync automation | MCP server (5 tools + 3 prompts), cross-repo sync, TUI reports view, success metrics instrumentation, `caf.first_person_explain` 🔥, +12 Tier 3 adapters | 25+ via universal + 25 enhanced (all explicit) | Reports view, Metrics report | `caf.first_person_explain` MCP tool, cross-repo sync |
-| FUTURE | open-ended | Extensibility + multi-user | Multi-user (per-author attribution), Web UI (read-only), CRDT, Plugin API, IDE plugins, CI/CD integrations | (no change to base; additive) | Web dashboard (read-only), VSCode/JetBrains/Neovim plugins | (per-item 4 promotion criteria — see ROADMAP §6.9) |
+```mermaid
+graph TB
+    subgraph "Cross-cutting layers (NEW in v0.4-triz2)"
+        SEC["🔒 Security layer<br/>sandboxed parser, signed adapters,<br/>LLM data minimization"]
+        OBS["📊 Observability layer<br/>OpenTelemetry, caf doctor,<br/>metrics export"]
+        COST["💰 Cost layer<br/>LLM token tracking,<br/>per-user cost caps"]
+    end
+    
+    subgraph "Core layers (v0.3.1-triz preserved)"
+        UI_LAYER["🖥️ Interface layer<br/>CLI + MCP server + TUI"]
+        STORAGE["📁 Storage layer<br/>.caf/ in-repo, YAML+MD"]
+        HOOKS["🪝 Hooks layer<br/>pre-session/post-edit/pre-commit"]
+        ADAPTER["🔌 Adapter layer<br/>25 agents × 3 events + universal"]
+    end
+    
+    SEC -.-> UI_LAYER
+    SEC -.-> STORAGE
+    SEC -.-> HOOKS
+    SEC -.-> ADAPTER
+    
+    OBS -.-> UI_LAYER
+    OBS -.-> STORAGE
+    OBS -.-> HOOKS
+    OBS -.-> ADAPTER
+    
+    COST -.-> UI_LAYER
+    COST -.-> ADAPTER
+    
+    UI_LAYER --> STORAGE
+    HOOKS --> STORAGE
+    ADAPTER --> HOOKS
+    
+    style SEC fill:#e06c75,color:#fff
+    style OBS fill:#c678dd,color:#fff
+    style COST fill:#e5c07b,color:#000
+    style UI_LAYER fill:#61afef,color:#fff
+    style STORAGE fill:#98c379,color:#fff
+    style HOOKS fill:#98c379,color:#fff
+    style ADAPTER fill:#61afef,color:#fff
+```
 
-> **🔥 Key shift from v0.2:** MVP теперь покрывает 25+ агентов через universal fallback, а не 2 явных адаптера. Это радикально расширяет initial coverage и меняет архитектурную стратегию с "specific-first" на "universal-first, enhanced-second".
+---
 
-### Capability matrix (first-class artifact, referenced from ADR-009 and ADR-013)
+## 1. Capability Matrix (first-class artifact)
 
-| Adapter | Tier | pre-session | post-edit | pre-commit | MCP | Phase |
-|---------|------|-------------|-----------|------------|-----|-------|
+**EN summary.** The capability matrix is the single source of truth for "which adapter supports which event natively vs via fallback". Each adapter declares its matrix; CI tests every cell. 25 explicit adapters + 1 universal = 28 total coverage.
+
+| Adapter | Tier | pre-session | post-edit | pre-commit | MCP | Phase shipped |
+|---------|------|-------------|-----------|------------|-----|---------------|
 | opencode | 1 | ✓ native | ✓ native | ✓ native | ✓ | MVP |
 | Claude Code | 1 | ✓ native | ✓ native | ✓ native | ✓ | MVP |
-| Cursor | 1 | ✓ wrapper (pre-session via shell alias) | ✓ native | ✓ native | ✓ | ALPHA |
+| Cursor | 1 | ✓ wrapper | ✓ native | ✓ native | ✓ | ALPHA |
 | Cline | 1 | ✓ native | ✓ native | ✓ native | ✓ | ALPHA |
 | KiloCode | 1 | ✓ native | ✓ native | ✓ native | ✓ | ALPHA |
 | Aider | 2 | ✗ | ✓ wrapper | ✓ wrapper | — | BETA |
@@ -133,7 +122,7 @@ ui_budgets_enforced:
 | Continue.dev | 2 | ✗ | ✓ wrapper | ✓ wrapper | — | BETA |
 | GitHub Copilot CLI | 2 | ✗ | ✓ wrapper | ✓ wrapper | — | BETA |
 | Gemini CLI | 2 | ✗ | ✓ wrapper | ✓ wrapper | — | BETA |
-| Amazon Q Developer CLI | 2 | ✗ | ✓ wrapper | ✓ wrapper | — | BETA |
+| Amazon Q Developer | 2 | ✗ | ✓ wrapper | ✓ wrapper | — | BETA |
 | Goose | 2 | ✗ | ✓ wrapper | ✓ wrapper | — | BETA |
 | Windsurf | 2 | ✗ | ✓ wrapper | ✓ wrapper | — | BETA |
 | Tabnine | 3 | ✗ | ✗ | ✓ wrapper | — | PROD |
@@ -149,486 +138,647 @@ ui_budgets_enforced:
 | GPT Engineer | 3 | ✗ | ✗ | ✓ wrapper | — | PROD |
 | Mentat | 3 | ✗ | ✗ | ✓ wrapper | — | PROD |
 | Sweep | 3 | ✗ | ✗ | ✓ wrapper | — | PROD |
-| **Universal LSP fallback** | **4** | ✓ `caf-wrap` wrapper | ✓ `caf-watch` watcher (5s debounce) | ✓ universal `.git/hooks/pre-commit` | ✓ `caf-wrap` prepends `context.md` | **MVP** |
+| **Universal (Tier 4)** | 4 | ✓ wrapper | ✓ watcher | ✓ universal | — | MVP |
 
-**Notes:**
-- Tier 1 = full native hook support; Tier 2 = partial native + wrapper; Tier 3 = wrapper-only (pre-commit); Tier 4 = universal fallback (zero-config, LSP-based).
-- Total: 25 explicit + 1 universal = 26 rows in matrix (25 + universal).
-- "Augment" (not "Augment Code") — vendor's preferred branding; consistent across ADR-012 and ROADMAP §5.1 in v0.3.1-triz.
-- OryaAgent is the in-house reference implementation, not in the matrix; see §6.5 below for its role.
-- New event types beyond {pre-session, post-edit, pre-commit} require a new ADR (see ADR-009 trigger).
+**Total explicit:** 25 (5+8+12). **Total with universal:** 28. **Coverage:** 100% via universal fallback; ~95% with explicit adapters.
+
+**TRIZ Principle 15 (Dynamicity).** The matrix is data, not code. Adding an adapter = adding a row; changing a tier = editing a cell. The matrix lives in `internal/caf/adapter.go` as a Go map and is rendered in `caf adapters list` (UI.md §7). No code changes needed for tier reassignment.
 
 ---
 
-## 2. Phase: MVP (2-3 weeks)
+## 2. Storage Layer
 
-**EN summary.** MVP ships the universal-coverage architectural layer: `.caf/` storage (ADR-001), fail-safe hooks (ADR-003 + INV-ARCH-004), universal LSP fallback (ADR-013), TUI dashboard, single Go binary. After MVP, the tool is already useful for any agent, even if development stops.
+### 2.1 .caf/ folder structure
 
-### 2.1 Scope
+```
+.caf/
+├── context.md              # auto-generated context for pre-session hook
+├── manifest.yml            # cross-repo metadata
+├── config.yml              # user settings (triviality threshold, theme, LLM backend)
+├── audit.log               # NEW v0.4-triz2: append-only audit log (hash-chained)
+├── sessions/               # Provenance Tracker
+│   ├── 2026-10-24-a1b2c3.yml
+│   └── 2026-10-25-d4e5f6.yml
+├── decisions/              # Decision Log
+│   ├── d_2026-10-24-01.md
+│   ├── d_2026-10-24-02.md
+│   └── index.yml
+├── mental-model/           # Mental Model Reconstructor
+│   ├── cards.yml
+│   └── graph.yml
+├── metrics/                # NEW v0.4-triz2: rolling metrics snapshots
+│   └── 2026-10-28.jsonl
+├── cache/                  # git-ignored, regenerable (C-09 from ARD)
+│   ├── sessions-index.db   # SQLite index for fast lookup (BACKLOG A-005)
+│   └── manifest-cache/     # 1h TTL cross-repo manifest cache
+└── reviews/                # history of caf review sessions
+    └── 2026-10-24.log
+```
 
-Архитектурные компоненты, которые должны быть готовы к концу MVP:
+**TRIZ Principle 1 (Segmentation).** `.caf/` is segmented into functional subdirectories. Each can be regenerated independently: `sessions/` from git log + trailers; `decisions/` is the source of truth (not regenerated); `mental-model/graph.yml` from LSP scan; `cache/` from any source.
 
-- **Storage layer (ADR-001, ADR-005):** `.caf/` folder schema — `sessions/*.yml`, `decisions/*.md`, `mental-model/graph.yml`, `manifest.yml`, `config.yml`, `cards.yml` (empty in MVP). YAML 1.2 + `gopkg.in/yaml.v3`.
-- **Hook contract (ADR-003, INV-ARCH-004):** three event types — `pre-session` (recorded by adapter when agent starts), `post-edit` (recorded after non-trivial file changes), `pre-commit` (universal `.git/hooks/pre-commit` shell, fires for ALL agents).
-- **Adapter pattern (ADR-009, ADR-012):** `Adapter` interface with 5 methods; 4 adapters shipped (Universal LSP Tier 4 + opencode Tier 1 + Claude Code Tier 1 + Universal pre-commit hook).
-- **Universal LSP fallback (ADR-013, INV-ARCH-003):** `textDocument/documentSymbol` + `workspace/symbol` for symbol graph; `caf-watch` daemon with 5-second debounce; lazy-load on `caf sync`/`caf tour`.
-- **Auto-detect (`caf init --auto-detect`):** scans for installed agents, recommends with recommended marker.
-- **TUI dashboard (ADR-014, INV-ARCH-005):** hub screen showing Today widget, Authorship Score widget, Active Agents widget, Recent Decisions widget, Cross-repo widget.
-- **Single Go binary:** `caf` (3 chars, ADR-008), no runtime dependencies, ~10 MB.
+### 2.2 Schema invariants
 
-CLI commands shipped (MVP): `caf init`, `caf init --auto-detect`, `caf init --agent opencode`, `caf dashboard`, `caf adapters list`, `caf who <file:line>`, `caf when --pattern <regex> <dir>`, `caf sessions --since 7d`, `caf context`, `caf hook pre-session`, `caf hook post-edit`, `caf hook pre-commit` 🔥.
+- **YAML 1.2 + gopkg.in/yaml.v3** for structured files (ADR-005).
+- **Markdown** for human-readable files (`decisions/*.md`, `context.md`).
+- Every YAML file declares `$schema` in first comment for IDE autocomplete.
+- Schema is **additive** across major versions (INV-ARCH-007, INV-ADR-001): new fields optional; old fields never removed.
+- `.caf/cache/` is git-ignored and **regenerable** (C-09 from ARD): deleting it loses no source-of-truth data.
 
-### 2.2 Deliverables
+### 2.3 Storage layer contracts
 
-- `cmd/caf/` — single-binary entry point.
-- `internal/caf/storage/` — `.caf/` read/write, atomic writes (temp + rename) for crash safety (BACKLOG J-002).
-- `internal/caf/hooks/` — three hook contracts + universal `.git/hooks/pre-commit` installer.
-- `internal/caf/lsp/fallback.go` — Tier 4 universal LSP fallback (ADR-013).
-- `internal/adapters/{opencode,claude-code}/` — two Tier 1 explicit adapters.
-- `pkg/ui/screens/{dashboard,onboarding,adapters}.go` — three TUI screens (see UI.md §2, §3, §7).
-- `pkg/ui/keys.go` — universal keyboard map (see UI.md §0.6).
-- `pkg/ui/perf.go` — performance budget enforcer (see UI.md §0.3).
-- `internal/caf/triviality/threshold.go` — 50 LOC threshold (ADR-004; this is shipped in MVP for `post-edit` to know whether to record).
-- Contract tests: `internal/adapters/*/contract_test.go` — one test per cell of the 25-adapter × 3-event matrix (75 cases total by PROD; in MVP only 4 adapters × 3 events = 12 cases).
-
-### 2.3 Exit criteria
-
-1. Pilot repo uses `caf` 7 days straight, no manual intervention.
-2. Universal pre-commit hook fires on 3+ different agents (opencode, Claude Code, +1 unknown via fallback).
-3. LSP fallback builds symbol graph for Go repo up to 1000 files in <1s (INV-ARCH-003 enforced).
-4. **TUI dashboard first paint <100ms** on pilot repo (INV-ARCH-005 enforced; CI benchmark in MVP).
-5. Auto-detect finds opencode + Claude Code on a fresh machine in <5s.
-6. Adapter contract test suite passes (12 cases for 4 adapters).
-
-### 2.4 What's NOT in MVP
-
-- Decision Log (architectural layer: ALPHA).
-- SRS / Mental Model Reconstructor (architectural layer: BETA).
-- MCP server (architectural layer: PROD).
-- Tier 1 beyond opencode + Claude Code (3 more in ALPHA).
-- Tier 2/3 adapters (BETA/PROD).
-- Cross-repo sync (PROD).
-- LLM features (PROD, ADR-006).
-
-### 2.5 Risks
-
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| LSP fallback noisy (false-positive symbol graphs) | high | medium | `caf doctor --verify-graph` rebuilds from filesystem-only mode; `caf config set lsp.strict false` relaxes resolution |
-| `caf-watch` filesystem watcher CPU on large repos | medium | medium | Throttle: poll every 1s, debounce 5s, ignore `.git/` and other noisy paths; daemon exits after 30 minutes of inactivity (INV-ARCH-003) |
-| TUI rendering issues on weird terminals | medium | low | UI.md §12.1 compatibility matrix (iTerm2/Terminal.app/Alacritty/Kitty/Windows Terminal/VSCode integrated/Git Bash/Linux TTY/SSH); 16-color fallback via termenv |
-| `caf init` confusing for new users | medium | high | Onboarding wizard (UI.md §2); auto-detect as default; 3-step flow <30s |
-| **Universal pre-commit hook blocks legit commits** | **medium** | **high** | **Fail-safe contract** (see below): if `caf` binary missing, hook warns and lets commit through. If `caf` exits non-zero for reasons other than missing decision (ALPHA), hook also lets commit through with warning. **Hook never blocks a commit due to `caf` itself being broken** — only blocks if `caf hook pre-commit` explicitly returns "decision required" exit code (ALPHA). |
-
-#### Fail-safe contract (referenced from ADR-003 INV-ADR-003 and ADR-010)
-
-The fail-safe contract is the architectural guarantee that hooks never block agent operation due to `caf` infrastructure issues. Concretely:
-
-1. **Binary missing.** If `.git/hooks/pre-commit` cannot find `caf` in `$PATH`, the hook writes a single-line warning to stderr and exits 0. The commit proceeds.
-2. **Binary crashes.** If `caf hook pre-commit` exits with a non-zero status code other than the reserved "decision required" code (exit 2), the hook treats this as `caf` infrastructure failure, writes a warning, and exits 0. The commit proceeds.
-3. **Reserved exit codes.** Exit 2 = "decision required" (ALPHA, blocks commit until decision added or `CAF-Trivial: true` trailer set). Exit 3 = "triviality threshold exceeded but no decision" (ALPHA, same as 2). Exit 0 = "all good, commit proceeds". No other exit code blocks the commit.
-4. **`caf-watch` daemon.** If daemon is unavailable, post-edit hook is skipped (not recorded). Sessions continue. Graph stays stale until next `caf sync`.
-
-This contract is **non-negotiable**: any PR that makes `caf` block a commit for reasons other than "decision required" violates INV-ARCH-004 and must be rejected in code review.
-
-### 2.6 Phase: MVP — additional architectural notes
-
-(MVP-specific architectural notes moved here from the historical scope. Section preserved from original structure.)
+| File | Format | Source of truth? | Regenerable? | Owner |
+|------|--------|------------------|--------------|-------|
+| `sessions/*.yml` | YAML | Yes (with git trailers) | Partially (from git + trailers) | Provenance Tracker |
+| `decisions/*.md` | Markdown | Yes | No (human-authored) | Decision Log |
+| `decisions/index.yml` | YAML | No (cache) | Yes (from `decisions/*.md`) | Decision Log |
+| `mental-model/cards.yml` | YAML | Yes (ease_factor, interval) | No (user state) | MMR |
+| `mental-model/graph.yml` | YAML | No (cache) | Yes (from LSP scan) | MMR |
+| `manifest.yml` | YAML | Yes (per-repo) | No (hand-curated) | Cross-repo sync |
+| `config.yml` | YAML | Yes (user settings) | No (user-edited) | Settings |
+| `context.md` | Markdown | No (cache) | Yes (from sessions + decisions) | Pre-session hook |
+| `cache/*` | mixed | No (cache) | Yes | Various |
+| `audit.log` | append-only | Yes (audit trail) | No (append-only) | Security layer (NEW) |
+| `metrics/*.jsonl` | JSONL | Yes (metrics history) | No (rolling log) | Observability layer (NEW) |
 
 ---
 
-## 3. Phase: ALPHA (4-6 weeks)
+## 3. Adapter Pattern
 
-**EN summary.** ALPHA adds the Decision Log layer (architectural): `.caf/decisions/*.md` schema, pre-commit validation requiring decisions for non-trivial commits, three more Tier 1 adapters (Cursor, Cline, KiloCode). The 80/20 win: autocomplete for files/tags/agent reduces decision fill time from 90s to 25s.
+### 3.1 Adapter interface (5 methods, stable within major version)
 
-### 3.1 Scope
+```go
+// internal/caf/adapter.go
+type Adapter interface {
+    ID() string                    // "opencode", "claude-code", "cursor", etc.
+    Capabilities() CapabilityMatrix // see §1
+    Install() error                // idempotent; safe to call multiple times
+    Uninstall() error              // removes hooks, config entries
+    Detect() bool                  // is this agent installed on the system?
+}
 
-- **Decision Log layer (ADR-001, ADR-005):** `.caf/decisions/*.md` schema — title, date, agent, files[], context, chosen, alternatives, implications. Markdown-rendered in TUI via Glamour.
-- **Pre-commit validation (ADR-003, ADR-004, INV-ADR-004):** `caf hook pre-commit` exit 2 if any non-trivial edit (≥50 LOC) lacks a decision. `CAF-Trivial: true` trailer bypasses for mechanical refactors.
-- **Three more Tier 1 adapters:** Cursor (pre-session via wrapper shell alias), Cline (native all events), KiloCode (native all events).
-- **TUI decisions list / detail / editor (ADR-014):** three new TUI screens (see UI.md §5.1, §5.2, §5.3).
-- **🔥 80/20 autocomplete (UI.md §5.3):** autocomplete for `files` (from paths modified in current/recent sessions), `tags` (from previous decisions), `agent` (from active agents). Pre-built index, <50ms response (INV-ARCH-005).
-- **Triviality threshold enforcement (ADR-004, INV-ADR-004):** `internal/caf/triviality/threshold.go` ships in MVP for `post-edit`; in ALPHA it gates pre-commit. 50 LOC excluding imports/formatting/test-duplicates.
+type CapabilityMatrix struct {
+    PreSession  EventTier // native | wrapper | watcher | universal | none
+    PostEdit    EventTier
+    PreCommit   EventTier
+    MCP         bool
+    Tier        int       // 1, 2, 3, 4
+}
+```
 
-New CLI commands (ALPHA): `caf why <file>`, `caf decisions` 🔥, `caf decisions new [--files ...]` 🔥, plus `--today`/`--file`/`--search`/`--gaps`/`--agent` flags on `caf decisions`.
+**TRIZ Principle 1 (Segmentation).** Five methods, each independently testable. Adding a new adapter = one file under `internal/adapters/<agent>/`; no core changes.
 
-### 3.2 Deliverables
+**TRIZ Principle 5 (Combining).** `Capabilities()` returns all four event tiers + MCP + Tier in one struct. One call gives the agent everything it needs to route.
 
-- `internal/caf/decisions/` — Decision Log CRUD, markdown rendering.
-- `internal/adapters/{cursor,cline,kilocode}/` — three more Tier 1 adapters.
-- `pkg/ui/screens/{decisions_list,decisions_detail,decisions_editor}.go` — three new TUI screens.
-- `internal/caf/autocomplete/` — pre-built indexes for files, tags, agents.
-- 3 new adapter contract tests (3 adapters × 3 events = 9 cases; total 12+9=21 cases).
+### 3.2 LanguageAdapter interface (5 methods)
 
-### 3.3 Exit criteria
+```go
+type LanguageAdapter interface {
+    ID() string                    // "go", "python", "typescript", etc.
+    Detect() bool                  // is this language present in the repo?
+    ScanImports() []Import         // import graph
+    BuildSymbolGraph() SymbolGraph // symbol-level graph for MMR
+    ResolveExternalRepo() RepoRef  // resolve pkg/foo to repo + commit
+}
+```
 
-1. Decision Coverage ≥90% over last 7 days on pilot repo (number of non-trivial commits with decisions / total non-trivial commits).
-2. Pre-commit blocks non-trivial commits without decision for ALL 25+ agents (universal fallback + 5 explicit).
-3. **TUI decision editor avg fill time ≤30s (vs 90s without autocomplete)** — measured via instrumentation.
-4. All Tier 1 adapters work on macOS + Linux with no manual config.
+Go-first (dogfooding), Python second (AI/ML prevalence), TypeScript third (web ecosystem). Universal LSP fallback (ADR-013) covers all other languages at lower quality.
 
-### 3.4 What's NOT in ALPHA
+### 3.3 Adapter registry
 
-- Mental Model Reconstructor (architectural layer: BETA).
-- Tier 2/3 adapters (BETA/PROD).
-- Cross-repo sync (PROD).
-- LLM features (PROD).
+```go
+// internal/caf/adapter.go
+var registry = map[string]Adapter{
+    "opencode":      &adapters.OpencodeAdapter{},
+    "claude-code":   &adapters.ClaudeCodeAdapter{},
+    // ... 23 more explicit adapters
+    "universal-lsp": &adapters.UniversalLSPAdapter{}, // Tier 4 fallback
+}
+```
 
-### 3.5 Risks
-
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| Autocomplete too noisy (suggests irrelevant files) | medium | medium | `caf config set decisions.autocomplete aggressive\|conservative\|off` |
-| Pre-commit blocks CI commits (no human to write decision) | high | high | Detect `CI=true` env, skip pre-commit validation; CI runs `caf report --check` separately (BACKLOG C-001) |
-| Decision template too verbose | high | high | Default compact template; `--verbose` for full template |
-| Cursor wrapper breaks on Cursor version update | medium | medium | Pin wrapper version; auto-detect breaks, surface in `caf adapters list` |
-| Inconsistent UX between adapters | medium | low | Capability matrix in §1 makes limitations explicit; UI.md §7 surfaces them |
-
----
-
-## 4. Phase: BETA (6-8 weeks)
-
-**EN summary.** BETA adds the Mental Model Reconstructor layer: SM-2 spaced-repetition algorithm (ADR-002, ease ∈ [1.3, 3.0]), three card types (`why`, `what_if_remove`, `where_handled`), single-repo dependency graph builder, blindspots detection, three new TUI screens (review session, heatmap, file tour). Eight Tier 2 adapters join the matrix.
-
-### 4.1 Scope
-
-- **Mental Model Reconstructor (ADR-002):** SM-2 algorithm; ease ∈ [1.3, 3.0] invariant (INV-ARCH-006 enforced by property-based tests).
-- **Three card types:** `why` (Type 1, fact recall — baseline ease 2.5), `what_if_remove` (Type 2, abstract reasoning — baseline ease 2.0 per BACKLOG D-007 future), `where_handled` (Type 3, trace through code — baseline ease 2.5).
-- **Single-repo dependency graph builder:** `go list -json` (Go-only in BETA; BACKLOG E-001..E-008 cover other languages in FUTURE). Graph cached in `.caf/mental-model/graph.yml`.
-- **Blindspots detection:** files with low ACS or low coverage. Risk score = frequency × centrality × last_review (BACKLOG D-004 refines).
-- **TUI Review Session (UI.md §4, ADR-014):** full-screen split-view, ~10 minutes, 10-15 cards per session, grade scale 0-5.
-- **TUI Heatmap (UI.md §6, ADR-014):** each file = one cell, color = ACS or coverage. Pre-computed, cached.
-- **TUI File Tour (UI.md §8, ADR-014):** split-view timeline (left) + numbered source (right). Phase-conflict fix in v0.3.1-triz: original UI.md §1.1 listed File tour as PROD; ROADMAP §4.1 BETA scope listed it as BETA deliverable. Canonical resolution: File tour = BETA (per ROADMAP §4.1); UI.md §1.1 will be updated in TRIZ-pass to BETA.
-
-8 Tier 2 adapters (cumulative): Aider, Codex CLI, Continue.dev, GitHub Copilot CLI, Gemini CLI, Amazon Q Developer CLI, Goose, Windsurf. Coverage: 25+ via universal + 13 enhanced.
-
-New CLI commands (BETA): `caf review` 🔥, `caf review --hard`/`--blindspots`/`--regenerate --since 7d`/`--stats`, `caf heatmap`, `caf tour <file>`, `caf sync`.
-
-### 4.2 Deliverables
-
-- `internal/caf/srs/sm2.go` — SM-2 implementation with ease ∈ [1.3, 3.0] invariant.
-- `internal/caf/mentalmodel/` — graph builder, blindspots detection.
-- `pkg/ui/screens/{review,heatmap,file_tour}.go` — three new TUI screens.
-- 8 new adapter directories under `internal/adapters/`.
-- Property-based tests for SM-2 (invariant: ease ∈ [1.3, 3.0]).
-- Performance benchmark: `caf heatmap` renders 247 files in <200ms (INV-ARCH-005 sub-budget).
-
-### 4.3 Exit criteria
-
-1. Mental Model Reach ≥70% (cards due / cards generated).
-2. Recall Rate ≥75% sustained over 4 weeks.
-3. ACS (Authorship Confidence Score) ≥3.0 (target ≥3.5 in PROD; ≥3.5 is the §12 success threshold).
-4. Review session completion ≥80% (cards answered / cards started).
-5. All Tier 2 adapters work on macOS + Linux.
-6. **Heatmap render <200ms on repo up to 1000 files** (INV-ARCH-005 sub-budget enforced).
-
-### 4.4 What's NOT in BETA
-
-- MCP server (architectural layer: PROD).
-- Cross-repo sync (PROD).
-- `caf.first_person_explain` LLM feature (PROD, ADR-006).
-- Tier 3 adapters (PROD).
-- Web UI (FUTURE, only for visualizations impossible in TUI).
-
-### 4.5 Risks
-
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| SM-2 burnout (too many cards per session) | high | high | Default cap 15 cards/session; `caf config set review.max_cards 10`; BACKLOG D-007 adaptive per-card-type ease is the long-term fix |
-| Cramped TUI on small terminals | medium | medium | UI.md §12.2 responsive: ≥140 cols full grid, 100-139 2-col, 60-99 single stacked, <60 compact mode with hint "Widen terminal for full dashboard." |
-| Low-quality cards (LLM-generated, BACKLOG D-002 future) | high | medium | (Not in BETA — D-002 is idea); BETA ships hand-curated cards only |
-| Tier 2 wrappers fail on agent version updates | medium | medium | Pin wrapper versions; auto-detect breaks, surface in `caf adapters list` |
-| Graph builder fails on >10k files | medium | high | Streaming + lazy loading (BACKLOG A-001); benchmark on `kubernetes/kubernetes` before release |
+Adding an adapter = registering in this map + adding the adapter file. No core changes.
 
 ---
 
-## 5. Phase: PROD (8-10 weeks)
+## 4. Hooks Layer
 
-**EN summary.** PROD adds the MCP server layer (architectural): 5 MCP tools (`caf.context`, `caf.provenance`, `caf.decisions`, `caf.mental_model`, `caf.first_person_explain` 🔥) + 3 prompts (`caf.pre_session_brief`, `caf.code_review_with_provenance`, `caf.archaeology`); cross-repo sync automation; Tier 3 adapters (12 agents, wrapper-only); success metrics instrumentation.
+### 4.1 Three canonical events
 
-### 5.1 Scope
+| Event | Trigger | What it does | Phase |
+|-------|---------|--------------|-------|
+| `pre-session` | Agent starts a session | Reads `.caf/context.md`, injects into agent's system prompt | MVP |
+| `post-edit` | Agent modifies files | Writes `.caf/sessions/<id>.yml` draft; if >50 LOC non-trivial, prompts for decision | MVP |
+| `pre-commit` | `git commit` invoked | Validates commit has `CAF-Session` trailer + decision link (or `CAF-Trivial: true`); blocks if missing | ALPHA |
 
-- **MCP server (`caf-mcp`):** 5 tools + 3 prompts. Transport: stdio (`caf mcp serve`) and HTTP SSE (`caf mcp serve --transport sse`).
-- **`caf.first_person_explain` 🔥 (ADR-006):** LLM-generated first-person narrative grounded in `.caf/` facts. INV-ADR-006: LLM only paraphrases `.caf/`-grounded facts, never invents.
-- **Cross-repo sync automation (ADR-001):** `caf sync` detects locally-cloned repos via `~/.caf/repos.yml` registry; pulls `manifest.yml` from each dependee; creates `review-because-interface-changed` cards.
-- **TUI Reports view (UI.md §10, ADR-014):** daily report, week report, metrics report.
-- **Success metrics instrumentation:** ACS, Decision Coverage, Mental Model Reach, Recall Rate, Agent Diversity (Shannon entropy), Adapter Coverage.
-- **12 Tier 3 adapters (cumulative):** Tabnine, Sourcegraph Cody, Trae, Bolt, Zed AI, Roo Code, Augment, Plandex, OpenHands, Devika, GPT Engineer, Mentat, Sweep. Note: in v0.3.1-triz, the list is reconciled to 12 (OryaAgent removed — it is the in-house consumer, listed separately; Augment renamed consistently). Total explicit: 5 (Tier 1) + 8 (Tier 2) + 12 (Tier 3) = 25.
+### 4.2 Fail-safe contract (INV-ARCH-004)
 
-MCP tools:
-- `caf.context` — returns `context.md` for current repo.
-- `caf.provenance` — returns provenance for `file:line` range.
-- `caf.decisions` — returns decisions matching filter.
-- `caf.mental_model` — returns graph + card inventory.
-- `caf.first_person_explain` 🔥 — returns LLM-generated first-person narrative, grounded in `.caf/` facts (ADR-006).
+```go
+// internal/caf/hooks/fail_safe.go
+func ExecuteHook(event string, ctx HookContext) error {
+    cafPath, err := exec.LookPath("caf")
+    if err != nil {
+        // caf binary missing — warn and continue, never block
+        log.Warn("caf binary not in $PATH; hook %s skipped", event)
+        return nil
+    }
+    // ... execute hook
+}
+```
 
-MCP prompts:
-- `caf.pre_session_brief` — what an agent should know before editing.
-- `caf.code_review_with_provenance` — review a PR with authorship context.
-- `caf.archaeology` — explain why a file looks the way it does.
+**TRIZ Principle 25 (Self-service) + Principle 13 (The other way round).** Hooks capture provenance automatically (self-service); git tells caf about commits (inverted from "agent tells caf").
 
-New CLI commands (PROD): `caf report --day`/`--week`/`--ownership`/`--agent`/`--metrics`, `caf sync`, `caf hook post-commit --repo <path>`, `caf mcp serve [--transport sse]`.
+### 4.3 Hook sources (4 tiers)
 
-### 5.2 Deliverables
-
-- `internal/caf/mcp/server.go` — MCP server with 5 tools + 3 prompts.
-- `internal/caf/sync/` — cross-repo sync automation, manifest cache (1h TTL in `~/.caf/manifest-cache/`).
-- `pkg/ui/screens/reports.go` — TUI Reports view.
-- 12 new adapter directories under `internal/adapters/` (Tier 3, wrapper-only).
-- Success metrics instrumentation in `internal/caf/metrics/`.
-- Contract tests for all 25 explicit + 1 universal adapter × 3 events = 78 cases in CI.
-
-### 5.3 Exit criteria
-
-1. All 5 success metrics hit targets on pilot repos over 8 weeks: **ACS ≥3.5, Decision Coverage ≥90%, Mental Model Reach ≥70%, Recall Rate ≥75%, Agent Diversity H ≥1.0, Adapter Coverage ≥70% native (NEW v0.3)**.
-2. MCP works with opencode, Claude Code, Cline, KiloCode, Goose.
-3. Cross-repo sync detects changed interfaces between dependent repos.
-4. All 25 explicit adapters pass contract tests.
-5. `caf.first_person_explain` produces factually accurate narratives (no hallucination on `.caf/`-grounded facts — INV-ADR-006 enforced).
-6. README, ARCHITECT.md, UI.md, ROADMAP.md, BACKLOG.md, ADR.md all consistent with implementation.
-
-### 5.4 What's NOT in PROD
-
-- Multi-user mode (FUTURE).
-- Web UI (FUTURE).
-- CRDT for `cards.yml` (FUTURE).
-- Plugin API / marketplace (FUTURE).
-- IDE plugins — VSCode/JetBrains/Neovim (FUTURE).
-- CI/CD integrations beyond `caf report --check` (FUTURE).
-
-### 5.5 Risks
-
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| LLM hallucinates in `caf.first_person_explain` | high | high | Strict grounding in `.caf/` facts (ADR-006, INV-ADR-006); LLM only paraphrases, never invents; test suite verifies no hallucination on `.caf/`-grounded facts |
-| MCP protocol changes (Anthropic updates spec) | medium | medium | Pin MCP spec version; contract tests against pinned version; ADR-028 future addresses adapter contribution governance |
-| Cross-repo sync slow on large fleets | medium | medium | Parallel fetch (10 concurrent, rate-limited); cache `manifest.yml` for 1 hour in `~/.caf/manifest-cache/`; incremental sync (BACKLOG A-003) |
-| Tier 3 brittle across 12 wrapper-only adapters | high | medium | Wrapper contracts minimal; failure in one adapter doesn't block others; `caf adapters health` surfaces breakages (BACKLOG J-003 — already done in v0.3) |
-| TUI performance degrades as data grows | medium | high | Performance budgets enforced (UI.md §0.3, INV-ARCH-005); CI benchmarks; alert on >2x regression; BACKLOG A-001 lazy graph loading as long-term fix |
+1. **Native** — agent supports the event directly (e.g., opencode has `pre-session` hook config).
+2. **Wrapper** — `caf-wrap <agent> <prompt>` prepends `context.md` to agent's prompt.
+3. **Watcher** — `caf-watch` daemon polls filesystem (5s debounce).
+4. **Universal** — `.git/hooks/pre-commit` shell script (Tier 4 fallback).
 
 ---
 
-## 6. Phase: FUTURE (open-ended)
+## 5. SRS Layer (SM-2)
 
-**EN summary.** FUTURE adds extensibility and multi-user layers. Each FUTURE item requires the 4 promotion criteria (ROADMAP §6.9): clear problem statement; design sketch / minimal ADR; pilot user; success metric. Without these four, item stays in BACKLOG.
+### 5.1 SM-2 algorithm
 
-### 6.1 Multi-language support
+```go
+// internal/caf/srs/sm2.go
+type Card struct {
+    ID             string
+    Type           CardType // why, what_if_remove, where_handled
+    Question       string
+    ExpectedAnswer string
+    EaseFactor     float64  // starts at 2.5, range [1.3, 3.0]
+    Interval       int      // days
+    Due            time.Time
+    Reviews        []Review
+}
 
-Per-language graph adapters beyond Go: Python (`ast` module + `pip show`), TypeScript (`tsc --listFiles` + tsconfig `paths`), Rust (`cargo metadata` + `cargo tree`), Java (Maven/Gradle), C# (.NET). Universal LSP fallback (ADR-013) covers all of them at lower quality meanwhile. See BACKLOG E-001..E-008.
+func (c *Card) Update(grade int) {
+    // grade 0-5
+    if grade < 3 {
+        c.Interval = 1
+    } else {
+        c.Interval = int(float64(c.Interval) * c.EaseFactor)
+    }
+    c.EaseFactor = clamp(c.EaseFactor + (0.1 - (5-grade)*(0.08+(5-grade)*0.02)), 1.3, 3.0)
+    c.Due = time.Now().AddDate(0, 0, c.Interval)
+}
+```
 
-### 6.2 Multi-user mode
+**TRIZ Principle 35 (Parameter change).** `ease_factor` is the parameter that adapts state — the system "learns" the user without ML.
 
-Per-author attribution: `author: <id>` field in every session/decision. Conflict resolution rules for `ease_factor` (ADR-016 future). `caf report --team`. SSO via GitHub/GitLab OAuth. Triggers ADR-006 voice change ("As Anna, I chose...").
+### 5.2 Card types
 
-### 6.3 Web dashboard (visualizations only)
-
-Read-only view on `.caf/`. **Interactive graph visualization (D3.js) — единственное, что нельзя в TUI.** Real-time heatmap. Export PDF/Markdown. **NOT replacing TUI** (ADR-014 invariant: TUI-first, web UI additive). See ADR-025 (future — web UI scope).
-
-### 6.4 LLM-assisted features
-
-`--ai-prefill` for `caf decisions new` (BACKLOG D-001). Smart card generation (D-002). Decision auto-summarization (D-003). All opt-in, LLM-free default for privacy (ADR-017 future — LLM backend selection).
-
-### 6.5 CRDT for real-time collaboration
-
-`yjs` or `automerge` for `cards.yml`. Auto-merge on `git pull`. Triggers ADR-001 mitigation for merge conflicts. See BACKLOG G-002.
-
-> **OryaAgent architectural role.** OryaAgent is the in-house reference consumer of `caf` (built by the same team). In v0.3.1-triz it is **not** in the Tier 3 adapter list (was incorrectly listed there in v0.3.0 — that was the cause of the "12 vs 15" miscount). Architecturally, OryaAgent validates the universal LSP fallback path on a real production agent before third-party adapters ship; bugs found by OryaAgent feed back into ADR-013 and INV-ARCH-003.
-
-### 6.6 Plugin API
-
-Custom card types (BACKLOG H-001). `caf adapters register <path-to-binary>` (BACKLOG H-002). Custom report formats (BACKLOG H-003). Plugin marketplace like Homebrew taps (BACKLOG H-004). See ADR-018 (future), ADR-021 (future), ADR-028 (future).
-
-### 6.7 IDE plugins
-
-VSCode (inline provenance tooltips, "Why is this line here?" hover), JetBrains, Neovim. See BACKLOG B-001, B-002, B-003 (and K-003/4/5 cross-theme duplicates — consolidated in v0.3.1-triz).
-
-### 6.8 CI/CD integrations
-
-GitHub Action `caf report --check` as PR status check (BACKLOG C-001). GitLab CI (BACKLOG C-002). Slack daily `caf report --day` (BACKLOG C-003).
-
-### 6.9 Exit criteria for FUTURE items
-
-Each FUTURE item must satisfy these four promotion criteria before it can leave the BACKLOG:
-
-1. **Clear problem statement** — what currently doesn't work or is inefficient.
-2. **Design sketch / minimal ADR** — at least 3-4 lines of how it could work; an ADR if architectural.
-3. **Pilot user** — someone who will use the feature within 2 weeks of shipping.
-4. **Success metric** — concrete number, not "feels better".
-
-> **TRIZ-pass note (v0.3.1-triz):** BACKLOG.md originally cited `ROADMAP.md §6.10` three times for these criteria. The actual criteria live here in §6.9 (there is no §6.10). All citations in BACKLOG.md have been corrected to point to this section.
-
-"Без этих четырёх пунктов item остаётся в BACKLOG."
+| Type | Question shape | Tests | Triggers generation |
+|------|---------------|-------|---------------------|
+| `why` | "Why does this code use X?" | Fact recall | Decision created |
+| `what_if_remove` | "If we removed X, what would break?" | Abstract reasoning | Graph build detects dependency |
+| `where_handled` | "Where in the codebase is X handled?" | Trace through code | Graph build detects event handler |
 
 ---
 
-## 7. Cross-phase Concerns
+## 6. MCP Server (PROD layer)
 
-### 7.1 Testing strategy
+### 6.1 MCP tools (5)
 
-| Test layer | Coverage target | Phase | What it tests |
-|------------|-----------------|-------|---------------|
-| Unit | ≥80% | MVP | All non-trivial functions; pure logic |
-| TUI snapshot tests | Per screen | MVP | Visual regression — see UI.md §14.4 |
-| Adapter contract tests | All 25 × 3 events = 78 cases | MVP (12 cases), ALPHA (+9), BETA (+24), PROD (+33) | Per-adapter capability matrix |
-| Integration `.caf/` round-trip | All YAML files | ALPHA | Write → read → diff = 0 |
-| E2E 1 per adapter smoke | 25 adapters | BETA | Real adapter invocation, real `.caf/` |
-| Performance benchmarks | First paint, frame render, keystroke, file op | MVP | UI.md §0.3 budgets; alert on >2x regression |
-| **Property-based tests for SM-2** | ease ∈ [1.3, 3.0] invariant | BETA | INV-ARCH-006 enforcement |
-| Terminal compat tests | 8 terminals | BETA | UI.md §12.1 compat matrix |
+| Tool | Input | Output | Phase |
+|------|-------|--------|-------|
+| `caf.context` | repo name | `context.md` (~2000 tokens) | PROD |
+| `caf.provenance` | file:line | Session list with prompts | PROD |
+| `caf.decisions` | filter (tag/file/agent) | Decision summary list | PROD |
+| `caf.mental_model` | user context | Due cards JSON | PROD |
+| `caf.first_person_explain` 🔥 | file path | First-person Markdown narrative | PROD |
 
-### 7.2 Documentation strategy
+### 6.2 MCP prompts (3)
 
-| Doc | Phase | Owner | What it covers |
-|-----|-------|-------|----------------|
-| README | MVP | maintainers | Quick start, install, 5-minute tour |
-| ARCHITECT (this file) | MVP | maintainers | Architectural layers, capability matrix, invariants, fail-safe contract |
-| UI | MVP | maintainers | All TUI screens, ASCII mockups, keyboard maps, performance budgets |
-| ROADMAP | MVP | maintainers | Phases, deliverables, exit criteria, success metrics |
-| BACKLOG | MVP | community | Catalog of ideas not yet committed; promotion criteria |
-| ADR | MVP | maintainers | Architectural Decision Records — see ADR.md |
-| Adapter dev guide | ALPHA | adapter contributors | How to write a new adapter (5-method interface, capability matrix) |
-| User guide | ALPHA | maintainers | End-user docs; onboarding flow; common workflows |
-| MCP integration guide | PROD | maintainers | How to plug `caf` into MCP-aware agents |
-| Migration guides | per breaking change | maintainers | `caf migrate v0.2-to-v0.3`, etc. |
+| Prompt | Purpose |
+|--------|---------|
+| `caf.pre_session_brief` | What an agent should know before editing |
+| `caf.code_review_with_provenance` | Review a PR with authorship context |
+| `caf.archaeology` | Explain why a file looks the way it does |
 
-### 7.3 Release strategy
+### 6.3 Transport
 
-- semver `0.x.y` pre-PROD; `1.0.0` at PROD.
-- `CHANGELOG.md` from conventional commits.
-- GitHub Releases with Linux/macOS/Windows binaries.
-- Pre-release artifacts tagged `0.x.y-rc.N`.
-
-### 7.4 Backwards compatibility
-
-- `.caf/` schema is additive across major versions (INV-ARCH-007, INV-ADR-001): new fields are optional; old fields are never removed within a major version.
-- Adapter interface (5 methods) stable within a major version (INV-ARCH-002): new methods can be added as default-implemented; existing methods' signatures never change.
-- `caf migrate` for breaking changes between major versions.
-- **Config schema (referenced from ADR-004).** `.caf/config.yml` schema — keys: `triviality_threshold_loc` (default 50, ADR-004), `ui.heatmap_refresh_seconds` (default 30, INV-ARCH-005 sub-budget), `ui.theme` (dark/light/auto/high-contrast, ADR-014), `ui.language` (RU/EN, ADR-006 default), `decisions.autocomplete` (aggressive/conservative/off, ALPHA), `review.max_cards` (default 15, BETA), `lsp.strict` (true/false, MVP), `llm.backend` (PROD, future ADR-017), `telemetry.enabled` (default false, BACKLOG J-004). All keys are optional with sensible defaults; missing keys = use default. Schema version field: `version` (current `0.3.1-triz`). Migration path: `caf migrate v0.2-to-v0.3` adds `agent_tier`, `auto_detected`, `ui` sections to existing `.caf/config.yml`.
+- **stdio** — `caf mcp serve` (default; for local MCP clients).
+- **HTTP SSE** — `caf mcp serve --transport sse` (for remote/web clients).
 
 ---
 
-## 8. Phase Transitions
+## 7. Config Schema
 
-### 8.1 MVP → ALPHA
+### 7.1 .caf/config.yml
 
-**Trigger:** MVP exit criteria met; universal fallback works for ≥3 different agents; ≥1 external early adopter using `caf` ≥2 weeks; adapter contract suite stable (12 cases pass on 4 adapters).
+```yaml
+# .caf/config.yml
+version: 0.4.0-triz2
 
-**Migration:** `caf init` adds `decisions/` directory to existing `.caf/` folder. `caf migrate v0.2-to-v0.3` for users coming from v0.2.
+# Triviality (ADR-004)
+triviality_threshold_loc: 50
 
-### 8.2 ALPHA → BETA
+# UI (ADR-014)
+ui:
+  theme: dark            # dark | light | auto | high-contrast
+  language: ru           # ru | en
+  heatmap_refresh_seconds: 30
+  review_max_cards: 15
 
-**Trigger:** ALPHA exit criteria met; Decision Coverage ≥90% on 2+ pilot repos; TUI decision editor avg ≤30s; ≥5 external users.
+# Decisions (ALPHA)
+decisions:
+  autocomplete: aggressive  # aggressive | conservative | off
 
-**Migration:** `caf init` adds `mental-model/` directory. First `caf review --regenerate --since 7d` populates initial cards.
+# LLM (PROD, opt-in by default — INV-ARCH-008)
+llm:
+  backend: ""             # "" (disabled) | z-ai-web-dev-sdk | local-ollama | custom
+  endpoint: ""            # custom endpoint URL
+  model: ""               # model name
 
-### 8.3 BETA → PROD
+# LSP (MVP)
+lsp:
+  strict: true            # true = fail-fast on LSP errors; false = warn-and-continue
 
-**Trigger:** BETA exit criteria met; Mental Model Reach ≥70% on 3+ pilot repos; Recall Rate ≥75% sustained 4 weeks; all 25 explicit adapters shipped; `caf.first_person_explain` produces factually accurate narratives.
+# Telemetry (PROD, opt-in — FR-SEC-006)
+telemetry:
+  enabled: false          # default false; no content sent
+  endpoint: ""            # custom endpoint
 
-**Migration:** `caf init` adds MCP config (`.caf/mcp.yml`). `caf sync` enables cross-repo tracking.
+# Security (NEW v0.4-triz2)
+security:
+  signed_adapters_required: false  # PROD: true for community adapters
+  sandbox_parser: true             # always true; cannot be disabled
+  audit_log: true                  # append-only hash-chained log
 
-### 8.4 PROD → FUTURE
+# Observability (NEW v0.4-triz2)
+observability:
+  otel_enabled: false              # PROD: opt-in
+  otel_endpoint: ""                # OTel collector URL
+  metrics_export: false            # Prometheus endpoint
+  metrics_port: 9464
 
-**Trigger:** PROD 1.0 released; 6 months of stable operation; ≥50 active users; FUTURE items prioritized via community process (4 promotion criteria, §6.9).
+# Cost (NEW v0.4-triz2)
+cost:
+  llm_token_cap_daily: 100000      # max tokens per day per user
+  llm_token_cap_monthly: 2000000   # max tokens per month
+  alert_threshold_pct: 80          # alert at 80% of cap
+```
 
----
+### 7.2 Config invariants
 
-## 9. Resourcing (rough estimates)
-
-| Phase | Maintainer hours/week | Community PRs expected | Architectural components needing most attention |
-|-------|-----------------------|------------------------|-------------------------------------------------|
-| MVP | 15-20 | 0-2 | Storage layer (ADR-001, ADR-005); universal LSP fallback (ADR-013); TUI dashboard (ADR-014) |
-| ALPHA | 20-25 | 2-5 | Decision Log schema (ADR-001); autocomplete pre-built indexes (UI.md §5.3); pre-commit validation (ADR-003, ADR-004) |
-| BETA | 25-30 | 5-10 | SM-2 implementation (ADR-002); property-based tests (INV-ARCH-006); TUI review session (UI.md §4); graph builder on >10k files |
-| PROD | 20-25 (stabilization) | 10-15 | MCP server (ADR-006); LLM grounding for `caf.first_person_explain` (INV-ADR-006); cross-repo sync; success metrics |
-| FUTURE | variable | 15+ | Per FUTURE item |
-
-Full-time engagement (40h/week) compresses timelines ~2x.
-
-**🔥 80/20 implication:** high-leverage components (universal hook, LSP fallback, dashboard) — small effort, big value. Most of MVP budget should go to these, not to custom adapters for Tier 2/3 agents (those are ALPHA/BETA/PROD work).
-
----
-
-## 10. Open Questions
-
-Six numbered open architectural questions, to be resolved via ADRs:
-
-1. **(MVP)** `caf init --auto-detect` — offer all detected adapters with recommended marker, or auto-install recommended only?
-2. **(MVP)** Default LSP server for Go: `gopls` — bundle in `caf` binary or require install? See ADR-026 (future).
-3. **(ALPHA)** Default `triviality_threshold_loc`: 50 (see ADR-004). Confirmed.
-4. **(BETA)** LLM for `first_person_explain`: configurable, `z-ai-web-dev-sdk` as default. See ADR-017 (future).
-5. **(PROD)** `caf sync` with private repos: yes, via git credential helper. Confirmed.
-6. **(FUTURE)** Multi-user backward-compat: yes, optional `author` field. See BACKLOG G-001, ADR-016 (future).
-
-"Эти вопросы будут решены через ADRs." Each accepted ADR retires one open question.
-
----
-
-## 11. v0.2 → v0.3 Migration Notes
-
-### 11.1 What changed
-
-| Aspect | v0.2 | v0.3 | Architectural reason |
-|--------|------|------|----------------------|
-| Agent count | 9 explicit | 25 explicit + universal LSP | Coverage; ADR-012, ADR-013 |
-| Default install (no-args) | nothing | universal hook + LSP 🔥 | "Provenance by default" principle; ADR-003, ADR-013 |
-| Adapter tiers | 3 | 4 (added Tier 4 universal LSP) | Long-tail coverage; ADR-012, ADR-013 |
-| Prioritization | feature-parity | 🔥 80/20 | Concentrated investment; ADR-015 |
-| UI | CLI text | TUI-first | Universal SSH/Docker/CI; ADR-014 |
-| Pre-commit | per-adapter | 🔥 universal | One hook for all agents; ADR-003 |
-| Architecture file (this file) | (implicit, scattered across ADRs) | explicit, with capability matrix + invariants | Agent readability — see YAML front-matter |
-| ROADMAP file | (separate, with same structure as this file but different content) | (separate, with same structure but roadmap-focused content) | TRIZ-pass: ARCHITECT and ROADMAP are no longer byte-identical duplicates |
-
-### 11.2 Migration path
-
-- `.caf/` schema is additive (`agent_tier`, `auto_detected`, `ui` config section added; existing fields preserved).
-- v0.3 `caf init` no-args installs universal hook.
-- All v0.2 commands still work (aliases preserved).
-- New commands: `caf dashboard`, `caf heatmap`, `caf tour`, `caf adapters list` (TUI versions).
-
-### 11.3 What's deprecated in v0.3
-
-Nothing. v0.3 is purely additive. (v0.2 commands work as aliases to v0.3 commands; output format may differ — TUI vs text.)
+- All keys optional with sensible defaults.
+- Missing keys = use default.
+- Schema versioned (`version` field); `caf migrate` for breaking changes.
+- Config never contains secrets (no API keys, no passwords).
 
 ---
 
-## 12. Success Measurement
+## 8. Security Architecture (NEW in v0.4-triz2)
 
-### 12.1 Per-phase metrics
+**EN summary.** Security was implicit in v0.3.1-triz (scattered across ADRs). v0.4-triz2 consolidates it as a first-class architectural layer with its own threat model, controls, and invariants. The layer wraps all four core layers (Interface, Storage, Hooks, Adapter) as a concentric shell — TRIZ Principle 14 (Spherification).
 
-| Phase | Primary metric | Target | Architectural invariant enforced |
-|-------|----------------|--------|----------------------------------|
-| MVP | Universal hook fires on 3+ different agents | 3+ agents in 7-day pilot | INV-ARCH-004 (fail-safe), INV-ARCH-003 (LSP fallback) |
-| ALPHA | Decision Coverage ≥90% (last 7 days) | 90% | INV-ADR-004 (50 LOC threshold) |
-| BETA | Recall Rate sustained 4 weeks ≥75% | 75% | INV-ARCH-006 (ease ∈ [1.3, 3.0]) |
-| PROD | All 6 success metrics met (see §5.3) | all 6 | INV-ADR-006 (LLM no hallucination) |
-| FUTURE | Per item (4 promotion criteria, §6.9) | per item | (per item) |
+### 8.1 Threat model
 
-### 12.2 Adoption metrics (post-PROD)
+```mermaid
+graph TD
+    subgraph "Threat actors"
+        T1["Malicious .caf/<br/>from cloned repo"]
+        T2["Compromised adapter<br/>supply chain"]
+        T3["LLM data exfiltration<br/>via crafted prompts"]
+        T4["Insider with .caf/<br/>write access"]
+        T5["Audit log tampering"]
+    end
+    
+    subgraph "Assets"
+        A1["Source code<br/>(user's IP)"]
+        A2[".caf/ integrity<br/>(decisions, sessions)"]
+        A3["LLM API costs<br/>(token budget)"]
+        A4["User privacy<br/>(no telemetry leak)"]
+    end
+    
+    T1 --> A2
+    T2 --> A1
+    T2 --> A2
+    T3 --> A1
+    T4 --> A2
+    T5 --> A2
+    
+    style T1 fill:#e06c75,color:#fff
+    style T2 fill:#e06c75,color:#fff
+    style T3 fill:#e06c75,color:#fff
+    style A1 fill:#61afef,color:#fff
+    style A2 fill:#61afef,color:#fff
+```
 
-| Metric | Target (12 months post-1.0) |
-|--------|------------------------------|
-| GitHub stars | ≥500 |
-| Weekly active users | ≥100 |
-| Community-contributed adapters | ≥5 new |
-| Languages supported | ≥3 (Go + 2) |
-| Issues closed | ≥80% within 30 days |
+### 8.2 Security controls
+
+| Threat | Control | Owning FR | Phase | Status |
+|--------|---------|----------|-------|--------|
+| Malicious `.caf/` YAML with `os.Execute` | Sandboxed parser: no `os.Execute`, no file writes outside `.caf/`, no network calls | FR-SEC-001 | ALPHA | INV-ARCH-010 |
+| Compromised community adapter | Adapter signature verification (GPG/cosign) before install | FR-SEC-002 | PROD | BACKLOG F-002 |
+| LLM exfiltrates source code via prompt | LLM calls never include full file contents; only diff summaries + decision records | FR-SEC-003 | PROD | ADR-006, INV-ADR-006 |
+| LLM unavailable for enterprise | On-prem Ollama deployment; no data leaves network | FR-SEC-004 | PROD | BACKLOG F-004 |
+| Insider tampers with audit log | `.caf/audit.log` append-only with hash chain (Merkle-style) | FR-SEC-005 | FUTURE | BACKLOG F-002 |
+| Telemetry leaks user content | Telemetry opt-in; no content sent (only command counts + error rates) | FR-SEC-006 | PROD | BACKLOG J-004 |
+
+### 8.3 Sandboxed YAML parser
+
+```go
+// internal/caf/security/sandbox.go
+func ParseYAML(data []byte, out interface{}) error {
+    // 1. Use gopkg.in/yaml.v3 (no custom tags that execute code)
+    // 2. Validate output struct (no interface{} at top level)
+    // 3. Reject any YAML tag that starts with "!" (custom tags)
+    // 4. No os.Execute, no file writes, no network calls in parser
+    return yaml.Unmarshal(data, out)
+}
+```
+
+**TRIZ Principle 22 (Blessing in disguise).** The sandboxed parser constraint also makes the parser faster (no tag evaluation) and more predictable (no side effects). The security constraint improves performance.
+
+### 8.4 LLM data minimization
+
+```go
+// internal/caf/mcp/first_person.go
+func (s *Server) firstPersonExplain(file string) (string, error) {
+    // 1. Load .caf/ facts (decisions, sessions, provenance) — LOCAL
+    facts := s.storage.FactsFor(file)
+    if len(facts) == 0 {
+        return "No provenance for this file.", nil  // never invent
+    }
+    
+    // 2. Build prompt with ONLY facts (no full file contents)
+    prompt := buildGroundedPrompt(facts)  // INV-ADR-006
+    
+    // 3. LLM paraphrases (not generates)
+    narrative, err := s.llm.Paraphrase(prompt)
+    if err != nil {
+        return templateFallback(facts), nil  // FR-AI-005 graceful degradation
+    }
+    
+    // 4. Post-generation grounding check
+    if !verifyGrounding(narrative, facts) {
+        return templateFallback(facts), nil  // hallucination detected
+    }
+    
+    return narrative, nil
+}
+```
 
 ---
 
-## Trace Matrix (architectural — TRIZ-pass addition)
+## 9. Observability Architecture (NEW in v0.4-triz2)
 
-| Architectural layer | ADR | Code path | UI screen | Invariant |
-|---------------------|-----|-----------|-----------|-----------|
-| Storage (`.caf/`) | ADR-001, ADR-005 | `internal/caf/storage/` | UI.md §3 Dashboard (Cross-repo widget) | INV-ARCH-001, INV-ARCH-007 |
-| Hooks (universal + adapter) | ADR-003, ADR-010 | `internal/caf/hooks/`, `internal/caf/watch/` | UI.md §7 Adapters manager | INV-ARCH-004 |
-| Adapter pattern | ADR-009, ADR-012 | `internal/caf/adapter.go`, `internal/adapters/` | UI.md §7 Adapters manager | INV-ARCH-002 |
-| Universal LSP fallback (Tier 4) | ADR-013 | `internal/caf/lsp/fallback.go` | UI.md §7.4 Health check view | INV-ARCH-003 |
-| Triviality threshold | ADR-004 | `internal/caf/triviality/threshold.go` | (none — internal) | INV-ADR-004 |
-| SRS (SM-2) | ADR-002 | `internal/caf/srs/sm2.go` | UI.md §4 Review Session | INV-ARCH-006 |
-| MCP server | ADR-006 (first-person) | `internal/caf/mcp/server.go` | (none — server-side) | INV-ADR-006 |
-| TUI | ADR-014 | `pkg/ui/` | UI.md §0-§15 | INV-ARCH-005 |
-| 80/20 prioritization | ADR-015 | (cross-cutting) | UI.md §0.3 Performance budget | (cross-cutting) |
-| Multi-language adapters | ADR-011 | `internal/caf/lang/` | (none in MVP) | INV-ARCH-002 (LanguageAdapter interface) |
-| Fail-safe contract | ADR-003 (INV-ADR-003), ADR-010 | `internal/caf/hooks/fail_safe.go` | (none — internal) | INV-ARCH-004 |
-| Config schema | (within this §7.4) | `internal/caf/config/config.go` | UI.md §11 Settings Editor | (within §7.4) |
+**EN summary.** Observability answers "how do we know the system is healthy in production?". Three pillars: OpenTelemetry tracing, metrics export, `caf doctor` health checks. All opt-in for MVP/ALPHA/BETA; enabled by default in PROD.
+
+### 9.1 Three pillars
+
+```mermaid
+graph LR
+    subgraph "Observability pillars"
+        TRACING["Tracing<br/>OpenTelemetry<br/>per-command spans"]
+        METRICS["Metrics<br/>Prometheus endpoint<br/>/metrics"]
+        HEALTH["Health<br/>caf doctor<br/>integrity checks"]
+    end
+    
+    CAF["caf core"] --> TRACING
+    CAF --> METRICS
+    CAF --> HEALTH
+    
+    TRACING --> OTEL["OTel Collector"]
+    METRICS --> PROM["Prometheus"]
+    HEALTH --> TUI["TUI dashboard"]
+    
+    style TRACING fill:#c678dd,color:#fff
+    style METRICS fill:#c678dd,color:#fff
+    style HEALTH fill:#c678dd,color:#fff
+```
+
+### 9.2 Tracing (OpenTelemetry)
+
+Every `caf` command emits a span:
+
+```go
+// internal/caf/observability/otel.go
+func TraceCommand(name string, fn func() error) error {
+    ctx, span := tracer.Start(context.Background(), "caf."+name)
+    defer span.End()
+    
+    start := time.Now()
+    err := fn()
+    duration := time.Since(start)
+    
+    span.SetAttributes(
+        attribute.String("caf.command", name),
+        attribute.Float64("caf.duration_ms", float64(duration.Milliseconds())),
+        attribute.Bool("caf.success", err == nil),
+    )
+    
+    return err
+}
+```
+
+**Performance budget:** tracing adds <50ms per operation (INV-ARCH-011). Negligible vs. typical command durations (500ms+).
+
+### 9.3 Metrics export (Prometheus)
+
+`caf metrics --export prometheus` exposes HTTP endpoint `/metrics` on port 9464:
+
+```
+# HELP caf_acs_score Authorship Confidence Score (rolling 7-day avg)
+# TYPE caf_acs_score gauge
+caf_acs_score{repo="my-backend"} 3.8
+
+# HELP caf_decision_coverage Decision coverage (last 7 days)
+# TYPE caf_decision_coverage gauge
+caf_decision_coverage{repo="my-backend"} 0.92
+
+# HELP caf_recall_rate Recall rate (rolling 7-day avg)
+# TYPE caf_recall_rate gauge
+caf_recall_rate{repo="my-backend"} 0.78
+
+# HELP caf_llm_tokens_total Total LLM tokens consumed
+# TYPE caf_llm_tokens_total counter
+caf_llm_tokens_total{repo="my-backend",operation="first_person_explain"} 45230
+```
+
+### 9.4 caf doctor (health checks)
+
+```bash
+$ caf doctor
+✓ .caf/ folder present and valid
+✓ .caf/config.yml schema valid (v0.4.0-triz2)
+✓ .caf/sessions/ has 47 sessions, latest 2h ago
+✓ .caf/decisions/ has 12 decisions, no gaps
+✓ .caf/mental-model/cards.yml has 89 cards, 5 due today
+✓ .caf/mental-model/graph.yml is fresh (1h old)
+✓ Universal pre-commit hook installed and executable
+✓ LSP server (gopls) responds in 480ms
+✓ All 4 installed adapters pass health check
+✗ .caf/ size is 52 MB (exceeds 50 MB threshold — see ADR-001)
+  Recommendation: caf prune --older-than 90d
+⚠ OpenTelemetry export failed (endpoint unreachable) — see config
+```
+
+**TRIZ Principle 25 (Self-service).** `caf doctor` runs automatically on `caf init` and surfaces issues before they block work. The system self-diagnoses.
+
+---
+
+## 10. Cost Architecture (NEW in v0.4-triz2)
+
+**EN summary.** LLM calls cost money. Without cost controls, a heavy user could burn $100s/day on `caf.first_person_explain`. The cost layer tracks token consumption, enforces per-user caps, and alerts on threshold breach.
+
+### 10.1 Token tracking
+
+```go
+// internal/caf/cost/tracker.go
+type TokenTracker struct {
+    daily   map[string]int  // date → tokens
+    monthly map[string]int  // month → tokens
+    cap     Config          // daily, monthly, alert threshold
+}
+
+func (t *TokenTracker) Consume(operation string, tokens int) error {
+    today := time.Now().Format("2006-01-02")
+    t.daily[today] += tokens
+    
+    if t.daily[today] > t.cap.Daily {
+        return ErrDailyCapExceeded
+    }
+    
+    if t.daily[today] > t.cap.Daily*t.cap.AlertThresholdPct/100 {
+        log.Warn("LLM daily token usage at %d%% of cap", t.cap.AlertThresholdPct)
+    }
+    
+    return nil
+}
+```
+
+### 10.2 Cost optimization (TRIZ Principle 35 — Parameter change)
+
+| Optimization | How | Savings |
+|--------------|-----|---------|
+| Cache `first_person_explain` per file | `.caf/cache/narratives/<file-hash>.md` | 80% cache hit after first explain |
+| Use smaller model for paraphrase | `glm-4-flash` instead of `glm-4.6` for simple paraphrase | 10x cost reduction |
+| Batch decision summarization | One LLM call for 5 decisions instead of 5 calls | 5x reduction |
+| Local Ollama for enterprise | No per-token cost after deployment | 100% (after capex) |
+
+### 10.3 Cost dashboard (TUI)
+
+`caf cost --dashboard` shows:
+
+```
+LLM cost — October 2026
+─────────────────────────────────────────
+Today:      12,450 tokens   ($0.12)
+This week:  87,230 tokens   ($0.87)
+This month: 342,100 tokens  ($3.42)  ← 17% of monthly cap
+
+Operations:
+  caf.first_person_explain   78% (267K tokens)
+  caf decisions --ai-prefill 18% (62K tokens)
+  caf decisions --summary     4% (13K tokens)
+
+Cache hit rate: 82% (saved $1.55 this month)
+```
+
+---
+
+## 11. TRIZ 40 Principles — Architectural Mapping
+
+**EN summary.** v0.3.1-triz mentioned TRIZ but did not systematically map principles. v0.4-triz2 maps 18 high-impact principles to specific architectural components. Each principle has a concrete outcome.
+
+| # | Principle | Architectural application | Outcome |
+|---|-----------|--------------------------|---------|
+| 1 | Segmentation | `.caf/` split into functional subdirs; Adapter interface split into 5 methods | Independent regeneration; parallel dev |
+| 2 | Taking out | SRS card "takes out" the answer; LLM "takes out" generation (only paraphrases) | Active recall; no hallucination |
+| 3 | Local quality | `.caf/` per-repo (local), not centralized DB | Checkout time-travel; offline |
+| 4 | Asymmetry | TUI first (asymmetric investment); Web UI deferred | 80% value with 20% effort |
+| 5 | Combining | `session_id` combines trailer + timestamp + randomness; `Capabilities()` combines all tiers in one struct | One ID serves 3 purposes; one call gives everything |
+| 6 | Universality | Universal LSP fallback covers all languages; universal pre-commit covers all agents | 100% coverage with one component |
+| 10 | Preliminary action | Pre-commit hook prepares decision BEFORE commit; `trigger_to_reconsider` pre-records revisit conditions | Friction before irreversible; self-triggering |
+| 11 | Beforehand cushioning | `@invariant` tags pre-record properties that must hold | Self-enforcing invariants (ADR-029) |
+| 13 | The other way round | Git tells caf (not agent tells caf); LLM paraphrases (not generates) | Universal coverage via git; no hallucination |
+| 14 | Spherification | Security/Observability/Cost wrap core layers as concentric shells | Non-invasive addition of concerns |
+| 15 | Dynamicity | Capability matrix is data; config is YAML; tier reassignment = cell edit | No code changes for tier changes |
+| 22 | Blessing in disguise | LLM data minimization also reduces hallucination; sandboxed parser also faster | Constraint improves quality |
+| 25 | Self-service | Hooks capture provenance automatically; `caf doctor` self-diagnoses | ~100% capture rate; self-healing |
+| 26 | Copying | `caf who` mirrors `git blame`; `caf review` mirrors Anki | Zero learning curve |
+| 28 | Mechanics substitution | LLM substitutes manual narrative writing; rules substitute LLM generation (grounding) | Scale + safety |
+| 35 | Parameter change | SM-2 `ease_factor` adapts; LLM model size scales with task | Mechanical adaptation; cost optimization |
+| 36 | Phase transition | CLI → MCP shifts integration cost to consumers; `.caf/` → git-notes (FUTURE) shifts storage to git | One server serves all; storage dissolves |
+
+---
+
+## 12. 9-Screen Scheme — Architectural Evolution
+
+```mermaid
+graph TD
+    subgraph "9-Screen: CodeAuthorityFirst Architecture"
+        subgraph "Super-system"
+            SS_PAST["Past:<br/>Git, Anki, ADR<br/>pre-2025 primitives"]
+            SS_NOW["Present:<br/>30+ AI agents<br/>MCP protocol<br/>LSP standard"]
+            SS_FUT["Future:<br/>Autonomous PRs<br/>provenance-as-protocol<br/>regulation"]
+        end
+        subgraph "System"
+            S_PAST["Past v0.1:<br/>OryaSkill<br/>monolithic<br/>single agent"]
+            S_NOW["Present v0.4:<br/>CodeAuthorityFirst<br/>layered + secure<br/>+ observable + cost-tracked"]
+            S_FUT["Future v1.0+:<br/>distributed<br/>CRDT-native<br/>protocol-level"]
+        end
+        subgraph "Sub-system"
+            SUB_PAST["Past:<br/>flat YAML<br/>per-adapter forks"]
+            SUB_NOW["Present:<br/>segmented .caf/<br/>adapter registry<br/>sandboxed parser"]
+            SUB_FUT["Future:<br/>git-notes-native<br/>adapter marketplace<br/>zero-config"]
+        end
+    end
+```
+
+**Architectural insight.** The super-system future (provenance-as-protocol, regulation) forces the sub-system future (git-notes-native, distributed). The present architecture (v0.4) must preserve the option to dissolve `.caf/` into git itself — this is constraint C-09 from ARD, enforced as INV-ARCH-001 ("`.caf/` is regenerable from git + git-notes").
+
+**Strategic implication.** Do not over-invest in `.caf/`-as-storage infrastructure (no SQLite-as-primary, no complex indexing that can't be regenerated). Invest in `.caf/`-as-cache that can be rebuilt. The long-term direction is `.caf/` shrinking to near-zero.
+
+---
+
+## 13. Phase Boundaries (architectural view)
+
+| Phase | Architectural components shipped | Invariants enforced |
+|-------|--------------------------------|---------------------|
+| MVP | Storage (`.caf/`), Hooks (universal + 2 native), TUI dashboard, LSP fallback | INV-ARCH-001..005, INV-ADR-001..005 |
+| ALPHA | Decision Log, pre-commit validation, +3 Tier 1 adapters, caf doctor (basic) | + INV-ADR-004, INV-ARCH-010 (sandboxed parser) |
+| BETA | MMR, SM-2, 3 card types, graph builder, +8 Tier 2 adapters, heatmap | + INV-ARCH-006, INV-ADR-002 |
+| PROD | MCP server, cross-repo sync, +12 Tier 3 adapters, LLM features, observability, cost tracking | + INV-ADR-006, INV-ARCH-008, INV-ARCH-011 |
+| FUTURE | Multi-user, CRDT, plugins, IDE plugins, web UI (read-only) | + (per-item, see BACKLOG) |
+
+---
+
+## 14. Trace Matrix (architectural)
+
+| Architectural layer | ADR | Code path | UI screen | Invariant | Owning FRs |
+|---------------------|-----|-----------|-----------|-----------|------------|
+| Storage (`.caf/`) | ADR-001, ADR-005 | `internal/caf/storage/` | UI.md §3 Dashboard | INV-ARCH-001, INV-ARCH-007, INV-ARCH-010 | FR-PROV-001..006, FR-DEC-002, FR-PERF-005 |
+| Hooks (universal + adapter) | ADR-003, ADR-010 | `internal/caf/hooks/`, `internal/caf/watch/` | UI.md §7 Adapters manager | INV-ARCH-004 | FR-PROV-001, FR-DEC-001, FR-REL-001 |
+| Adapter pattern | ADR-009, ADR-012 | `internal/caf/adapter.go`, `internal/adapters/` | UI.md §7 Adapters manager | INV-ARCH-002, INV-ARCH-009 | FR-ADP-001..007 |
+| Universal LSP fallback (Tier 4) | ADR-013 | `internal/caf/lsp/fallback.go` | UI.md §7.4 Health check | INV-ARCH-003 | FR-ADP-004 |
+| Triviality threshold | ADR-004 | `internal/caf/triviality/threshold.go` | (none — internal) | INV-ADR-004 | FR-DEC-001 |
+| SRS (SM-2) | ADR-002 | `internal/caf/srs/sm2.go` | UI.md §4 Review Session | INV-ARCH-006 | FR-SRS-001..007 |
+| MCP server | ADR-006 (first-person) | `internal/caf/mcp/server.go` | (none — server-side) | INV-ADR-006 | FR-AI-001..006 |
+| TUI | ADR-014 | `pkg/ui/` | UI.md §0-§15 | INV-ARCH-005, INV-UI-001..007 | FR-UI-001..010 |
+| 80/20 prioritization | ADR-015 | (cross-cutting) | UI.md §0.3 Performance budget | (cross-cutting) | (all FRs tagged) |
+| Multi-language adapters | ADR-011 | `internal/caf/lang/` | (none in MVP) | INV-ARCH-002 (LanguageAdapter) | FR-ADP-001, BACKLOG E-001..E-008 |
+| Fail-safe contract | ADR-003 (INV-ADR-003), ADR-010 | `internal/caf/hooks/fail_safe.go` | (none — internal) | INV-ARCH-004 | FR-REL-001 |
+| Config schema | (within this §7) | `internal/caf/config/config.go` | UI.md §11 Settings Editor | (within §7) | (cross-cutting) |
+| **Security (NEW)** | ADR-005 (sandbox), ADR-022 (future signed), ADR-028 (future governance) | `internal/caf/security/sandbox.go` | (none — internal) | INV-ARCH-010 | FR-SEC-001..006 |
+| **Observability (NEW)** | ADR-015 (metrics), (new ADR needed for OTel) | `internal/caf/observability/otel.go`, `internal/caf/metrics/` | UI.md §10.3 Metrics report | INV-ARCH-011 | FR-OBS-001..005 |
+| **Cost (NEW)** | ADR-017 (future LLM backend) | `internal/caf/cost/tracker.go` | UI.md §10.4 (proposed) Cost dashboard | (within §10) | FR-AI-003, FR-SEC-004 |
+
+---
+
+## 15. v0.3.1-triz → v0.4.0-triz2 Changelog
+
+1. **Security architecture added** (§8). Threat model, controls, sandboxed parser, LLM data minimization. New invariant INV-ARCH-010.
+2. **Observability architecture added** (§9). OpenTelemetry tracing, Prometheus metrics export, `caf doctor` health checks. New invariant INV-ARCH-011.
+3. **Cost architecture added** (§10). LLM token tracking, per-user caps, cost dashboard, cache-based optimization.
+4. **TRIZ 40 principles systematically mapped** (§11). 18 high-impact principles with concrete architectural outcomes.
+5. **9-screen scheme applied** (§12). Architectural evolution trajectory: past (v0.1), present (v0.4), future (v1.0+).
+6. **C-09 cache-friendly constraint enforced** (INV-ARCH-001). `.caf/` must be regenerable from git + git-notes; preserves dissolution option for v2.0.
+7. **INV-ARCH-008 added.** LLM is opt-in; default installation works without LLM (no network calls in MVP/ALPHA/BETA).
+8. **INV-ARCH-009 added.** Adapter failure is isolated; one adapter crashing does not block others.
+9. **Config schema expanded** (§7). New sections: `security`, `observability`, `cost`.
+10. **Trace matrix expanded** (§14). Three new rows for Security, Observability, Cost layers.

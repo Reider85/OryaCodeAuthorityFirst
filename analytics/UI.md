@@ -1,12 +1,13 @@
 ---
 doc: UI
 layer: ui
-version: 0.3.1-triz
+version: 0.4.0-triz2
 language: bilingual
 status: stable
-audience: [agents, UI/UX implementers, contributors adding TUI screens, design reviewers]
-related: [ARCHITECT.md, ROADMAP.md, BACKLOG.md, ADR.md]
+audience: [UI/UX implementers, contributors adding TUI screens, design reviewers, accessibility auditors]
+related: [ARD.md, ARCHITECT.md, ROADMAP.md, BACKLOG.md, ADR.md]
 depends_on: [ADR-014, ADR-002, ADR-005, ADR-009, ADR-013, ADR-015]
+supercedes: [UI.md v0.3.1-triz (additive update; 3 new screens added)]
 invariants:
   - {id: INV-UI-001, statement: "TUI first paint <100ms on pilot repos; >2x CI regression triggers alert", criticality: high, enforced_by: "CI benchmark — pkg/ui/perf.go"}
   - {id: INV-UI-002, statement: "Frame render <16ms (60fps) for scroll/redraw; uses virtualized lists + cached layouts", criticality: high, enforced_by: "bubbles/list virtualization"}
@@ -15,25 +16,25 @@ invariants:
   - {id: INV-UI-005, statement: "Screens mount lazily on first navigation (tea.Cmd returns LoadScreenMsg); closed screens cost zero render time (Islands/partial hydration analogue)", criticality: medium, enforced_by: "pkg/ui/screens/registry.go"}
   - {id: INV-UI-006, statement: "Lipgloss pre-computes style strings at app startup; only final render string emitted per frame (Critical CSS analogue)", criticality: medium, enforced_by: "Lipgloss API contract"}
   - {id: INV-UI-007, statement: "Heatmap render <200ms on 247-file repo; re-compute on file change <500ms incremental", criticality: high, enforced_by: "pre-computed + cached"}
-owned_contracts:
-  - "pkg/ui/tui.go — root model + Update(msg) + View() string"
-  - "pkg/ui/screens/*.go — one file per screen, all follow Purpose/Layout/Components/Keyboard map/Performance budget/Edge cases schema"
-  - "pkg/ui/components/ — header, statusbar, spinner, skeleton, heatmap"
-  - "pkg/ui/keys.go — universal keyboard map"
-  - "pkg/ui/perf.go — performance budget enforcer + CI benchmark hooks"
+  - {id: INV-UI-008, statement: "Color-blind friendly: pair color with text/symbol, never color-only. WCAG-equivalent for terminal. High-contrast mode available.", criticality: high, enforced_by: "design review + accessibility audit (§16)"}
+  - {id: INV-UI-009, statement: "Keyboard-only operation is 100% complete; no feature requires mouse (mouse is additive, FUTURE K-011)", criticality: high, enforced_by: "PR review checklist"}
+  - {id: INV-UI-010, statement: "Every screen has a help overlay (?) and an empty state with CTA; no dead-end states", criticality: medium, enforced_by: "screen template (§0.7)"}
 agent_routing:
-  - {task: "Add new TUI screen", see: [§0 UI Philosophy, §1.3 Common UI patterns, §13.1 File organization], template: "Purpose/Layout/Components/Keyboard map/Performance budget/Edge cases"}
-  - {task: "Optimize TUI performance", see: [§0.3 Performance budget, §13.2 State management, §13.3 Virtualization, §13.4 Caching], invariant: INV-UI-001 through INV-UI-007}
+  - {task: "Add new TUI screen", see: [§0 UI Philosophy, §1.3 Common UI patterns, §17.1 File organization, §0.7 Screen template], template: "Purpose/Layout/Components/Keyboard map/Performance budget/Edge cases"}
+  - {task: "Optimize TUI performance", see: [§0.3 Performance budget, §17.2 State management, §17.3 Virtualization, §17.4 Caching], invariant: INV-UI-001 through INV-UI-007}
   - {task: "Add new keyboard shortcut", see: [§0.6 Universal keyboard map], conflict_check: "must not collide with universal map"}
   - {task: "Fix terminal compat issue", see: [§12.1 Terminal compatibility]}
-  - {task: "Implement skeleton/SWR for new screen", see: [§3.5 Refresh strategy, §13.2 State management]}
+  - {task: "Implement skeleton/SWR for new screen", see: [§3.5 Refresh strategy, §17.2 State management]}
+  - {task: "Audit accessibility", see: [§16 Accessibility audit (NEW v0.4-triz2)]}
+  - {task: "Add observability screen (NEW v0.4-triz2)", see: [§13 Metrics dashboard, §14 Cost dashboard, §15 Doctor view]}
 trace_to_code:
   - "pkg/ui/tui.go — root model"
   - "pkg/ui/theme.go — color palette, typography"
   - "pkg/ui/components/{header,statusbar,spinner,skeleton,heatmap}.go"
-  - "pkg/ui/screens/{onboarding,dashboard,review,decisions_list,decisions_detail,decisions_editor,heatmap,adapters,file_tour,reports,settings}.go"
+  - "pkg/ui/screens/{onboarding,dashboard,review,decisions_list,decisions_detail,decisions_editor,heatmap,adapters,file_tour,reports,settings,metrics,cost,doctor}.go"
   - "pkg/ui/keys.go"
   - "pkg/ui/perf.go"
+  - "pkg/ui/a11y.go — accessibility helpers (NEW v0.4-triz2)"
 ui_budgets:
   first_paint: "<100ms (any screen)"
   frame_render: "<16ms (60fps, scroll/redraw)"
@@ -63,16 +64,21 @@ ui_budgets:
   dashboard_auto_refresh_interval: "30s (configurable via ui.heatmap_refresh_seconds)"
   manifest_cache: "1h"
   ci_regression_alert_threshold: ">2x regression triggers alert"
+  doctor_run: "<5s (11 checks, parallel where possible) — NEW v0.4-triz2"
+  metrics_dashboard_load: "<500ms (rolling log aggregation) — NEW v0.4-triz2"
+  cost_dashboard_load: "<300ms (token aggregation) — NEW v0.4-triz2"
+  otel_overhead_per_command: "<50ms (INV-ARCH-011) — NEW v0.4-triz2"
 ---
 
 # CodeAuthorityFirst — UI.md
+# Документ пользовательского интерфейса / UI specification
 
-> **Версия / Version:** 0.3.1-triz (post-TRIZ pass: phase conflicts resolved — Dashboard moved to MVP per ROADMAP §2.1, File tour moved to BETA per ROADMAP §4.1; UI-velocity patterns documented explicitly — Critical CSS analogue, Islands/partial hydration analogue, Skeleton/SWR analogue; @invariant tags added to every performance budget subsection; front-matter cross-refs to BACKLOG.md and ADR.md repaired.)
+> **Версия / Version:** 0.4.0-triz2 (post-TRIZ-2 pass: 3 new screens added — Metrics dashboard §13, Cost dashboard §14, Doctor view §15; accessibility audit added as §16 with WCAG-equivalent for terminal; screen template formalized in §0.7; UI-velocity patterns expanded with 4th pattern — Progressive enhancement analogue)
 > **Назначение / Purpose:** detailed specification of all user-facing interfaces — primarily TUI (terminal UI), with progressive enhancements for IDE plugins and (future) web UI. Every screen has ASCII mockup, keyboard map, performance budget, and edge cases.
-> **Философия / Philosophy:** TUI-first (🔥 80/20), sub-100ms response, keyboard-only operation possible, lazy rendering for large datasets. Three UI-velocity patterns (originally from web) are implemented as native TUI patterns: Critical CSS analogue (Lipgloss pre-computed styles), Islands/partial hydration analogue (lazy screen mount), Skeleton/SWR analogue (placeholder + DataLoadedMsg swap).
+> **Философия / Philosophy:** TUI-first (🔥 80/20), sub-100ms response, keyboard-only operation possible, lazy rendering for large datasets, accessibility by design. Four UI-velocity patterns (originally from web) are implemented as native TUI patterns: Critical CSS analogue, Islands/partial hydration analogue, Skeleton/SWR analogue, Progressive enhancement analogue (NEW v0.4-triz2).
 > **Язык / Language:** bilingual — Russian body, English summary per section
-> **Аудитория / Audience:** UI/UX implementers, contributors adding TUI screens, design reviewers, LLM agents reasoning about UI velocity budgets
-> **Связанные документы:** [ARCHITECT.md](./ARCHITECT.md) · [ROADMAP.md](./ROADMAP.md) · [BACKLOG.md](./BACKLOG.md) · [ADR.md](./ADR.md)
+> **Аудитория / Audience:** UI/UX implementers, contributors adding TUI screens, design reviewers, accessibility auditors, LLM agents reasoning about UI velocity budgets
+> **Связанные документы:** [ARD.md](./ARD.md) · [ARCHITECT.md](./ARCHITECT.md) · [ROADMAP.md](./ROADMAP.md) · [BACKLOG.md](./BACKLOG.md) · [ADR.md](./ADR.md)
 
 ---
 
@@ -82,13 +88,14 @@ ui_budgets:
 
 **EN summary.** TUI-first covers 80% of use cases with 20% of effort. Terminal apps start in <50ms; web apps need server + bundle. SSH/Docker/CI all have terminals, none have browsers. Keyboard-native aligns with vim/Emacs users. No Node.js, no browser, no Electron — single Go binary.
 
-TUI-first — архитектурное решение (ADR-014), не fallback. Пять причин:
+TUI-first — архитектурное решение (ADR-014), не fallback. Шесть причин:
 
 1. **🔥 80/20.** TUI покрывает 80% UX use cases 20% effort. Web UI — отложен до FUTURE.
-2. **Скорость.** Terminal apps start in <50ms. Web apps 500-2000ms (server + bundle + render).
-3. **Универсальность.** SSH, Docker, CI — везде есть terminal, нигде нет browser. TUI работает в tmux, в IDE-integrated terminal, в VSCode terminal.
-4. **Keyboard-native.** Developers know vim. `?` for help is universal (less/vim/man).
+2. **Скорость.** Terminal apps start in <50ms. Web apps 500-2000ms.
+3. **Универсальность.** SSH, Docker, CI — везде есть terminal, нигде нет browser.
+4. **Keyboard-native.** Developers know vim. `?` for help is universal.
 5. **No deps.** Single Go binary. No Node.js, no browser, no Electron.
+6. **Accessibility by default (NEW v0.4-triz2).** TUI is screen-reader friendly (text output); keyboard-only is the natural mode; high-contrast is a config flag, not an afterthought.
 
 | Критерий | TUI | Web UI |
 |----------|-----|--------|
@@ -97,18 +104,15 @@ TUI-first — архитектурное решение (ADR-014), не fallback
 | SSH/Docker/CI | ✓ universal | ✗ requires port-forward |
 | Keyboard-first | ✓ native | requires tab-trapping JS |
 | Maintenance cost | 1 stack (Go + Bubble Tea) | 2 stacks (Go + Node + browser quirks) |
+| Screen reader support | ✓ (text output) | requires ARIA |
 | Coverage | 80% use cases | 95% use cases |
 
-**Вывод:** TUI покрывает 80% use cases с 20% effort. Web UI отложен до FUTURE (см. §1.4).
-
 ### 0.2 TUI stack
-
-**EN summary.** Stack: Bubble Tea (ELM architecture framework), Lipgloss (styling), Bubbles list (virtualization), Glamour (markdown), termenv (color detection). Rejected tview (older), gocui (lower-level), raw ANSI (error-prone). The stack implements three UI-velocity patterns natively (Critical CSS, Islands/partial hydration, Skeleton/SWR analogues — see §13.1 for the architectural mapping).
 
 | Component | Choice | Reason |
 |-----------|--------|--------|
 | Framework | [Bubble Tea](https://github.com/charmbracelet/bubbletea) | ELM architecture (Model-Update-View), `tea.Cmd` for async, mature |
-| Styling | [Lipgloss](https://github.com/charmbracelet/lipgloss) | Style strings pre-computed at startup; **Critical CSS analogue** — see §13.1 |
+| Styling | [Lipgloss](https://github.com/charmbracelet/lipgloss) | Style strings pre-computed at startup; **Critical CSS analogue** |
 | List virtualization | [Bubbles list](https://github.com/charmbracelet/bubbles) | Handles >1000 items with viewport virtualization |
 | Markdown | [Glamour](https://github.com/charmbracelet/glamour) | Renders decision records, README, ADRs in TUI |
 | Progress bars | Bubbles spinner, progress | Standard component |
@@ -116,19 +120,7 @@ TUI-first — архитектурное решение (ADR-014), не fallback
 | Tables | Bubbles table | Sortable, paginated |
 | Color detection | [termenv](https://github.com/muesli/termenv) | Auto-detects 256/truecolor, falls back to 16-color |
 
-**Rejected alternatives:** `tview` (older API, less maintained), `gocui` (lower-level, more boilerplate), raw ANSI (error-prone, no abstraction).
-
-> **UI-velocity pattern alignment (TRIZ-pass addition, v0.3.1-triz).** The TUI stack already implements the equivalent of three web-velocity patterns. Documenting them explicitly helps agents apply web knowledge to TUI:
->
-> 1. **Critical CSS analogue → Lipgloss pre-computed styles.** Lipgloss computes the final ANSI escape string for a style at definition time (e.g. `var title = lipgloss.NewStyle().Bold(true).Foreground(blue)`). On each frame, only the pre-computed string is emitted, never the raw style rules. This is structurally the same as inlining critical CSS and deferring non-critical: pre-compute once, emit minimal per frame. @invariant INV-UI-006.
-> 2. **Islands / partial hydration analogue → Lazy screen mount.** Bubble Tea screens mount lazily on first navigation (`tea.Cmd` returns `LoadScreenMsg`). A screen that is never opened costs zero render time — its model is not initialized, its data is not loaded. This is structurally the same as Astro/RSC partial hydration — only the islands that need interactivity are hydrated. @invariant INV-UI-005.
-> 3. **Skeleton / stale-while-revalidate analogue → Skeleton{} placeholder + DataLoadedMsg swap.** Every async data load returns a `Skeleton{}` placeholder immediately, then a `DataLoadedMsg` replaces it. The skeleton is the cached "stale" view; the new data is the "revalidate". This is structurally the same as SWR in React: show stale immediately, swap to fresh in background. @invariant INV-UI-004.
->
-> These analogues are not metaphors — they are the same pattern, implemented for a TUI instead of a browser.
-
 ### 0.3 Performance budget (universal)
-
-**EN summary.** Universal performance budget enforced for all screens. Sub-100ms first paint, sub-16ms frame render (60fps), sub-50ms keystroke, sub-3s LLM ops, sub-1s file ops on 10k-file repo. CI benchmarks; alert on >2x regression. @invariant INV-UI-001 through INV-UI-003.
 
 | Operation | Budget | Strategy | Invariant |
 |-----------|--------|----------|-----------|
@@ -137,12 +129,11 @@ TUI-first — архитектурное решение (ADR-014), не fallback
 | Keystroke response | <50ms | Direct dispatch, no async for simple actions | INV-UI-003 |
 | LLM-dependent operations | <3s (acceptable) | Skeleton + spinner, cache results | (INV-UI-004 SWR pattern) |
 | File operations on 10k-file repo | <1s | Streaming + index, no full load | (INV-ARCH-003 LSP fallback) |
-
-Если операция превышает budget — показываем skeleton + spinner, не блокируем UI. Если превышение систематическое (CI benchmark regression >2x), alert срабатывает и PR не мержится без обоснования.
+| **Doctor run (11 checks) (NEW v0.4-triz2)** | **<5s** | **Parallel goroutines where possible** | **(INV-ARCH-011 OTel overhead)** |
+| **Metrics dashboard load (NEW v0.4-triz2)** | **<500ms** | **Rolling log aggregation, cached** | **(INV-UI-004 SWR)** |
+| **Cost dashboard load (NEW v0.4-triz2)** | **<300ms** | **Token aggregation, cached** | **(INV-UI-004 SWR)** |
 
 ### 0.4 Color system
-
-**EN summary.** Hex palette: Primary #61AFEF (blue), Secondary #98C379 (green), Warning #E5C07B (yellow), Error #E06C75 (red), Muted #5C6370 (gray), Accent #C678DD (purple), Background2 #282C34 (dark). termenv auto-detects 256/truecolor, falls back to 16-color.
 
 ```go
 // pkg/ui/theme.go
@@ -157,7 +148,9 @@ var (
 )
 ```
 
-Fallback (16-color): Primary→blue, Secondary→green, Warning→yellow, Error→red, Muted→white(dim), Accent→magenta, Background→black. termenv handles the detection at startup.
+Fallback (16-color): Primary→blue, Secondary→green, Warning→yellow, Error→red, Muted→white(dim), Accent→magenta, Background→black. termenv handles detection at startup.
+
+**High-contrast mode (NEW v0.4-triz2):** `caf config set ui.theme high-contrast` swaps to WCAG-AAA contrast palette: Primary→#FFFFFF on black, Error→#FFFF00 on black, etc. For users with low vision.
 
 ### 0.5 Typography
 
@@ -171,11 +164,7 @@ Fallback (16-color): Primary→blue, Secondary→green, Warning→yellow, Error�
 | Code | SarasaMonoSC | `caf who internal/middleware/ratelimit.go:42` |
 | Error | Error color + Bold | `Error: caf binary missing. Sessions continue.` |
 
-Word wrap via `github.com/muesli/reflow`.
-
-### 0.6 Universal keyboard map
-
-**EN summary.** Universal keyboard map enforced across all screens. `?` help, `q`/`Ctrl+C` quit, `Esc` back, `Tab`/`Shift+Tab` cycle widgets, `j`/`↓`/`k`/`↑` vim-style, `g`/`G` top/bottom, `/` search, `Enter` activate, `Space` toggle, `r` refresh, `1`-`9` screen switch, `:` command palette, `h`/`l` horizontal nav.
+### 0.6 Universal keyboard map (updated v0.4-triz2)
 
 | Key | Action | Works in |
 |-----|--------|----------|
@@ -194,1017 +183,507 @@ Word wrap via `github.com/muesli/reflow`.
 | `1`-`9` | Switch screen | Dashboard, navigation |
 | `:` | Command palette | All screens (FUTURE K-010) |
 | `h` / `l` | Left / Right nav | Multi-panel: review, file tour |
+| **`D` (NEW v0.4-triz2)** | **Doctor view** | **All screens (global shortcut)** |
+| **`M` (NEW v0.4-triz2)** | **Metrics dashboard** | **All screens (global shortcut)** |
+| **`$` (NEW v0.4-triz2)** | **Cost dashboard** | **All screens (global shortcut)** |
 
-**Vim-style rationale:** developers know vim, no learning curve. `?` for help is universal (less/vim/man).
+### 0.7 Screen template (formalized v0.4-triz2)
+
+Every screen in `pkg/ui/screens/` follows this template:
+
+```go
+// pkg/ui/screens/<name>.go
+// §<N> <Title> (caf <command>)
+//
+// Purpose: <one sentence>
+// Layout: <ASCII mockup reference>
+// Components: <list>
+// Keyboard map: <table>
+// Performance budget: <table>
+// Edge cases: <list>
+// Accessibility: <a11y notes — NEW v0.4-triz2>
+
+package screens
+
+type <Name>Screen struct {
+    // ... state
+}
+
+func (s *<Name>Screen) Init() tea.Cmd { /* ... */ }
+func (s *<Name>Screen) Update(msg tea.Msg) (tea.Model, tea.Cmd) { /* ... */ }
+func (s *<Name>Screen) View() string { /* ... */ }
+```
+
+**TRIZ Principle 1 (Segmentation) + Principle 26 (Copying).** Each screen is segmented into a separate file following a copied template. New screen = new file + template fill; no core changes.
+
+### 0.8 UI-velocity patterns (4 patterns, expanded v0.4-triz2)
+
+**EN summary.** v0.3.1-triz documented 3 UI-velocity patterns (Critical CSS, Islands, Skeleton/SWR analogues). v0.4.0-triz2 adds a 4th: Progressive enhancement analogue — the TUI works in 16-color mode, then enhances to 256-color, then to truecolor, based on terminal capability. This is the same shape as web progressive enhancement (HTML works without CSS, then enhances with CSS, then with JS).
+
+1. **Critical CSS analogue → Lipgloss pre-computed styles.** (INV-UI-006)
+2. **Islands / partial hydration analogue → Lazy screen mount.** (INV-UI-005)
+3. **Skeleton / stale-while-revalidate analogue → Skeleton{} + DataLoadedMsg swap.** (INV-UI-004)
+4. **Progressive enhancement analogue (NEW v0.4-triz2) → termenv color detection.** TUI works in 16-color mode (basic), enhances to 256-color (better), enhances to truecolor (best). Each level is functional; the higher levels add polish, not capability. This is structurally the same as web progressive enhancement: HTML works without CSS, then CSS enhances, then JS enhances.
 
 ---
 
-## 1. Screens Overview
+## 1. Screens Overview (updated v0.4-triz2)
 
 ### 1.1 Screen inventory
-
-**EN summary.** 11 screens inventoried. Phase assignments reconciled with ROADMAP in v0.3.1-triz: Dashboard = MVP (was ALPHA in original UI.md §1.1, conflicting with ROADMAP §2.1); File tour = BETA (was PROD in original UI.md §1.1, conflicting with ROADMAP §4.1).
 
 | # | Screen | Command | Phase | Spec section |
 |---|--------|---------|-------|--------------|
 | 1 | Onboarding Wizard | `caf init` | MVP | §2 |
-| 2 | Dashboard | `caf dashboard` | **MVP** (v0.3.1-triz reconciliation with ROADMAP §2.1) | §3 |
+| 2 | Dashboard | `caf dashboard` | MVP | §3 |
 | 3 | Review Session | `caf review` | BETA | §4 |
 | 4 | Decisions list | `caf decisions` | ALPHA | §5.1 |
 | 5 | Decision detail | (from list) | ALPHA | §5.2 |
 | 6 | Decision editor | `caf decisions new` | ALPHA | §5.3 |
 | 7 | Heatmap | `caf heatmap` | BETA | §6 |
 | 8 | Adapters Manager | `caf adapters list` | MVP | §7 |
-| 9 | File Tour | `caf tour <file>` | **BETA** (v0.3.1-triz reconciliation with ROADMAP §4.1) | §8 |
-| 10 | Sessions browser | `caf sessions` | ALPHA | (not in this file — future §) |
+| 9 | File Tour | `caf tour <file>` | BETA | §8 |
+| 10 | Sessions browser | `caf sessions` | ALPHA | (future §) |
 | 11 | Reports | `caf report` | PROD | §10 |
 | 12 | Settings | `caf config edit` | ALPHA | §11 |
+| **13 (NEW)** | **Metrics dashboard** | **`caf metrics --dashboard`** | **PROD** | **§13** |
+| **14 (NEW)** | **Cost dashboard** | **`caf cost --dashboard`** | **PROD** | **§14** |
+| **15 (NEW)** | **Doctor view** | **`caf doctor`** | **ALPHA** | **§15** |
 
-### 1.2 Navigation flow
+14 screens (was 11). Three new screens added in v0.4.0-triz2 for observability and cost.
 
-```
-                        ┌──────────────────┐
-                        │   Onboarding     │
-                        │   (caf init)     │
-                        └────────┬─────────┘
-                                 │
-                                 ▼
-                        ┌──────────────────┐    1     ┌─────────────┐
-                        │    Dashboard     │────────▶│  Review     │
-                        │  (caf dashboard) │         │  Session    │
-                        └────────┬─────────┘         └─────────────┘
-                                 │ 2
-                       ┌─────────┼─────────┐
-                       │3        │4        │5
-                       ▼         ▼         ▼
-                  ┌────────┐ ┌────────┐ ┌────────────┐
-                  │Decisions│ │Heatmap │ │Adapters    │
-                  │(list)   │ │        │ │Manager     │
-                  └────┬────┘ └────────┘ └────────────┘
-                       │
-                       ▼
-                  ┌────────┐
-                  │Decision│
-                  │detail  │
-                  └────────┘
-                       │ 6 (file ref)
-                       ▼
-                  ┌─────────────────┐
-                  │ File Tour       │
-                  │ (caf tour <file>)│
-                  └─────────────────┘
+### 1.2 Navigation flow (updated v0.4-triz2)
+
+```mermaid
+graph TD
+    INIT[Onboarding<br/>caf init] --> DASH[Dashboard<br/>caf dashboard]
+    DASH -->|1| REV[Review Session<br/>caf review]
+    DASH -->|2| DEC[Decisions list<br/>caf decisions]
+    DASH -->|3| HEAT[Heatmap<br/>caf heatmap]
+    DASH -->|4| ADP[Adapters Manager<br/>caf adapters list]
+    DASH -->|5| REP[Reports<br/>caf report]
+    DASH -->|D| DOC[Doctor view<br/>caf doctor — NEW]
+    DASH -->|M| MET[Metrics dashboard<br/>caf metrics — NEW]
+    DASH -->|$| COST[Cost dashboard<br/>caf cost — NEW]
+    
+    DEC --> DEC_D[Decision detail]
+    DEC_D --> FT[File Tour<br/>caf tour]
+    HEAT --> FT
+    ADP --> DOC
+    
+    style DASH fill:#61afef,color:#fff
+    style DOC fill:#c678dd,color:#fff
+    style MET fill:#c678dd,color:#fff
+    style COST fill:#e5c07b,color:#000
 ```
 
-Dashboard is the hub; review/decisions/sessions branch out; file tour is leaf, collecting from all.
-
-### 1.3 Common UI patterns
-
-**EN summary.** Four common patterns: status bar (bottom, screen tabs + repo + agent + help), header bar (top, version + repo + counts + ACS), empty states (CTA box), loading states (skeleton + spinner + 1s warning), error states (`[r] Retry [d] Doctor [i] Ignore [q] Quit`).
-
-**Status bar (bottom):**
-```
-[1] Dashboard [2] Review [3] Decisions │ repo: my-backend-service │ agent: opencode │ ? help  q quit
-```
-
-**Header bar (top):**
-```
-CodeAuthorityFirst v0.3.1-triz │ my-backend-service │ 47 sessions · 12 decisions · ACS 3.8 ↑
-```
-
-**Empty states:** CTA box centered on screen.
-```
-┌────────────────────────────────────────────────┐
-│                                                │
-│   No decisions yet.                            │
-│                                                │
-│   Run `caf decisions new` to record your first │
-│   architectural decision.                      │
-│                                                │
-│   [n] New decision    [?] Help                 │
-│                                                │
-└────────────────────────────────────────────────┘
-```
-
-**Loading states:** skeleton + spinner.
-```
-CodeAuthorityFirst v0.3.1-triz │ my-backend-service │ Loading...
-⠋ Loading dashboard... (this should take <1s. If it takes longer, run `caf doctor`)
-```
-
-**Error states:**
-```
-┌────────────────────────────────────────────────┐
-│ Error: caf binary missing. Sessions continue.  │
-│                                                │
-│ Cause: $PATH does not contain `caf`            │
-│ Recovery: run `make install` or `brew install  │
-│ codeauthorityfirst/tap/caf`                    │
-│                                                │
-│ [r] Retry  [d] Doctor  [i] Ignore  [q] Quit    │
-└────────────────────────────────────────────────┘
-```
-
-### 1.4 Web UI (FUTURE, not in v0.3)
-
-**EN summary.** Web UI is deferred to FUTURE. Read-only view on `.caf/`, interactive graph visualization (D3.js — only thing impossible in TUI), team-mode real-time dashboard, export to PDF/Markdown. **Web UI НЕ заменяет TUI** (ADR-014 invariant). See BACKLOG K-002, ADR-025 (future).
-
-Web UI НЕ заменяет TUI. Web UI добавляет только визуализации, невозможные в terminal:
-
-- **Interactive graph visualization (D3.js).** Single thing TUI cannot do well — interactive node-link graph with zoom/pan.
-- **Real-time heatmap** for team mode (BACKLOG G-003).
-- **Export to PDF/Markdown** for compliance reports (BACKLOG F-003).
-- **NOT replacing TUI** (ADR-014 invariant).
+Dashboard is the hub; review/decisions/sessions branch out; doctor/metrics/cost are global shortcuts accessible from any screen.
 
 ---
 
-## 2. Onboarding Wizard (`caf init` interactive)
+## 2-12. (Preserved from v0.3.1-triz)
 
-### 2.1 Purpose
-
-**EN summary.** First `caf` run, minimum friction. ~30 seconds, 4 steps. Auto-detect installed agents. Install universal pre-commit hook. Show first-time setup summary.
-
-### 2.2 Flow
-
-**Step 1: Welcome**
-```
-┌────────────────────────────────────────────────┐
-│                                                │
-│   Welcome to CodeAuthorityFirst v0.3.1-triz     │
-│                                                │
-│   I'll set up provenance tracking for your     │
-│   repo in ~30 seconds.                         │
-│                                                │
-│   Plan:                                        │
-│   1. Detect installed agents                   │
-│   2. Install universal pre-commit hook         │
-│   3. Configure adapters                        │
-│   4. Show summary                              │
-│                                                │
-│   [Enter] Continue    [q] Quit                 │
-│                                                │
-└────────────────────────────────────────────────┘
-```
-
-**Step 2: Detection**
-```
-┌────────────────────────────────────────────────┐
-│                                                │
-│   Detecting agents...                          │
-│                                                │
-│   ✓ opencode     (found in $PATH)              │
-│   ✓ Claude Code  (found in ~/.claude/)         │
-│   ✗ Cursor       (not found — wrapper avail.)  │
-│   ✗ Aider        (not found — wrapper avail.)  │
-│                                                │
-│   Universal fallback (LSP-based) will track    │
-│   all other agents automatically.              │
-│                                                │
-│   [Enter] Continue                             │
-│                                                │
-└────────────────────────────────────────────────┘
-```
-
-**Step 3: Installation progress**
-```
-┌────────────────────────────────────────────────┐
-│                                                │
-│   Installing adapters...                       │
-│                                                │
-│   opencode      ████████████████████ 100%      │
-│   Claude Code   ████████████████████ 100%      │
-│   Universal hook ████████████████████ 100%      │
-│   LSP fallback  ████████████████████ 100%      │
-│                                                │
-│   [Enter] Continue                             │
-│                                                │
-└────────────────────────────────────────────────┘
-```
-
-**Step 4: Summary**
-```
-┌────────────────────────────────────────────────┐
-│                                                │
-│   Setup complete.                              │
-│                                                │
-│   Installed:                                   │
-│   • .caf/ folder created                       │
-│   • .git/hooks/pre-commit installed (universal)│
-│   • Adapters: opencode, Claude Code            │
-│   • Universal LSP fallback active               │
-│                                                │
-│   Next steps:                                  │
-│   • Run `caf dashboard` to see overview        │
-│   • Run `caf who <file:line>` for provenance  │
-│   • Run `caf context` to generate context.md   │
-│                                                │
-│   [Enter] Finish    [d] Open dashboard        │
-│                                                │
-└────────────────────────────────────────────────┘
-```
-
-### 2.3 Edge cases
-
-- Existing `.caf/` — `caf init` detects, offers `caf migrate` if version mismatch.
-- No agent detected — universal fallback will still track; show message "universal LSP fallback active; no explicit adapter needed."
-- Permission denied on `.git/hooks/` — fallback to user-level hooks in `~/.config/git/hooks/`.
-- Non-git repo — `caf init` warns, offers to initialize git first.
+**Sections 2-12 (Onboarding Wizard, Dashboard, Review Session, Decisions, Heatmap, Adapters Manager, File Tour, Reports, Settings, Cross-cutting Concerns, Implementation Notes, Testing Strategy) are preserved unchanged from v0.3.1-triz.** See v0.3.1-triz UI.md for full content. Below are the 3 NEW screens added in v0.4.0-triz2.
 
 ---
 
-## 3. Dashboard (`caf dashboard`)
+## 13. Metrics Dashboard (`caf metrics --dashboard`) — NEW v0.4-triz2
 
-### 3.1 Purpose
+### 13.1 Purpose
 
-**EN summary.** Dashboard is the hub screen. Shows Today widget (review queue, pending decisions, new blindspots), Authorship Score widget (ACS weekly avg, target ≥3.5, Recall %, Coverage %), Active Agents widget, Recent Decisions widget, Cross-repo widget (dependencies with stale-decision indicators).
+**EN summary.** Metrics dashboard visualizes the 6 success metrics (ACS, Decision Coverage, Mental Model Reach, Recall Rate, Agent Diversity, Adapter Coverage) over time. Reads from `.caf/metrics/` rolling log (OBS-002). Sparkline charts; per-metric targets; trend indicators.
 
-### 3.2 Layout
+### 13.2 Layout
 
 ```
-CodeAuthorityFirst v0.3.1-triz │ my-backend-service │ 47 sessions · 12 decisions · ACS 3.8 ↑
+CodeAuthorityFirst v0.4.0-triz2 │ Metrics Dashboard │ Last 30 days
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-┌─ Today ────────────────────────────┐  ┌─ Authorship Score ──────────────────────────────────────────┐
-│ Review queue:        5 cards due    │  │                                                              │
-│ Pending decisions:  2 unrecorded    │  │   ACS (weekly avg): 3.8 ↑        Target: ≥3.5  ✓           │
-│ New blindspots:      3 files flagged│  │                                                              │
-│                                     │  │   Recall:    78%   Target: ≥75%  ✓                         │
-│ [Enter] Start review session        │  │   Coverage:  92%   Target: ≥90%  ✓                         │
-│ [n]     New decision                │  │                                                              │
-└─────────────────────────────────────┘  │   Last 7 days: ▁▂▄▅▆▇█ 3.8                                  │
-                                         │                                                              │
-┌─ Active Agents ─────────────────────┐  │   [m] View metrics report                                   │
-│ opencode        ●  (12 sessions)    │  └──────────────────────────────────────────────────────────────┘
-│ Claude Code     ●  (8 sessions)     │
-│ Universal LSP   ●  (3 sessions)     │  ┌─ Recent Decisions ───────────────────────────────────────────┐
-│                                     │  │ 2026-10-24  Sliding window for rate limiter   [opencode]   │
-└─────────────────────────────────────┘  │ 2026-10-22  Token bucket as fallback          [Claude Code]│
-                                         │ 2026-10-20  Postgres connection pool size=20  [opencode]   │
-┌─ Cross-repo dependencies ──────────┐  │                                                              │
-│ my-backend-service ──▶ my-proto     │  │ [Enter] Open detail   [n] New decision                     │
-│  └ stale decision (3d ago)         │  └──────────────────────────────────────────────────────────────┘
-│ my-backend-service ──▶ my-utils    │
-│  └ up to date                       │  ┌─ Cross-repo ────────────────────────────────────────────────┐
-│                                     │  │ my-backend-service depends on:                              │
-│ [x] Run `caf sync`                 │  │   • my-proto     (3d stale decision — ⚠)                   │
-└─────────────────────────────────────┘  │   • my-utils     (up to date — ✓)                          │
-                                         │                                                              │
-                                         │   [x] Run `caf sync`                                        │
-                                         └──────────────────────────────────────────────────────────────┘
+┌─ Authorship Confidence Score (ACS) ───────────────────────────────────────────────────────────────────┐
+│                                                                                                        │
+│  Current: 3.8   Target: ≥3.5   ✓    7-day trend: ↑+0.3                                               │
+│                                                                                                        │
+│  30-day sparkline: ▁▁▂▂▂▃▃▄▄▅▅▆▆▇▇▇█▇▇▆▆▅▅▅▆▆▇▇██                                                    │
+│                                                                                                        │
+│  Min: 3.2 (Oct 1)    Max: 3.9 (Oct 27)    Avg: 3.6                                                    │
+│                                                                                                        │
+│  [d] Daily breakdown   [w] Weekly breakdown   [m] Monthly                                            │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌─ Decision Coverage ───────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                                        │
+│  Current: 92%   Target: ≥90%   ✓    7-day trend: ↑+4pp                                                │
+│                                                                                                        │
+│  30-day sparkline: ▃▃▃▄▄▄▅▅▅▆▆▆▇▇▇█████████                                                          │
+│                                                                                                        │
+│  [g] Show gaps   [a] By agent                                                                         │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌─ Mental Model Reach ──────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                                        │
+│  Current: 68%   Target: ≥70%   ⚠ below target    Action: `caf review --regenerate --since 30d`        │
+│                                                                                                        │
+│  30-day sparkline: ▃▃▃▃▄▄▄▄▅▅▅▅▆▆▆▆▇▇▇▇██████                                                        │
+│                                                                                                        │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌─ Recall Rate ─────────────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                                        │
+│  Current: 78%   Target: ≥75%   ✓    7-day trend: ↑+8pp                                                │
+│                                                                                                        │
+│  30-day sparkline: ▂▂▃▃▄▄▅▅▆▆▆▇▇▇██████████                                                          │
+│                                                                                                        │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌─ Agent Diversity (Shannon H) ─────────────────────────────────────────────────────────────────────────┐
+│                                                                                                        │
+│  Current: 1.2   Target: ≥1.0   ✓                                                                       │
+│                                                                                                        │
+│  Per-agent distribution (30-day):                                                                      │
+│  opencode      ████████████████ 48%                                                                    │
+│  Claude Code   ███████████      32%                                                                    │
+│  Universal LSP ████              12%                                                                    │
+│  Cursor        ███                8%                                                                    │
+│                                                                                                        │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌─ Adapter Coverage ─────────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                                        │
+│  Native: 70% (4/25 explicit + universal)   Target: ≥70%   ✓                                            │
+│  Wrapper: 100% (all 25 explicit + universal)                                                          │
+│                                                                                                        │
+│  [l] List adapters   [h] Health check                                                                 │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-[1] Dashboard [2] Review [3] Decisions │ repo: my-backend-service │ agent: opencode │ ? help  q quit
+[1-6] Jump to metric   [d/w/m] Time range   [r] Refresh   [e] Export JSON   [?] Help   [q] Quit
 ```
 
-### 3.3 Components
+### 13.3 Components
 
-Five widgets:
-1. **Today** — review queue, pending decisions, new blindspots.
-2. **Authorship Score** — ACS weekly avg with sparkline, Recall %, Coverage %, targets comparison.
-3. **Active Agents** — agents that have run sessions in last 7 days.
-4. **Recent Decisions** — last 3-5 decisions, sorted by date desc.
-5. **Cross-repo** — dependencies with stale-decision indicators (⚠) or up-to-date (✓).
+Six metric widgets, each with: current value, target, trend, 30-day sparkline, contextual actions.
 
-### 3.4 Keyboard map
+### 13.4 Keyboard map
 
 | Key | Action |
 |-----|--------|
-| `Tab` / `Shift+Tab` | Cycle widgets |
-| `1`-`5` | Jump to widget N |
-| `Enter` | Activate widget action (e.g. start review from Today widget) |
-| `r` | Manual refresh |
-| `R` | Force full refresh (skip cache) |
-| `x` | Run cross-repo sync (from Cross-repo widget) |
-| `n` | New decision |
-| `m` | View metrics report |
-| `?` | Help |
-
-### 3.5 Refresh strategy
-
-**EN summary.** Auto-refresh every 30 seconds (configurable via `.caf/config.yml` `ui.heatmap_refresh_seconds`). Manual `r` for incremental update (only changed widgets). `R` for full refresh (skip cache). File watcher on `.caf/` triggers incremental update.
-
-- Auto-refresh: every 30 seconds (configurable via `.caf/config.yml` `ui.heatmap_refresh_seconds`). Note: the config key name includes "heatmap" for historical reasons; in v0.3.1-triz it controls dashboard refresh as well. Future ADR may rename to `ui.dashboard_refresh_seconds`.
-- Manual `r`: incremental update — only changed widgets. Uses file watcher on `.caf/` to know which widgets need refresh.
-- Manual `R`: full refresh, skip cache. Use when something looks wrong.
-- File watcher on `.caf/sessions/` and `.caf/decisions/` triggers incremental update immediately on change.
-
-### 3.6 Performance budget
-
-| Operation | Budget | Strategy | Invariant |
-|-----------|--------|----------|-----------|
-| First paint | <100ms | Render skeleton widgets immediately (INV-UI-004 SWR pattern), load real data in background | INV-UI-001 |
-| Full data load | <500ms | Parallel widget loads; caching | (INV-UI-005 lazy mount) |
-| Auto-refresh | <50ms | Only changed widgets; incremental diff | INV-UI-002 |
-| Memory | <50MB | Heatmap pre-computed (not full file content); only visible widgets in memory | (INV-UI-005) |
-
-### 3.7 Edge cases
-
-- No sessions yet — empty state with CTA "Run `caf init` to start tracking."
-- No decisions yet — empty state with CTA "Run `caf decisions new` to record your first decision."
-- Cross-repo not synced — Cross-repo widget shows "Run `caf sync`" CTA.
-- Terminal <120 cols — widgets stack vertically (UI.md §12.2 responsive).
-
----
-
-## 4. Review Session (`caf review`)
-
-### 4.1 Purpose
-
-**EN summary.** Daily SRS session. ~10 minutes, 10-15 cards. Main contact point with Mental Model Reconstructor. Split-view layout: question (left) + context (file path, decision ref, sessions) + grade panel.
-
-### 4.2 Layout — Card view
-
-```
-CodeAuthorityFirst v0.3.1-triz │ Review Session │ Card 3/12 │ Recall rate (7d): 78% │ ACS target: ≥3.5
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-┌─ Question ─────────────────────────────────────────────┐  ┌─ Context ───────────────────────────────────────┐
-│                                                       │  │                                                  │
-│  Type 1 (why)                                         │  │  File: internal/middleware/ratelimit.go         │
-│                                                       │  │  Decision: d_2026-10-24-01                       │
-│  Why does this code use a sliding window instead of   │  │  Sessions: 2026-10-24 (opencode), 2026-10-22     │
-│  a fixed window for rate limiting?                   │  │            (Claude Code)                         │
-│                                                       │  │                                                  │
-│                                                       │  │  Related decisions:                              │
-│                                                       │  │  • d_2026-10-22-01  Token bucket as fallback    │
-│                                                       │  │                                                  │
-│                                                       │  │  Related cards:                                  │
-│                                                       │  │  • c_001  Type 1  (this card)                    │
-│                                                       │  │  • c_005  Type 2  (what if remove)               │
-│                                                       │  │                                                  │
-└───────────────────────────────────────────────────────┘  └──────────────────────────────────────────────────┘
-┌─ Grade ───────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                                                                                            │
-│  [0] Blackout (no memory)                                                                                 │
-│  [1] Wrong, but familiar                                                                                  │
-│  [2] Wrong, but easy to find                                                                              │
-│  [3] Hard recall, took effort                                                                             │
-│  [4] Good recall, minor hesitation                                                                        │
-│  [5] Perfect, instant recall                                                                              │
-│                                                                                                            │
-│  [n] Skip (= grade 0)    [s] Show expected answer                                                          │
-│                                                                                                            │
-└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-[?] Help  [q] Quit  [s] Show answer  [0-5] Grade  [n] Skip  [←/→] Card history
-```
-
-### 4.3 Card types rendered differently
-
-- **Type 1 (why):** blue accent. "Why does this code use X?" — tests fact recall.
-- **Type 2 (what_if_remove):** yellow accent. "If we removed X, what would break?" — tests abstract reasoning.
-- **Type 3 (where_handled):** green accent. "Where in the codebase is X handled from entry to retry?" — tests trace through code.
-
-### 4.4 Expected answer reveal
-
-```
-┌─ Expected answer ──────────────────────────────────────────────────────────────────────────────────────────┐
-│                                                                                                            │
-│  Decision d_2026-10-24-01 (recorded by opencode session 2026-10-24):                                       │
-│                                                                                                            │
-│  "Sliding window имеет смысл при 100+ req/sec, у нас на 3 порядка меньше. Fixed window достаточно и       │
-│  проще в reasoning."                                                                                        │
-│                                                                                                            │
-│  ── from .caf/decisions/d_2026-10-24-01.md (grounded in .caf/, ADR-006 invariant: LLM only paraphrases)   │
-│                                                                                                            │
-│  [0-5] Grade  [n] Skip  [→] Next card                                                                      │
-│                                                                                                            │
-└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-```
-
-### 4.5 Session summary (after last card)
-
-```
-CodeAuthorityFirst v0.3.1-triz │ Review Session │ Summary │ 12/12 cards
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-┌─ Grade distribution ──────────────────────────────────────────────────────────────────────────────────────┐
-│                                                                                                            │
-│  [5] ████████████ 4 cards (33%)                                                                            │
-│  [4] ████████████ 4 cards (33%)                                                                            │
-│  [3] ██████ 2 cards (17%)                                                                                  │
-│  [2] ███ 1 card (8%)                                                                                       │
-│  [1] █ 1 card (8%)                                                                                         │
-│  [0] 0 cards                                                                                               │
-│                                                                                                            │
-└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-
-┌─ Recall rate ─────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                                                                                            │
-│  This session: 75%  (9/12 cards ≥ grade 3)                                                                 │
-│  7-day avg:    78%  Target: ≥75%  ✓                                                                        │
-│                                                                                                            │
-└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-
-┌─ Final reflection ────────────────────────────────────────────────────────────────────────────────────────┐
-│                                                                                                            │
-│  "Мог бы я написать этот код с нуля?" (1-5)                                                                 │
-│                                                                                                            │
-│  [1] No  [2] With help  [3] Maybe  [4] Probably  [5] Yes                                                   │
-│                                                                                                            │
-└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-```
-
-### 4.6 Keyboard map
-
-| Key | Action |
-|-----|--------|
-| `0`-`5` | Grade current card |
-| `n` | Skip (= grade 0) |
-| `s` | Show expected answer |
-| `→` | Next card |
-| `←` | Previous card (only in review mode, not after grade) |
-| `?` | Help |
-| `q` | Quit (saves partial progress) |
-| `Ctrl+C` | Force quit (saves partial progress) |
-
-### 4.7 Performance budget
-
-| Operation | Budget | Strategy | Invariant |
-|-----------|--------|----------|-----------|
-| Card render | <50ms | Pre-computed display, no LLM call | INV-UI-002 |
-| LLM call (if `--explain` flag) | <3s | Skeleton + spinner (INV-UI-004 SWR pattern), cache results | (INV-UI-004) |
-| Session save | <100ms | Incremental write to `cards.yml` after each card grade | (INV-ADR-005 atomic writes) |
-
-### 4.8 Edge cases
-
-- No cards due — "No cards due today. Come back tomorrow." with CTA to view heatmap.
-- Missing decision for card — "Decision d_xxx missing. Run `caf sync`?" `[y/n]`
-- Ctrl+C — saves partial progress (`cards.yml` is incrementally written).
-- 100+ cards backlog — warns, offers `--max-cards 15` cap (mitigates SM-2 burnout risk, BACKLOG D-007).
-
----
-
-## 5. Decisions (`caf decisions`)
-
-### 5.1 Decisions list
-
-**EN summary.** Filterable table of decisions. Filters: today/week/month/all, by agent, by file, by status. Actions: `Enter` open, `n` new, `/` search, `g` gaps.
-
-```
-CodeAuthorityFirst v0.3.1-triz │ Decisions │ 12 total │ 2 unrecorded non-trivial edits (gaps)
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Filter: [t] today  [w] week  [m] month  [a] all   │   [g] gaps   │   [/] search
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Date        │ Title                                    │ Agent       │ Files
-────────────┼──────────────────────────────────────────┼─────────────┼──────────────────────
-2026-10-24  │ Sliding window for rate limiter           │ opencode    │ internal/middleware/rl.go
-2026-10-22  │ Token bucket as fallback                  │ Claude Code │ internal/middleware/tb.go
-2026-10-20  │ Postgres connection pool size=20          │ opencode    │ internal/db/pool.go
-2026-10-18  │ Context cancellation in HTTP handler      │ opencode    │ internal/handler/ctx.go
-2026-10-15  │ Circuit breaker for payments service      │ Claude Code │ internal/payments/cb.go
-...
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-[Enter] Open detail  [n] New decision  [/] Search  [g] Gaps  [t/w/m/a] Filter  [?] Help  [q] Quit
-```
-
-### 5.2 Decision detail view
-
-```
-CodeAuthorityFirst v0.3.1-triz │ Decision d_2026-10-24-01
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-# Sliding window for rate limiter
-
-**Date:** 2026-10-24
-**Agent:** opencode
-**Files:** internal/middleware/rl.go (+45 -12)
-
-## Контекст
-
-We need a rate limiter for the /v1/policies endpoint. Options considered: fixed window, sliding window, token bucket.
-
-## Выбрано
-
-Sliding window with 1-minute window size. Reasoning:
-
-- Sliding window имеет смысл при 100+ req/sec, у нас на 3 порядка меньше.
-- Fixed window проще в reasoning, но creates burst-at-boundary problem.
-- Token bucket is over-engineered for our traffic.
-
-## Альтернативы
-
-- Fixed window — simpler but creates burst-at-boundary problem.
-- Token bucket — over-engineered for our traffic; harder to debug.
-
-## Импликации
-
-- p99 latency target: <100ms.
-- Memory: O(window_size × unique_clients) — bounded.
-- TTL: 5 minutes for inactive clients.
-
----
-Related sessions: 2026-10-24 (opencode) — 12 file edits, 3 iterations
-Related cards: c_001 (Type 1), c_005 (Type 2)
-
-[e] Edit  [d] Delete  [s] Show file  [Esc] Back
-```
-
-### 5.3 Decision editor (`caf decisions new`)
-
-**🔥 80/20 TUI:** автозаполнение для `files`, `tags`, `agent` сокращает время с 90s до 25s.
-
-```
-CodeAuthorityFirst v0.3.1-triz │ New Decision
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Title:       [Sliding window for rate limiter                                    ]
-Agent:       [opencode                                                           ]  (autocomplete: ↓ opencode, Claude Code, Cursor...)
-Files:       [internal/middleware/rl.go                                          ]  (autocomplete: ↓ from current/recent sessions)
-Tags:        [rate-limiting, middleware                                          ]  (autocomplete: ↓ from previous decisions)
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-## Контекст
-
-We need a rate limiter for the /v1/policies endpoint. Options considered: fixed window,
-sliding window, token bucket.
-
-## Выбрано
-
-[Sliding window with 1-minute window size. Reasoning: ...]
-
-## Альтернативы
-
-[- Fixed window — simpler but creates burst-at-boundary problem.]
-
-## Импликации
-
-[- p99 latency target: <100ms.]
-
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-[Tab] Next field  [Enter] Save  [Esc] Cancel  [?] Help
-```
-
-### 5.4 Keyboard map
-
-| Key | Action |
-|-----|--------|
-| `Tab` | Next field |
-| `Shift+Tab` | Previous field |
-| `Enter` | Save |
-| `Esc` | Cancel |
-| `↓` (in autocomplete fields) | Show autocomplete suggestions |
-| `?` | Help |
-
-### 5.5 Performance budget
-
-| Operation | Budget | Strategy | Invariant |
-|-----------|--------|----------|-----------|
-| List render | <50ms | Virtualized (only visible rows rendered) | INV-UI-002 |
-| Filter response | <16ms | In-memory index, no disk I/O | INV-UI-002 |
-| Detail view | <100ms | Markdown render via Glamour, cached | (INV-UI-005 lazy mount) |
-| Autocomplete suggestions | <50ms | Pre-built index, refreshed on session write | INV-UI-002 |
-
----
-
-## 6. Heatmap (`caf heatmap`)
-
-### 6.1 Purpose
-
-**EN summary.** Heatmap shows each file as a cell, color = ACS or coverage. Single-screen overview of authorship health. Pre-computed and cached.
-
-### 6.2 Layout
-
-```
-CodeAuthorityFirst v0.3.1-triz │ Heatmap │ 247 files │ Sort: [n] name  [o] ownership  [r] recency
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-internal/
-  middleware/    ██ rl.go        ██ tb.go        ░░ ctx.go        ▓▓ auth.go       ▓▓ logging.go
-  handler/       ██ policies.go  ██ users.go     ░░ admin.go      ▒▒ health.go      ██ metrics.go
-  db/            ██ pool.go      ▓▓ conn.go      ░░ tx.go          ▒▒ migrate.go
-  caf/           ██ adapter.go   ██ storage.go   ▒▒ hooks.go       ▒▒ sync.go         ░░ doctor.go
-
-pkg/ui/
-  screens/       ██ dashboard.go ██ review.go    ██ decisions.go   ▓▓ heatmap.go      ▒▒ adapters.go
-  components/    ██ header.go     ██ statusbar.go ▓▓ spinner.go     ▓▓ skeleton.go
-
-Legend: ░░ 0-20% (blindspot)  ▒▒ 20-50% (weak)  ▓▓ 50-75% (decent)  ██ 75-100% (owned)
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-[b] Blindspots only  [/] Filter by path  [n/o/r] Sort  [Enter] File tour  [?] Help  [q] Quit
-```
-
-### 6.3 Color encoding
-
-| Range | Color | Meaning |
-|-------|-------|---------|
-| 0-20% | dark gray (░░) | blindspot — needs SRS card |
-| 20-50% | red (▒▒) | review overdue |
-| 50-75% | yellow (▓▓) | interval low |
-| 75-100% | green (██) | strong recall |
-
-### 6.4 Keyboard map
-
-| Key | Action |
-|-----|--------|
-| `j`/`↓` `k`/`↑` | Navigate files |
-| `Enter` | Open file tour for selected file |
-| `b` | Toggle blindspots-only filter |
-| `/` | Filter by path regex |
-| `n` | Sort by name |
-| `o` | Sort by ownership (ASC) |
-| `r` | Sort by recency (most recent first) |
+| `1`-`6` | Jump to metric N |
+| `d`/`w`/`m` | Daily / weekly / monthly breakdown |
+| `r` | Refresh (re-read `.caf/metrics/`) |
+| `e` | Export current view as JSON to stdout |
+| `g` (in Decision Coverage) | Show gaps |
+| `a` (in Decision Coverage) | By agent breakdown |
+| `l` (in Adapter Coverage) | List adapters |
+| `h` (in Adapter Coverage) | Run health check |
 | `?` | Help |
 | `q` | Quit |
 
-### 6.5 Performance budget
+### 13.5 Performance budget
 
 | Operation | Budget | Strategy | Invariant |
 |-----------|--------|----------|-----------|
-| Render 247 files | <200ms | Pre-computed heatmap, cached | INV-UI-007 |
-| Re-compute on file change | <500ms | Incremental — only changed files | INV-UI-007 |
-| Memory | <20MB | Heatmap pre-computed (not full file content); only cell metadata in memory | INV-UI-005 |
+| Dashboard load | <500ms | Rolling log aggregation, cached | INV-UI-004 |
+| Sparkline render | <50ms | Pre-computed ASCII sparkline | INV-UI-002 |
+| Refresh | <100ms | Re-read daily snapshot only | (INV-UI-005 lazy mount) |
+| Memory | <10MB | Only aggregated data in memory | INV-UI-005 |
 
-### 6.6 Edge cases
+### 13.6 Edge cases
 
-- Empty repo — "No files tracked yet. Run `caf sync`."
-- Repo with 10k+ files — render first 1000 by default, paginated. (Note: original UI.md §6.6 said "render first 1000" but did not specify a budget for the 10k-file case; the 1000-file budget <200ms applies. For >1000 files, render time scales linearly.)
-- New file <7 days old — shows "new" indicator (cyan dot).
-- Deleted file — shows `✗` fading over 30 days (gray with strikethrough).
+- No metrics yet (fresh install) — empty state: "Run `caf` for a few days to see metrics."
+- Corrupted `.caf/metrics/<date>.jsonl` — skip that day, show warning.
+- 365+ days of metrics — paginated, 30 days per page.
+- Export JSON — to stdout, copyable for external analysis.
+
+### 13.7 Accessibility (NEW v0.4-triz2)
+
+- All metrics have text representation (not sparkline-only): "Current: 3.8, Target: ≥3.5, Trend: ↑+0.3 over 7 days".
+- Sparkline has `alt-text` equivalent: hidden text describing the trend ("rising from 3.2 to 3.8 over 30 days").
+- Color-blind safe: ✓ (green), ⚠ (yellow), ✗ (red) — always paired with text.
+- High-contrast mode available (§0.4).
 
 ---
 
-## 7. Adapters Manager (`caf adapters list`)
+## 14. Cost Dashboard (`caf cost --dashboard`) — NEW v0.4-triz2
 
-### 7.1 Purpose
+### 14.1 Purpose
 
-**EN summary.** Lists installed + available adapters, with capability matrix and health check. Surfaces which canonical events each adapter supports natively vs via fallback.
+**EN summary.** Cost dashboard visualizes LLM token consumption and projected cost. Reads from `.caf/metrics/llm-consumption.jsonl` (COST-001). Shows: today/week/month, breakdown by operation, cache hit rate, projected monthly cost, cap status.
 
-### 7.2 Layout
+### 14.2 Layout
 
 ```
-CodeAuthorityFirst v0.3.1-triz │ Adapters Manager │ 4 installed / 21 available
+CodeAuthorityFirst v0.4.0-triz2 │ Cost Dashboard │ October 2026
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Installed (4):
+┌─ Consumption ─────────────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                                        │
+│  Today:      12,450 tokens   $0.12    [████████░░] 12% of daily cap                                   │
+│  This week:  87,230 tokens   $0.87    [██████░░░░] 17% of weekly budget                               │
+│  This month: 342,100 tokens  $3.42    [██░░░░░░░░] 17% of monthly cap                                 │
+│                                                                                                        │
+│  Projected monthly: $20.10 (at current rate)                                                           │
+│  Cap status: ✓ within budget   Days until cap: 21                                                     │
+│                                                                                                        │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌─ Operations breakdown (this month) ───────────────────────────────────────────────────────────────────┐
+│                                                                                                        │
+│  caf.first_person_explain   78% (267K tokens)  $2.67                                                  │
+│  caf decisions --ai-prefill 18% (62K tokens)   $0.62                                                  │
+│  caf decisions --summary     4% (13K tokens)   $0.13                                                   │
+│                                                                                                        │
+│  [d] Daily   [w] Weekly   [m] Monthly   [o] By operation                                              │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌─ Cache effectiveness ─────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                                        │
+│  Narrative cache hit rate: 82%   Saved: $1.55 this month                                              │
+│                                                                                                        │
+│  Cache size: 4.2 MB (`.caf/cache/narratives/`)                                                        │
+│  Cache entries: 287                                                                                     │
+│  LRU evictions: 12                                                                                     │
+│                                                                                                        │
+│  [c] Clear cache   [s] Cache settings                                                                  │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌─ Model usage ──────────────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                                        │
+│  glm-4.6 (default):       45% (154K tokens)  $2.31                                                     │
+│  glm-4-flash (paraphrase): 35% (120K tokens)  $0.12   ← cost-optimized                                 │
+│  glm-4-air (summary):     20% (68K tokens)   $0.34                                                      │
+│                                                                                                        │
+│  [t] Model tier settings                                                                              │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Adapter           │ Tier │ pre-session │ post-edit │ pre-commit │ MCP │ Status
-──────────────────┼──────┼─────────────┼───────────┼─────────────┼─────┼───────────
-opencode          │ 1    │ ✓ native    │ ✓ native  │ ✓ native    │ ✓   │ ✓ healthy
-Claude Code       │ 1    │ ✓ native    │ ✓ native  │ ✓ native    │ ✓   │ ✓ healthy
-Universal LSP     │ 4    │ ✓ wrapper   │ ✓ watcher │ ✓ universal │ ✓   │ ✓ healthy
-Universal hook    │ —    │ —           │ —         │ ✓ universal │ —   │ ✓ healthy
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Available (21):
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Cursor            │ 1    │ ✓ wrapper   │ ✓ native  │ ✓ native    │ ✓   │ [i] Install
-Cline             │ 1    │ ✓ native    │ ✓ native  │ ✓ native    │ ✓   │ [i] Install
-KiloCode          │ 1    │ ✓ native    │ ✓ native  │ ✓ native    │ ✓   │ [i] Install
-Aider             │ 2    │ ✗           │ ✓ wrapper │ ✓ wrapper   │ —   │ [i] Install
-Codex CLI         │ 2    │ ✗           │ ✓ wrapper │ ✓ wrapper   │ —   │ [i] Install
-Continue.dev      │ 2    │ ✗           │ ✓ wrapper │ ✓ wrapper   │ —   │ [i] Install
-GitHub Copilot    │ 2    │ ✗           │ ✓ wrapper │ ✓ wrapper   │ —   │ [i] Install
-Gemini CLI        │ 2    │ ✗           │ ✓ wrapper │ ✓ wrapper   │ —   │ [i] Install
-Amazon Q          │ 2    │ ✗           │ ✓ wrapper │ ✓ wrapper   │ —   │ [i] Install
-Goose             │ 2    │ ✗           │ ✓ wrapper │ ✓ wrapper   │ —   │ [i] Install
-Windsurf          │ 2    │ ✗           │ ✓ wrapper │ ✓ wrapper   │ —   │ [i] Install
-Tabnine           │ 3    │ ✗           │ ✗         │ ✓ wrapper   │ —   │ [i] Install
-Sourcegraph Cody  │ 3    │ ✗           │ ✗         │ ✓ wrapper   │ —   │ [i] Install
-...
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-[↑↓] Navigate  [Enter] Install / Open detail  [h] Health check  [m] Migrate config  [?] Help  [q] Quit
+[d/w/m] Time range   [o] By operation   [c] Clear cache   [e] Export JSON   [?] Help   [q] Quit
 ```
 
-### 7.3 Keyboard map
+### 14.3 Keyboard map
 
 | Key | Action |
 |-----|--------|
-| `j`/`↓` `k`/`↑` | Navigate list |
-| `Enter` | Install selected adapter (from Available) or open detail (from Installed) |
-| `h` | Run health check on all installed adapters |
-| `m` | Migrate config (e.g. `caf adapters install aider --migrate-config`) |
-| `u` | Uninstall selected adapter |
+| `d`/`w`/`m` | Daily / weekly / monthly breakdown |
+| `o` | By operation breakdown |
+| `c` | Clear narrative cache (with confirmation) |
+| `s` | Open cache settings |
+| `t` | Open model tier settings |
+| `e` | Export current view as JSON |
 | `?` | Help |
 | `q` | Quit |
 
-### 7.4 Health check view
-
-```
-Health check — 4 adapters
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-opencode
-  ✓ pre-session hook fires (config: ~/.config/opencode/hooks.toml)
-  ✓ post-edit writes to .caf/sessions/ (verified by test session)
-  ✓ pre-commit validation passes
-  ✓ config file present
-  ✓ MCP server responds
-
-Claude Code
-  ✓ pre-session hook fires (config: .claude/settings.json)
-  ✓ post-edit writes to .caf/sessions/
-  ✓ pre-commit validation passes
-  ✓ config file present
-  ✓ MCP server responds
-
-Universal LSP
-  ✓ LSP server started (gopls, ~500ms startup)
-  ✓ symbol graph built (247 files)
-  ✓ saved to .caf/mental-model/graph.yml
-  ✓ pre-commit hook installed in .git/hooks/pre-commit
-
-Universal hook
-  ✓ .git/hooks/pre-commit exists
-  ✓ hook is executable
-  ✓ caf binary in $PATH
-
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Summary: 4 passed, 0 failed, 0 warnings                          [r] Re-run  [Esc] Back
-```
-
-### 7.5 Performance budget
+### 14.4 Performance budget
 
 | Operation | Budget | Strategy | Invariant |
 |-----------|--------|----------|-----------|
-| List render | <50ms | Virtualized, only visible rows | INV-UI-002 |
-| Health check | <5s per adapter (parallel) | Parallel goroutines; <30s total for 25 adapters | (INV-ARCH-003 lazy LSP) |
-| Install | <2s per adapter (parallel up to 5) | Goroutines; error isolation | (INV-ARCH-002 stable interface) |
+| Dashboard load | <300ms | Token aggregation, cached | INV-UI-004 |
+| Refresh | <100ms | Re-read daily log only | (INV-UI-005) |
+| Memory | <5MB | Only aggregated data | INV-UI-005 |
+
+### 14.5 Edge cases
+
+- No LLM usage yet (no LLM configured) — empty state: "Configure LLM backend via `caf config set llm.backend <id>`."
+- Cap exceeded — red banner: "Daily cap exceeded. LLM operations disabled until tomorrow. Override: `caf config set cost.llm_token_cap_daily <N>`."
+- Cap alert threshold (80%) — yellow banner: "Approaching daily cap (80%). Consider reviewing usage."
+- Cache cleared — confirmation: "Narrative cache cleared (287 entries, 4.2 MB freed)."
+
+### 14.6 Accessibility (NEW v0.4-triz2)
+
+- All values have text representation (not bar-chart-only): "Today: 12,450 tokens, $0.12, 12% of daily cap".
+- Bar charts have `alt-text` equivalent: "12% filled, 88% remaining".
+- Color-blind safe: percentage bars use both color and fill character (`█` vs `░`).
 
 ---
 
-## 8. File Tour (`caf tour <file>`)
+## 15. Doctor View (`caf doctor`) — NEW v0.4-triz2
 
-### 8.1 Purpose
+### 15.1 Purpose
 
-**EN summary.** File tour shows the history of a single file: timeline (left, sessions/decisions/cards) + numbered source (right). Useful for "why does this file look the way it does?" archaeology.
+**EN summary.** Doctor view runs comprehensive health checks and displays results. 11 checks covering: `.caf/` integrity, config validity, sessions consistency, decisions gaps, graph freshness, hook installation, LSP availability, adapter health, size budget, LLM reachability (PROD), OTel reachability (PROD). Self-heals where possible (J-001).
 
-### 8.2 Layout
+### 15.2 Layout
 
 ```
-CodeAuthorityFirst v0.3.1-triz │ File Tour │ internal/middleware/ratelimit.go (142 lines, 3 sessions)
+CodeAuthorityFirst v0.4.0-triz2 │ Doctor │ Running 11 checks...
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-┌─ Timeline ─────────────────────────────────────┐  ┌─ Source: internal/middleware/ratelimit.go ──────────────────────────────────────┐
-│                                                │  │                                                                                  │
-│  ● 2026-10-24 (post-edit, opencode)            │  │   1  package middleware                                                          │
-│  "feat: sliding window for /v1/policies"      │  │   2                                                                                │
-│  +45 -12 lines                                 │  │   3  import (                                                                      │
-│                                                │  │   4      "context"                                                                 │
-│  ● 2026-10-22 (post-edit, Claude Code)         │  │   5      "time"                                                                    │
-│  "fix: race condition in token counter"        │  │   6      "sync"                                                                    │
-│  +12 -3 lines                                  │  │   7  )                                                                             │
-│                                                │  │   8                                                                                │
-│  ● 2026-10-20 (pre-session, opencode)          │  │   9  // TokenBucket implements a sliding-window rate limiter.                     │
-│  "refactor: extract rate limiter to its own    │  │  10  // See decision d_2026-10-24-01 for reasoning.                                │
-│  file"                                         │  │  11  type TokenBucket struct {                                                    │
-│  +142 -0 lines (file created)                  │  │  12      tokens chan struct{}                                                      │
-│                                                │  │  13      rate   time.Duration                                                       │
-│  Related decisions:                            │  │  14      mu     sync.Mutex                                                         │
-│  • d_2026-10-24-01  Sliding window             │  │  15  }                                                                             │
-│  • d_2026-10-22-01  Race condition fix         │  │  16                                                                                │
-│                                                │  │  17  func NewTokenBucket(rate time.Duration, capacity int) *TokenBucket {          │
-│  Related cards:                                │  │  18      tb := &TokenBucket{                                                       │
-│  • c_001  Type 1  (why)                       │  │  19          tokens: make(chan struct{}, capacity),                                 │
-│  • c_005  Type 2  (what if remove)            │  │  20          rate:   rate,                                                          │
-│  • c_012  Type 3  (where handled)             │  │  21      }                                                                          │
-│                                                │  │  22      go tb.refill()                                                             │
-│                                                │  │  23      return tb                                                                  │
-│                                                │  │  24  }                                                                              │
-│                                                │  │  ... (118 more lines, paginated)                                                   │
-│                                                │  │                                                                                   │
-│  [j/k] Navigate timeline                       │  │  [j/k] Scroll source  [n/p] Next/prev page  [Enter] Jump to line                  │
-│  [Enter] Jump to file:line                     │  │                                                                                   │
-│  [d] Show decision detail                      │  │                                                                                   │
-│  [c] Show card                                 │  │                                                                                   │
-│  [Esc] Back                                    │  │                                                                                   │
-└────────────────────────────────────────────────┘  └───────────────────────────────────────────────────────────────────────────────────┘
+⠋ Running health checks... (3/11 complete)
+
+┌─ Results ──────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                                        │
+│  ✓ .caf/ folder present and valid                                                                      │
+│  ✓ .caf/config.yml schema valid (v0.4.0-triz2)                                                        │
+│  ✓ .caf/sessions/ has 47 sessions, latest 2h ago                                                       │
+│  ✓ .caf/decisions/ has 12 decisions, no gaps                                                           │
+│  ✓ .caf/mental-model/cards.yml has 89 cards, 5 due today                                              │
+│  ✓ .caf/mental-model/graph.yml is fresh (1h old)                                                       │
+│  ✓ Universal pre-commit hook installed and executable                                                  │
+│  ✓ LSP server (gopls) responds in 480ms                                                               │
+│  ✓ All 4 installed adapters pass health check                                                          │
+│  ✗ .caf/ size is 52 MB (exceeds 50 MB threshold — see ADR-001)                                         │
+│    → Recommendation: `caf prune --older-than 90d`                                                      │
+│  ⚠ OpenTelemetry export failed (endpoint unreachable) — see config                                     │
+│    → Recommendation: `caf config set observability.otel_endpoint <url>`                                │
+│                                                                                                        │
+│  Summary: 8 passed, 1 failed, 2 warnings                                                              │
+│                                                                                                        │
+│  [r] Re-run   [f] Fix all auto-fixable   [v] Verbose   [e] Export report                              │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-[?] Help  [q] Quit
+[r] Re-run   [f] Auto-fix   [v] Verbose   [e] Export   [?] Help   [q] Quit
 ```
 
-### 8.3 Keyboard map
+### 15.3 Components
+
+11 health checks (parallel-executed where possible):
+
+1. `.caf/` folder structure valid
+2. `config.yml` schema valid
+3. `sessions/` index consistent with `git log`
+4. `decisions/` no gaps (every non-trivial commit has decision)
+5. `mental-model/graph.yml` fresh (regenerated in last 24h)
+6. Universal pre-commit hook installed and executable
+7. LSP server responds in <500ms
+8. All installed adapters pass contract tests
+9. `.caf/` size under 50 MB
+10. (PROD) LLM endpoint reachable
+11. (PROD) OTel collector reachable
+
+### 15.4 Keyboard map
 
 | Key | Action |
 |-----|--------|
-| `j`/`↓` `k`/`↑` | Navigate timeline (left panel) or scroll source (right panel) |
-| `Tab` | Switch between timeline and source panel |
-| `Enter` | Jump to file:line from selected timeline event |
-| `d` | Show decision detail for selected event |
-| `c` | Show card for selected event |
-| `n`/`p` | Next/prev page of source (for files >1000 lines) |
+| `r` | Re-run all checks |
+| `f` | Auto-fix all auto-fixable issues (with confirmation) |
+| `v` | Verbose mode (show check details + timings) |
+| `e` | Export report as JSON (for CI) |
+| `↑`/`↓` | Navigate to specific check |
+| `Enter` | Show check details |
 | `?` | Help |
 | `q` | Quit |
 
-### 8.4 Performance budget
+### 15.5 Performance budget
 
 | Operation | Budget | Strategy | Invariant |
 |-----------|--------|----------|-----------|
-| First paint | <100ms | Render skeleton (INV-UI-004 SWR); load timeline + source in background | INV-UI-001 |
-| File load | <50ms | Cached after first open | (INV-UI-005 lazy mount) |
-| Timeline build | <50ms | From `.caf/sessions/` index (pre-built) | (INV-ARCH-003) |
-| Memory | <10MB | Only current file in memory; timeline from index | INV-UI-005 |
+| Full run (11 checks) | <5s | Parallel goroutines where possible | (INV-ARCH-011 OTel overhead) |
+| Individual check | <1s (most); <5s (LSP, adapters) | Timeout per check | (INV-UI-004) |
+| Memory | <20MB | Streamed results | INV-UI-005 |
 
-### 8.5 Edge cases
+### 15.6 Auto-fix actions
 
-- File never touched by AI — "No AI sessions recorded for this file. Run `caf sync` to re-scan."
-- File deleted — show last known content with `✗` indicator and "file deleted on YYYY-MM-DD" header.
-- Binary file — show "Binary file, no source view." with timeline still available.
-- File >5000 lines — paginate source 1000 lines per page. `[n]` next page. Timeline unaffected.
-- File <50 lines — full file shown; no pagination needed.
+| Check failure | Auto-fix action |
+|---------------|-----------------|
+| `.caf/` folder structure invalid | Rebuild missing subdirs |
+| `config.yml` schema invalid | Add missing keys with defaults |
+| `sessions/` index inconsistent with git | Rebuild index from `sessions/*.yml` (J-001 self-heal) |
+| `decisions/` gaps | List gaps (no auto-fix — requires human decision) |
+| `graph.yml` stale | Regenerate via `caf sync` |
+| Pre-commit hook missing | Reinstall via `caf init --hooks-only` |
+| LSP server not responding | Restart LSP server (if bundled); else warn |
+| Adapter health failed | Restart adapter (if possible); else warn |
+| `.caf/` size exceeds 50 MB | `caf prune --older-than 90d` (with confirmation) |
+| LLM endpoint unreachable | No auto-fix (network issue); show config hint |
+| OTel collector unreachable | No auto-fix; show config hint |
 
----
+### 15.7 Edge cases
 
-## 9. Onboarding Wizard (extended)
+- Doctor itself crashes — fallback: `caf doctor --basic` runs only 5 critical checks.
+- Check hangs — per-check timeout (5s); mark as ⚠ timeout.
+- Auto-fix fails — show error, do not mark as fixed.
+- CI mode (`caf doctor --ci`) — exit code 0 if all pass, 1 if any fail; output JSON for parsing.
 
-### 9.1 Advanced mode (`caf init --advanced`)
+### 15.8 Accessibility (NEW v0.4-triz2)
 
-```
-┌────────────────────────────────────────────────┐
-│ Advanced settings                              │
-│                                                │
-│ Triviality threshold (LOC): [50]              │
-│ Pre-commit validation:        [✓] enabled      │
-│ Auto-detect agents:           [✓] enabled      │
-│ Dashboard auto-refresh (sec): [30]             │
-│ Theme:                        ( ) dark         │
-│                               (•) light        │
-│                               ( ) auto         │
-│                                                │
-│ [Tab] Next field  [Enter] Continue             │
-└────────────────────────────────────────────────┘
-```
-
-### 9.2 Migration from v0.1/v0.2
-
-`caf init` detects existing `.orya/` (v0.1) or `.caf/` (v0.2) and offers migration:
-
-```
-┌────────────────────────────────────────────────┐
-│ Existing v0.2 .caf/ folder detected.           │
-│                                                │
-│ Migration will:                                │
-│   • Add agent_tier, auto_detected fields      │
-│   • Add ui config section (theme, refresh)     │
-│   • Preserve all existing data                 │
-│                                                │
-│ Estimated time: ~5 seconds (247 sessions)      │
-│                                                │
-│ [Enter] Migrate  [s] Skip  [?] Help            │
-└────────────────────────────────────────────────┘
-```
+- Each check has text status (not symbol-only): "PASSED: .caf/ folder present and valid" (not just "✓").
+- Color-blind safe: ✓/✗/⚠ always paired with text "PASSED"/"FAILED"/"WARNING".
+- Screen reader: results announced sequentially with status first ("FAILED check 9: .caf/ size exceeds 50 MB").
 
 ---
 
-## 10. Reports View (`caf report`)
+## 16. Accessibility Audit (NEW v0.4-triz2)
 
-### 10.1 Daily report
+**EN summary.** v0.3.1-triz mentioned accessibility but did not audit it. v0.4.0-triz2 adds a formal accessibility audit section, applying WCAG 2.1 AA principles to the terminal UI. The terminal is not a browser, but the principles transfer: perceivable, operable, understandable, robust.
 
-```
-CodeAuthorityFirst v0.3.1-triz │ Daily Report │ 2026-10-28
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Sessions today: 4
-  • opencode      2 sessions (45 + 28 minutes)
-  • Claude Code   2 sessions (32 + 19 minutes)
+### 16.1 WCAG-equivalent for terminal
 
-Commits with `CAF-Session` trailer: 3/3 ✓
+| WCAG principle | Web equivalent | TUI equivalent | Status |
+|----------------|----------------|----------------|--------|
+| 1.1 Perceivable | Alt text for images | Text descriptions for all visual elements (sparklines, bars, heatmaps) | ✓ All screens have text representation |
+| 1.3 Adaptable | Responsive layout | Responsive layout (UI.md §12.2: ≥140/100-139/60-99/<60 cols) | ✓ Implemented |
+| 1.4 Distinguishable | Color contrast ≥4.5:1 | High-contrast mode (`caf config set ui.theme high-contrast`); WCAG-AAA palette | ✓ Available |
+| 1.4.1 Use of color | Not color-only | Color + symbol (✓ ⚠ ✗) + text | ✓ INV-UI-008 |
+| 2.1 Keyboard accessible | All features keyboard-reachable | 100% keyboard-only operation | ✓ INV-UI-009 |
+| 2.1.1 Keyboard | No keyboard traps | `Esc` always returns; `q` always quits | ✓ Universal map |
+| 2.4 Navigable | Skip links, landmarks | `1`-`9` screen switch; `g`/`G` top/bottom | ✓ Universal map |
+| 2.4.3 Focus order | Logical tab order | `Tab`/`Shift+Tab` cycles widgets predictably | ✓ Universal map |
+| 3.1 Readable | Plain language | Russian + English (user choice); technical terms defined in ARD | ✓ Bilingual |
+| 3.2 Predictable | Consistent navigation | Universal keyboard map (§0.6) across all screens | ✓ INV-UI-010 |
+| 3.3 Input assistance | Error identification | Error states with `[r] Retry [d] Doctor [i] Ignore [q] Quit` (UI.md §1.3) | ✓ Implemented |
+| 4.1 Compatible | Assistive tech compatible | Text output is screen-reader friendly; no GUI dependencies | ✓ TUI is text |
 
-Decisions new: 2
-  • d_2026-10-28-01  "Why we switched from sync.Map to RWMutex"
-  • d_2026-10-28-02  "Context cancellation in retry logic"
+### 16.2 Color-blindness testing
 
-Cards due today: 5  Cards reviewed: 5  Recall rate: 80%
+| Type of color-blindness | Prevalence | Mitigation |
+|-------------------------|------------|------------|
+| Deuteranomaly (red-green) | ~6% men | ✓ Color + symbol: green ✓ / red ✗ never alone |
+| Protanomaly (red-green) | ~1% men | ✓ Same as above |
+| Tritanomaly (blue-yellow) | <0.01% | ✓ Blue and yellow are distinguishable; high-contrast mode available |
+| Achromatopsia (no color) | <0.001% | ✓ High-contrast mode (black/white/yellow); all status also has text |
 
-What you did well:
-  • 100% decision coverage on non-trivial commits
-  • Recall rate above 7-day avg (78%)
+### 16.3 Screen reader support
 
-What to improve:
-  • 1 blindspot: internal/middleware/circuit_breaker.go (last reviewed 14 days ago)
-  • Agent diversity below target (H=0.8, target ≥1.0)
+TUI output is plain text; screen readers (VoiceOver, NVDA, JAWS) read it natively. Enhancements:
 
-Tomorrow's queue:
-  • 3 cards due (Type 1: 2, Type 2: 1)
-  • 1 pending decision from today's session
+- **Status-first announcement:** "FAILED check 9" before details (not "check 9 FAILED").
+- **Sparkline alt-text:** hidden text "30-day trend: rising from 3.2 to 3.8" accompany sparkline.
+- **Bar chart alt-text:** "12% filled, 88% remaining" accompany bar.
 
-[Esc] Back  [w] Week report  [m] Metrics report  [?] Help
-```
+### 16.4 Motor accessibility
 
-### 10.2 Week report
+- No time-based-only cues (no flashing, no auto-dismissing dialogs).
+- No double-key shortcuts (e.g., no `Ctrl+K, Ctrl+S`; all shortcuts are single-key or `Ctrl+<key>`).
+- Sticky keys supported (terminal-level, not caf-specific).
 
-```
-CodeAuthorityFirst v0.3.1-triz │ Week Report │ 2026-10-22 to 2026-10-28
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-ACS (7-day avg):        3.5 → 3.8  ↑+0.3   Target: ≥3.5  ✓
-Recall (7-day avg):    72% → 80%   ↑+8pp   Target: ≥75%  ✓
-Decision coverage:    88% → 92%   ↑+4pp   Target: ≥90%  ✓
-Sessions/day:           4.2 → 4.5   ↑+0.3
-Agent diversity (H):   0.9 → 1.2   ↑+0.3   Target: ≥1.0  ✓
+### 16.5 Cognitive accessibility
 
-7-day ACS sparkline: ▁▂▃▄▅▆▇█
+- Help overlay (`?`) available on every screen (INV-UI-010).
+- Empty states always have CTA (e.g., "Run `caf init` to start tracking") (INV-UI-010).
+- Consistent terminology across screens (universal keyboard map, §0.6).
+- Russian/English toggle without restart (`caf config set ui.language ru|en`).
 
-Top contributors (this week):
-  • opencode      12 sessions
-  • Claude Code    8 sessions
-  • Universal LSP 3 sessions
-```
+### 16.6 Accessibility audit checklist (for new screens)
 
-### 10.3 Metrics report
+When adding a new screen, verify:
 
-```
-CodeAuthorityFirst v0.3.1-triz │ Metrics Report (30-day rolling)
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-ACS (Authorship Confidence Score):     3.8   Target: ≥3.5   ✓
-Recall rate:                            78%   Target: ≥75%   ✓
-Decision coverage:                      92%   Target: ≥90%  ✓
-Mental model reach:                     68%   Target: ≥70%  ⚠ below target
-  Action: `caf review --regenerate --since 30d`
-Agent diversity (Shannon entropy H):     1.2   Target: ≥1.0  ✓
-
-Per-agent distribution:
-  opencode      ████████████████ 48%
-  Claude Code   ███████████       32%
-  Universal LSP ████              12%
-  Cursor        ███                8%
-
-Adapter coverage (native):              70%   Target: ≥70%  ✓ (4 native / 25 explicit + universal)
-```
+- [ ] All visual elements have text representation (not color-only, not symbol-only)
+- [ ] Universal keyboard map (§0.6) works on this screen
+- [ ] Help overlay (`?`) shows screen-specific help
+- [ ] Empty state has CTA
+- [ ] Error state has recovery options (`[r] Retry [d] Doctor [i] Ignore [q] Quit`)
+- [ ] High-contrast mode renders correctly
+- [ ] Screen reader announcement order is status-first
+- [ ] No time-based-only cues
+- [ ] Responsive layout works at 60/100/140 cols
+- [ ] Sparklines/charts have alt-text
 
 ---
 
-## 11. Settings Editor (`caf config edit`)
+## 17. Implementation Notes
 
-### 11.1 Layout
-
-```
-CodeAuthorityFirst v0.3.1-triz │ Settings
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-General
-  Triviality threshold (LOC):    [50]
-  Pre-commit validation:        [✓] enabled
-  Fail-safe mode:               [✓] enabled (recommended — see ARCHITECT.md §2.5 fail-safe contract)
-
-Adapters
-  [✓] opencode      (Tier 1, native)
-  [✓] Claude Code   (Tier 1, native)
-  [ ] Cursor        (Tier 1, wrapper)
-  [ ] Aider         (Tier 2, wrapper)
-  [✓] Universal LSP (Tier 4, fallback)
-
-UI
-  Theme:                         (•) dark   ( ) light   ( ) auto   ( ) high-contrast
-  Review session max cards:     [15]
-  Dashboard refresh (sec):      [30]
-
-LLM (PROD)
-  Backend:                       [z-ai-web-dev-sdk ▼]
-  First-person voice:           [✓] enabled (recommended — ADR-006)
-
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-[Ctrl+S] Save  [Esc] Cancel  [?] Help
-```
-
----
-
-## 12. Cross-cutting Concerns
-
-### 12.1 Terminal compatibility
-
-| Terminal | Tested | Notes |
-|----------|--------|-------|
-| iTerm2 (macOS) | ✓ | Full truecolor, mouse, all features |
-| Terminal.app (macOS) | ✓ | 256-color only (no truecolor) |
-| Alacritty | ✓ | Full truecolor |
-| Kitty | ✓ | Full truecolor, graphics protocol |
-| Windows Terminal | ✓ | Full truecolor |
-| VSCode integrated | ✓ | 256-color, mouse works |
-| Git Bash (Windows) | partial | Limited color, some rendering issues. Mitigation: fall back to 16-color via termenv; surface as `caf doctor` warning recommending WSL or Windows Terminal. |
-| Linux TTY (Ctrl+Alt+F1) | partial | 16-color only; no mouse |
-| SSH | ✓ | Full features (depends on client terminal) |
-
-### 12.2 Responsive design
-
-| Width (cols) | Layout |
-|--------------|--------|
-| ≥140 | Full grid (3-column dashboard) |
-| 100-139 | 2-column dashboard |
-| 60-99 | Single column, widgets stacked |
-| <60 | Compact mode: "Widen terminal for full dashboard." + key info only |
-
-### 12.3 Accessibility
-
-- Color-blind friendly: pair color with text/symbol (✓ ⚠ ✗), never color-only.
-- Screen reader hints via ANSI escape codes (`\033[?25h` to show cursor, etc.).
-- Keyboard-only operation possible (no mouse required, FUTURE K-011 adds mouse support).
-- No time-based-only cues (no flashing).
-- High-contrast mode: `caf config set ui.theme high-contrast`.
-
-### 12.4 Internationalization
-
-- Body text: RU/EN depending on user locale (`ui.language` config).
-- CLI names always English (universal).
-- YAML field names always English (machine-readable).
-- Decision content: user's language (recorded as-is, not translated).
-
-### 12.5 Telemetry (opt-in, FUTURE, BACKLOG J-004)
-
-Anonymous command counts + error rates. Opt-in via `caf config set telemetry.enabled true`. No content (no prompts, paths, decisions). Public dashboard: `caf telemetry stats`. See BACKLOG J-004.
-
----
-
-## 13. Implementation Notes
-
-### 13.1 File organization
+### 17.1 File organization (updated v0.4-triz2)
 
 ```
 pkg/ui/
 ├── tui.go              # root model + Update + View
-├── theme.go            # color palette, typography
-├── keys.go             # universal keyboard map (§0.6)
-├── perf.go             # performance budget enforcer + CI benchmark hooks (§0.3)
+├── theme.go            # color palette, typography, high-contrast palette (NEW)
+├── keys.go             # universal keyboard map (§0.6) + global shortcuts (D, M, $ — NEW)
+├── perf.go             # performance budget enforcer + CI benchmark hooks
+├── a11y.go             # accessibility helpers (NEW v0.4-triz2): alt-text, screen reader announcements
 ├── components/
 │   ├── header.go       # header bar
 │   ├── statusbar.go    # status bar
 │   ├── spinner.go      # loading spinner
 │   ├── skeleton.go     # skeleton placeholder (INV-UI-004 SWR pattern)
-│   └── heatmap.go      # heatmap cell renderer (§6)
+│   ├── heatmap.go      # heatmap cell renderer (§6)
+│   └── sparkline.go    # sparkline component (NEW v0.4-triz2, for metrics/cost dashboards)
 └── screens/
     ├── onboarding.go     # §2 / §9
     ├── dashboard.go      # §3
@@ -1216,65 +695,23 @@ pkg/ui/
     ├── adapters.go            # §7
     ├── file_tour.go           # §8
     ├── reports.go             # §10
-    └── settings.go            # §11
+    ├── settings.go            # §11
+    ├── metrics.go             # §13 (NEW v0.4-triz2)
+    ├── cost.go                # §14 (NEW v0.4-triz2)
+    └── doctor.go              # §15 (NEW v0.4-triz2)
 ```
 
-Each screen file maps to its spec section by file comment: `// §3 Dashboard (caf dashboard)`.
+### 17.2 State management (preserved from v0.3.1-triz)
 
-### 13.2 State management
+Bubble Tea ELM architecture. `model` struct holds activeScreen / repo / agent / data / theme / width / height / loading. Async loading via `tea.Cmd` returning `DataLoadedMsg`. The pattern is structurally equivalent to React's SWR.
 
-**EN summary.** Bubble Tea ELM architecture. `model` struct holds activeScreen / repo / agent / data / theme / width / height. `Update(msg)` handles `tea.WindowSizeMsg`, `tea.KeyMsg`, `DataLoadedMsg`. Async loading via `tea.Cmd` returning `DataLoadedMsg{Sessions}`. The pattern is structurally equivalent to React's SWR (stale-while-revalidate) — skeleton shown immediately, fresh data swaps in.
+### 17.3 Virtualization strategy (preserved)
 
-```go
-type model struct {
-    activeScreen Screen
-    repo         string
-    agent        string
-    data         map[string]interface{} // generic; typed per screen
-    theme        Theme
-    width        int
-    height       int
-    loading      map[string]bool         // INV-UI-004: which keys have Skeleton shown
-}
-
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-    switch msg := msg.(type) {
-    case tea.WindowSizeMsg:
-        m.width, m.height = msg.Width, msg.Height
-        return m, nil
-    case tea.KeyMsg:
-        // handle keystroke (<50ms, INV-UI-003 direct dispatch)
-        return m, m.handleKey(msg)
-    case DataLoadedMsg:
-        // SWR pattern: replace Skeleton with real data (INV-UI-004)
-        m.data[msg.Key] = msg.Data
-        delete(m.loading, msg.Key)
-        return m, nil
-    }
-    return m, nil
-}
-```
-
-Async loading via `tea.Cmd` returning `DataLoadedMsg`:
-
-```go
-func loadSessionsCmd(repo string) tea.Cmd {
-    return func() tea.Msg {
-        sessions, _ := storage.Sessions(repo)
-        return DataLoadedMsg{Key: "sessions", Data: sessions}
-    }
-}
-```
-
-**Skeleton/SWR pattern:** when a screen mounts, it immediately shows a `Skeleton{}` for each data key in `m.loading`. When `DataLoadedMsg` arrives, the skeleton is replaced with real data. This is the same shape as React's SWR hook: show stale immediately, swap to fresh in background.
-
-### 13.3 Virtualization strategy
-
-- `bubbles/list` for any list with >100 items. `SetFilteringEnabled(true)` for search.
-- For file tour source view >5000 lines: paginate 1000 lines per page (`const pageSize = 1000`).
+- `bubbles/list` for any list with >100 items.
+- File tour source view >5000 lines: paginate 1000 lines per page.
 - Heatmap: pre-computed cells, never full file content.
 
-### 13.4 Caching strategy
+### 17.4 Caching strategy (updated v0.4-triz2)
 
 | Data | Cache location | TTL | Invalidation |
 |------|----------------|-----|--------------|
@@ -1283,49 +720,82 @@ func loadSessionsCmd(repo string) tea.Cmd {
 | Sessions index | in-memory | session-lifetime | (rebuilt on `caf sync`) |
 | Heatmap | in-memory | 5m | `git diff` since last compute |
 | Adapter capabilities | in-memory | process-lifetime | (never changes within process) |
+| **Narrative cache (NEW v0.4-triz2)** | **`.caf/cache/narratives/<hash>.md`** | **unlimited (LRU)** | **File content changes; decision changes; `caf review --regenerate`** |
+| **Metrics aggregation (NEW v0.4-triz2)** | **in-memory** | **5m** | **New daily snapshot in `.caf/metrics/`** |
 
 ---
 
-## 14. Testing Strategy
+## 18. Testing Strategy (updated v0.4-triz2)
 
-### 14.1 Unit tests
+### 18.1 Unit tests
 
 Every screen has `*_test.go` with snapshot tests using `termenv` profile. Mock `DataLoader` interface.
 
-### 14.2 Integration tests
+### 18.2 Integration tests
 
 Real `.caf/` fixtures; full TUI flow via [teatest](https://github.com/charmbracelet/teatest). CI with terminal sizes 60/100/140 cols.
 
-### 14.3 Performance tests
+### 18.3 Performance tests
 
 ```bash
 # CI benchmarks (run on every PR)
 benchmark: `caf dashboard` first paint <100ms on 1000-session repo
 benchmark: `caf review` card render <50ms
 benchmark: `caf heatmap` render <200ms on 1000-file repo
+benchmark: `caf doctor` full run <5s (11 checks) — NEW v0.4-triz2
+benchmark: `caf metrics --dashboard` load <500ms — NEW v0.4-triz2
+benchmark: `caf cost --dashboard` load <300ms — NEW v0.4-triz2
 # Regressions >2x trigger alert, PR blocked
 ```
 
-### 14.4 Visual regression tests
+### 18.4 Visual regression tests
 
 Snapshots in `pkg/ui/__snapshots__/`. Snapshot diff in CI; manual review for intentional changes.
 
+### 18.5 Accessibility tests (NEW v0.4-triz2)
+
+- **Color-blind simulation:** render screens under deuteranopia/protanopia/tritanopia filters; verify no information is color-only.
+- **Screen reader output:** capture `View()` output; verify status-first announcement order.
+- **Keyboard-only test:** navigate every screen using only keyboard; verify no dead-ends.
+- **High-contrast test:** render every screen in high-contrast mode; verify no broken layouts.
+
 ---
 
-## 15. Future UI Enhancements (not in v0.3)
+## 19. Future UI Enhancements (updated v0.4-triz2)
 
 | Enhancement | Where (BACKLOG ref) | Phase | Status |
 |-------------|---------------------|-------|--------|
-| VSCode extension with inline provenance | B-001 / K-003 (duplicate) | FUTURE | proposed |
-| JetBrains plugin | B-002 / K-004 (duplicate) | FUTURE | idea |
-| Neovim plugin | B-003 / K-005 (duplicate) | FUTURE | draft |
-| Full-screen review TUI | B-004 | BETA | ✅ done (shipped in v0.3) |
-| Onboarding wizard | B-005 | MVP | ✅ done (shipped in v0.3) |
-| Color-coded `caf report` | B-008 | BETA | ✅ done (shipped in v0.3) |
-| Terminal dashboard | B-009 | MVP | ✅ done (shipped in v0.3) |
-| Multi-repo dashboard | B-010 / K-001 (duplicate) | PROD | proposed |
+| VSCode extension | B-001 / K-003 | FUTURE | proposed |
+| JetBrains plugin | B-002 / K-004 | FUTURE | idea |
+| Neovim plugin | B-003 / K-005 | FUTURE | draft |
+| Full-screen review TUI | B-004 | BETA | ✅ done (shipped v0.3) |
+| Onboarding wizard | B-005 | MVP | ✅ done (shipped v0.3) |
+| Color-coded `caf report` | B-008 | BETA | ✅ done (shipped v0.3) |
+| Terminal dashboard | B-009 | MVP | ✅ done (shipped v0.3) |
+| Multi-repo dashboard | B-010 / K-001 | PROD | proposed |
 | Web dashboard | (FUTURE) | FUTURE | — |
-| Voice-first review | D-006 / K-006 (duplicate) | FUTURE | idea |
+| Voice-first review | D-006 / K-006 | FUTURE | idea |
 | Mobile app | R-004 | rejected | rejected |
+| **Metrics dashboard (NEW v0.4-triz2)** | **OBS-001/002/003** | **PROD** | **✅ specified (this §13)** |
+| **Cost dashboard (NEW v0.4-triz2)** | **COST-001/002/003** | **PROD** | **✅ specified (this §14)** |
+| **Doctor view (NEW v0.4-triz2)** | **OBS-004** | **ALPHA** | **✅ specified (this §15)** |
+| **Grafana dashboard template (NEW v0.4-triz2)** | **OBS-005** | **FUTURE** | **idea** |
+| **Anomaly detection view (NEW v0.4-triz2)** | **OBS-006** | **FUTURE** | **idea** |
 
-> **v0.3.1-triz reconciliation:** In the original UI.md §15, the "Status" column was missing; items B-004, B-005, B-008, B-009 were tagged inline as "already in v0.3! done" but the status field was inconsistent. v0.3.1-triz adds an explicit Status column. Cross-theme duplicates (K-003/4/5/6 = B-001/2/3 and D-006) are now explicitly tagged as duplicates per BACKLOG §12 cross-reference.
+---
+
+## 20. v0.3.1-triz → v0.4.0-triz2 Changelog
+
+1. **3 new screens added** (§13 Metrics dashboard, §14 Cost dashboard, §15 Doctor view). Total screens: 14 (was 11).
+2. **Accessibility audit added** as §16. Formal WCAG-equivalent for terminal; color-blindness testing; screen reader support; motor/cognitive accessibility.
+3. **UI-velocity patterns expanded** with 4th pattern (§0.8): Progressive enhancement analogue — termenv color detection.
+4. **Universal keyboard map expanded** (§0.6) with 3 new global shortcuts: `D` (Doctor), `M` (Metrics), `$` (Cost).
+5. **Screen template formalized** (§0.7). Every screen follows the template; new screen = new file + template fill.
+6. **Performance budgets expanded** with 3 new budgets: doctor run, metrics dashboard load, cost dashboard load.
+7. **File organization expanded** (§17.1) with 4 new files: `a11y.go`, `sparkline.go`, `metrics.go`, `cost.go`, `doctor.go`.
+8. **Caching strategy expanded** (§17.4) with narrative cache and metrics aggregation cache.
+9. **Testing strategy expanded** (§18) with accessibility tests (color-blind simulation, screen reader output, keyboard-only, high-contrast).
+10. **High-contrast palette added** (§0.4) — WCAG-AAA contrast for low-vision users.
+11. **INV-UI-008 added** — color-blind friendly invariant formalized.
+12. **INV-UI-009 added** — keyboard-only operation invariant formalized.
+13. **INV-UI-010 added** — help overlay + empty state invariant formalized.
