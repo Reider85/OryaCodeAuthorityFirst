@@ -17,14 +17,48 @@ type Screen interface {
 	SetActive(active bool)
 }
 
+// PlaceholderScreen is a temporary screen for MVP
+type PlaceholderScreen struct {
+	ID    string
+	Theme *Theme
+}
+
+// Init initializes the placeholder screen
+func (p *PlaceholderScreen) Init() tea.Cmd {
+	return nil
+}
+
+// Update handles messages for the placeholder screen
+func (p *PlaceholderScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
+	return p, nil
+}
+
+// View returns the placeholder screen view
+func (p *PlaceholderScreen) View() string {
+	return fmt.Sprintf("🚧 %s screen - Implementation coming in steps 10-13\n\nPress ? for help, Esc to quit", p.ID)
+}
+
+// GetID returns the screen ID
+func (p *PlaceholderScreen) GetID() string {
+	return p.ID
+}
+
+// IsActive returns if the screen is active
+func (p *PlaceholderScreen) IsActive() bool {
+	return true
+}
+
+// SetActive sets the active state
+func (p *PlaceholderScreen) SetActive(active bool) {
+	// No-op for placeholder
+}
+
 // ScreenType represents the type of screen
 type ScreenType int
 
 const (
 	ScreenDashboard ScreenType = iota
 	ScreenDoctor
-	ScreenMetrics
-	ScreenCost
 	ScreenSettings
 )
 
@@ -35,10 +69,6 @@ func (st ScreenType) String() string {
 		return "dashboard"
 	case ScreenDoctor:
 		return "doctor"
-	case ScreenMetrics:
-		return "metrics"
-	case ScreenCost:
-		return "cost"
 	case ScreenSettings:
 		return "settings"
 	default:
@@ -91,15 +121,10 @@ func (m *AppModel) Init() tea.Cmd {
 	// Precompute styles for performance
 	m.Theme.PrecomputeStyles()
 	
-	// Initialize screens
-	m.Screens[ScreenDashboard] = NewDashboardScreen(m.Theme, m.Keys, m.A11y, m.PerfTracker)
-	m.Screens[ScreenDoctor] = NewDoctorScreen(m.Theme, m.Keys, m.A11y, m.PerfTracker)
-	m.Screens[ScreenMetrics] = NewMetricsScreen(m.Theme, m.Keys, m.A11y, m.PerfTracker)
-	m.Screens[ScreenCost] = NewCostScreen(m.Theme, m.Keys, m.A11y, m.PerfTracker)
-	m.Screens[ScreenSettings] = NewSettingsScreen(m.Theme, m.Keys, m.A11y, m.PerfTracker)
-	
-	// Set active screen
-	m.ActiveScreen = m.Screens[m.CurrentScreen]
+	// MVP screens will be initialized when implemented (screens/ package)
+	// For now, create a placeholder dashboard
+	m.CurrentScreen = ScreenDashboard
+	m.ActiveScreen = &PlaceholderScreen{ID: "dashboard", Theme: m.Theme}
 	
 	// Announce application start
 	m.ScreenReader.AddAnnouncement("app_start", "CodeAuthorityFirst TUI started", AnnouncementImportant, "Application", false)
@@ -142,14 +167,6 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.switchScreen(ScreenDoctor)
 			
 		case "3":
-			// Switch to metrics
-			return m, m.switchScreen(ScreenMetrics)
-			
-		case "4":
-			// Switch to cost
-			return m, m.switchScreen(ScreenCost)
-			
-		case "5":
 			// Switch to settings
 			return m, m.switchScreen(ScreenSettings)
 		}
@@ -167,8 +184,8 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		
 	case ScreenSwitchMsg:
-		// Handle screen switch
-		if msg.ScreenType != m.CurrentScreen {
+		// Handle screen switch (only for existing screens in MVP scope)
+		if msg.ScreenType != m.CurrentScreen && m.Screens[msg.ScreenType] != nil {
 			m.CurrentScreen = msg.ScreenType
 			m.ActiveScreen = m.Screens[msg.ScreenType]
 			cmds = append(cmds, m.ActiveScreen.Init())

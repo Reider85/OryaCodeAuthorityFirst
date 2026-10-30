@@ -8,11 +8,13 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"github.com/charmbracelet/bubbletea"
 	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf"
 	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf/adapters"
 	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf/doctor"
 	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf/storage"
 	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf/hooks"
+	"github.com/Reider85/OryaCodeAuthorityFirst/pkg/ui"
 )
 
 // AutoDetect represents auto-detection results
@@ -465,8 +467,15 @@ func runHook(event string, flags *pflag.FlagSet) {
 
 func runDashboard() {
 	fmt.Println("🚀 Launching TUI dashboard...")
-	// Implementation would launch the Bubble Tea TUI
-	fmt.Println("Dashboard would launch here...")
+	
+	// Create and run the TUI
+	model := ui.NewAppModel()
+	program := tea.NewProgram(model)
+	
+	if err := program.Start(); err != nil {
+		fmt.Printf("❌ Error running TUI: %v\n", err)
+		os.Exit(1)
+	}
 }
 
 func runAdaptersList() {
