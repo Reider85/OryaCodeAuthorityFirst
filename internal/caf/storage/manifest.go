@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
-
-	"gopkg.in/yaml.v3"
 )
 
 // Manifest represents the .caf/manifest.yml file
@@ -25,20 +24,20 @@ type CrossRepo struct {
 	LastSync    time.Time `yaml:"last_sync,omitempty"`
 }
 
-// Manager handles manifest operations
-type Manager struct {
+// ManifestManager handles manifest operations
+type ManifestManager struct {
 	manifestFile string
 }
 
 // NewManifestManager creates a new manifest manager
-func NewManifestManager(manifestFile string) *Manager {
-	return &Manager{
+func NewManifestManager(manifestFile string) *ManifestManager {
+	return &ManifestManager{
 		manifestFile: manifestFile,
 	}
 }
 
 // CreateManifest creates a new manifest file
-func (m *Manager) CreateManifest(repo string) error {
+func (m *ManifestManager) CreateManifest(repo string) error {
 	manifest := Manifest{
 		Version:     "0.4.0-triz2",
 		Repo:        repo,
@@ -49,7 +48,7 @@ func (m *Manager) CreateManifest(repo string) error {
 }
 
 // LoadManifest loads the manifest file
-func (m *Manager) LoadManifest() (*Manifest, error) {
+func (m *ManifestManager) LoadManifest() (*Manifest, error) {
 	var manifest Manifest
 	if err := ReadYAML(m.manifestFile, &manifest); err != nil {
 		return nil, fmt.Errorf("failed to load manifest: %w", err)
@@ -59,12 +58,12 @@ func (m *Manager) LoadManifest() (*Manifest, error) {
 }
 
 // SaveManifest saves the manifest file
-func (m *Manager) SaveManifest(manifest Manifest) error {
+func (m *ManifestManager) SaveManifest(manifest Manifest) error {
 	return WriteYAML(m.manifestFile, manifest)
 }
 
 // UpdateLastSync updates the last sync timestamp
-func (m *Manager) UpdateLastSync() error {
+func (m *ManifestManager) UpdateLastSync() error {
 	manifest, err := m.LoadManifest()
 	if err != nil {
 		return err

@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"time"
 )
 
 // State represents the UI state
@@ -181,51 +180,64 @@ type RefreshMsg struct {
 	Force bool
 }
 
+// ErrorMsg represents an error message (каноническое определение для всех экранов)
+type ErrorMsg struct {
+	Err error
+}
+
+// HelpMsg represents a help message (каноническое определение для всех экранов)
+type HelpMsg struct {
+	ScreenID string
+	Message  string
+}
+
 // Screen represents a screen with state management
-type Screen struct {
+type ScreenBase struct {
 	StateMachine *StateMachine
 	PerfTracker  *PerfTracker
 	Theme        *Theme
 	Keys         *Keys
+	ScreenReader *ScreenReaderManager
 }
 
 // NewScreen creates a new screen
-func NewScreen(theme *Theme, keys *Keys, perfTracker *PerfTracker) *Screen {
-	return &Screen{
+func NewScreen(theme *Theme, keys *Keys, a11y *A11y, perfTracker *PerfTracker) *ScreenBase {
+	return &ScreenBase{
 		StateMachine: NewStateMachine(),
 		PerfTracker:  perfTracker,
 		Theme:        theme,
 		Keys:         keys,
+		ScreenReader: NewScreenReaderManager(a11y),
 	}
 }
 
 // Transition transitions the screen state
-func (s *Screen) Transition(msg interface{}) {
+func (s *ScreenBase) Transition(msg interface{}) {
 	s.StateMachine.Transition(msg)
 }
 
 // GetCurrentState returns the current state
-func (s *Screen) GetCurrentState() State {
+func (s *ScreenBase) GetCurrentState() State {
 	return s.StateMachine.Current()
 }
 
 // GetStateString returns the current state as string
-func (s *Screen) GetStateString() string {
+func (s *ScreenBase) GetStateString() string {
 	return s.StateMachine.Current().String()
 }
 
 // IsState returns true if the screen is in the specified state
-func (s *Screen) IsState(state State) bool {
+func (s *ScreenBase) IsState(state State) bool {
 	return s.StateMachine.Current() == state
 }
 
 // GetErrorMessage returns the error message if in error state
-func (s *Screen) GetErrorMessage() string {
+func (s *ScreenBase) GetErrorMessage() string {
 	return s.StateMachine.Error()
 }
 
 // GetPartialMessages returns the partial state messages
-func (s *Screen) GetPartialMessages() []string {
+func (s *ScreenBase) GetPartialMessages() []string {
 	return s.StateMachine.PartialMessages()
 }
 
@@ -275,7 +287,7 @@ func ValidateTransition(from, to State) error {
 }
 
 // GetStateDescription returns a description of the current state
-func (s *Screen) GetStateDescription() string {
+func (s *ScreenBase) GetStateDescription() string {
 	switch s.StateMachine.Current() {
 	case StateLoading:
 		return "Loading..."
@@ -293,7 +305,7 @@ func (s *Screen) GetStateDescription() string {
 }
 
 // GetStateColor returns the color for the current state
-func (s *Screen) GetStateColor() string {
+func (s *ScreenBase) GetStateColor() string {
 	switch s.StateMachine.Current() {
 	case StateLoading:
 		return "muted"
@@ -311,7 +323,7 @@ func (s *Screen) GetStateColor() string {
 }
 
 // GetStateIcon returns the icon for the current state
-func (s *Screen) GetStateIcon() string {
+func (s *ScreenBase) GetStateIcon() string {
 	switch s.StateMachine.Current() {
 	case StateLoading:
 		return "⠋"

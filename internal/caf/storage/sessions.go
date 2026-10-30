@@ -127,3 +127,41 @@ func (m *Manager) DeleteSession(sessionID string) error {
 	sessionFile := filepath.Join(m.sessionsDir, fmt.Sprintf("%s.yml", sessionID))
 	return os.Remove(sessionFile)
 }
+
+// LoadSession загружает сессию по пути без расширения .yml
+// (пакетная функция для ContextGenerator).
+func LoadSession(path string) (*Session, error) {
+	data, err := os.ReadFile(path + ".yml")
+	if err != nil {
+		return nil, fmt.Errorf("failed to read session file: %w", err)
+	}
+
+	var session Session
+	if err := yaml.Unmarshal(data, &session); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal session: %w", err)
+	}
+
+	return &session, nil
+}
+
+// ListSessions возвращает ID всех сессий в каталоге (пакетная функция
+// для ContextGenerator).
+func ListSessions(dir string) ([]string, error) {
+	var sessionIDs []string
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return sessionIDs, nil
+		}
+		return nil, fmt.Errorf("failed to read sessions directory: %w", err)
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".yml" {
+			sessionIDs = append(sessionIDs, entry.Name()[:len(entry.Name())-4])
+		}
+	}
+
+	return sessionIDs, nil
+}

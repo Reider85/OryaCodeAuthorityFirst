@@ -8,9 +8,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf"
 )

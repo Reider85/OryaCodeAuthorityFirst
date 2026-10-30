@@ -3,10 +3,8 @@ package hooks
 import (
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
-
-	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf/config"
-	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf/storage"
 )
 
 // HookContext contains context for hook execution

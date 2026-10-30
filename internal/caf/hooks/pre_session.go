@@ -1,7 +1,6 @@
 package hooks
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -16,8 +15,8 @@ func PreSessionHook(ctx HookContext) error {
 	log.Printf("🔧 Pre-session hook for session %s", ctx.SessionID)
 
 	// Load config
-	configManager := config.NewManager(storage.GetConfigPath(ctx.RepoRoot))
-	cfg, err := configManager.LoadConfig()
+	configManager := config.NewManager(config.GetConfigPath(ctx.RepoRoot))
+	_, err := configManager.LoadConfig()
 	if err != nil {
 		log.Printf("⚠ Failed to load config: %v", err)
 		// Continue anyway
@@ -27,7 +26,6 @@ func PreSessionHook(ctx HookContext) error {
 	contextFile := filepath.Join(ctx.RepoRoot, ".caf", "context.md")
 	if _, err := os.Stat(contextFile); os.IsNotExist(err) {
 		log.Printf("📝 Generating context for session %s", ctx.SessionID)
-		sessionManager := storage.NewManager(filepath.Join(ctx.RepoRoot, ".caf", "sessions"))
 		contextGen := storage.NewContextGenerator(
 			filepath.Join(ctx.RepoRoot, ".caf", "sessions"),
 			filepath.Join(ctx.RepoRoot, ".caf", "decisions"),

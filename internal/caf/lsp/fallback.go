@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf"
 	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf/adapters"
 	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf/storage"
 )
@@ -15,7 +16,7 @@ import (
 type FallbackManager struct {
 	repoRoot     string
 	adapter      *adapters.UniversalLSPAdapter
-	symbols      []storage.Symbol
+	symbols      []caf.Symbol
 	lastSync     time.Time
 	syncInterval time.Duration
 }
@@ -69,9 +70,9 @@ func (m *FallbackManager) SyncSymbols() error {
 	}
 
 	// Convert to our format
-	m.symbols = make([]storage.Symbol, len(symbols))
+	m.symbols = make([]caf.Symbol, len(symbols))
 	for i, symbol := range symbols {
-		m.symbols[i] = storage.Symbol{
+		m.symbols[i] = caf.Symbol{
 			Name:       symbol.Name,
 			Kind:       symbol.Kind,
 			Location:   symbol.Location,
@@ -91,7 +92,7 @@ func (m *FallbackManager) SyncSymbols() error {
 }
 
 // GetSymbols returns the cached symbols
-func (m *FallbackManager) GetSymbols() []storage.Symbol {
+func (m *FallbackManager) GetSymbols() []caf.Symbol {
 	// Check if we need to sync
 	if time.Since(m.lastSync) > m.syncInterval {
 		if err := m.SyncSymbols(); err != nil {
@@ -106,7 +107,7 @@ func (m *FallbackManager) GetSymbols() []storage.Symbol {
 func (m *FallbackManager) SaveSymbolGraph() error {
 	graphFile := filepath.Join(m.repoRoot, ".caf", "mental-model", "graph.yml")
 	
-	graph := storage.SymbolGraph{
+	graph := caf.SymbolGraph{
 		Symbols: m.symbols,
 	}
 
@@ -117,7 +118,7 @@ func (m *FallbackManager) SaveSymbolGraph() error {
 func (m *FallbackManager) LoadSymbolGraph() error {
 	graphFile := filepath.Join(m.repoRoot, ".caf", "mental-model", "graph.yml")
 	
-	var graph storage.SymbolGraph
+	var graph caf.SymbolGraph
 	if err := storage.ReadYAML(graphFile, &graph); err != nil {
 		return fmt.Errorf("failed to load symbol graph: %w", err)
 	}
@@ -157,8 +158,8 @@ func (m *FallbackManager) LazyLoad() error {
 }
 
 // GetSymbolGraph returns the symbol graph for the repository
-func (m *FallbackManager) GetSymbolGraph() storage.SymbolGraph {
-	return storage.SymbolGraph{
+func (m *FallbackManager) GetSymbolGraph() caf.SymbolGraph {
+	return caf.SymbolGraph{
 		Symbols: m.symbols,
 	}
 }

@@ -198,7 +198,6 @@ func EnforceBudget(name string, actual time.Duration, budget time.Duration) (*Pe
 
 // Benchmark runs a benchmark for an operation
 func Benchmark(name string, fn func() time.Duration) (time.Duration, *PerformanceWarning, bool) {
-	start := time.Now()
 	duration := fn()
 	
 	budget := NewPerformanceBudget()

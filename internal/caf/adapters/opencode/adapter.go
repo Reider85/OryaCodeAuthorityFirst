@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf"
 )
@@ -187,6 +186,24 @@ func (a *OpencodeLanguageAdapter) ResolveExternalRepo(pkg string) caf.RepoRef {
 		Resolved: true,
 	}
 }
+
+// Capabilities возвращает матрицу возможностей языкового адаптера.
+// Языковые адаптеры не обрабатывают события хуков — все тиры TierNone.
+func (a *OpencodeLanguageAdapter) Capabilities() caf.CapabilityMatrix {
+	return caf.CapabilityMatrix{
+		PreSession: caf.TierNone,
+		PostEdit:   caf.TierNone,
+		PreCommit:  caf.TierNone,
+		MCP:        false,
+		Tier:       1,
+	}
+}
+
+// Install языковому адаптеру не нужен — он детектирует язык, а не ставит хуки.
+func (a *OpencodeLanguageAdapter) Install() error { return nil }
+
+// Uninstall языковому адаптеру не нужен — см. Install.
+func (a *OpencodeLanguageAdapter) Uninstall() error { return nil }
 
 // Initialize initializes the opencode adapter
 func Initialize() {

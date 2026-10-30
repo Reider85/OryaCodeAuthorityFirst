@@ -2,9 +2,9 @@ package ui
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // Screen represents a screen in the TUI
@@ -120,36 +120,36 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		
 	case tea.KeyMsg:
 		// Handle global keyboard shortcuts
-		switch msg.Type {
-		case tea.KeyCtrlC, tea.KeyEsc:
+		switch msg.String() {
+		case "ctrl+c", "esc":
 			m.Quit = true
 			return m, tea.Quit
 			
-		case tea.KeyQuestion:
+		case "?":
 			// Show help
 			return m, m.showHelp()
 			
-		case tea.KeyR:
+		case "r":
 			// Refresh current screen
 			return m, m.refreshScreen()
 			
-		case tea.Key1:
+		case "1":
 			// Switch to dashboard
 			return m, m.switchScreen(ScreenDashboard)
 			
-		case tea.Key2:
+		case "2":
 			// Switch to doctor
 			return m, m.switchScreen(ScreenDoctor)
 			
-		case tea.Key3:
+		case "3":
 			// Switch to metrics
 			return m, m.switchScreen(ScreenMetrics)
 			
-		case tea.Key4:
+		case "4":
 			// Switch to cost
 			return m, m.switchScreen(ScreenCost)
 			
-		case tea.Key5:
+		case "5":
 			// Switch to settings
 			return m, m.switchScreen(ScreenSettings)
 		}
@@ -184,7 +184,7 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		
 	case PerformanceWarningMsg:
 		// Handle performance warnings
-		m.PerfTracker.Announce(msg.Level, msg.Message)
+		m.A11y.Announce(msg.Level, msg.Message)
 		return m, nil
 	}
 	
@@ -288,11 +288,6 @@ type ScreenSwitchMsg struct {
 // RefreshScreenMsg represents a screen refresh message
 type RefreshScreenMsg struct {
 	Force bool
-}
-
-// HelpMsg represents a help message
-type HelpMsg struct {
-	ScreenID string
 }
 
 // PerformanceWarningMsg represents a performance warning message

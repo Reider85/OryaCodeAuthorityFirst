@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbletea"
@@ -11,7 +10,7 @@ import (
 // SettingsScreen represents the settings screen
 // FR-TUI-005: Settings shows configuration options, accessibility settings, preferences
 type SettingsScreen struct {
-	*Screen
+	*ScreenBase
 	Components []Component
 	Title      string
 	
@@ -27,7 +26,8 @@ type SettingsScreen struct {
 	NotificationsCard *Card
 	AdvancedCard     *Card
 	SaveButton       *Button
-	ResetButton     *Button
+	ResetButton      *Button
+	StatusSpinner    *Spinner
 	
 	// State
 	Loading          bool
@@ -77,10 +77,10 @@ type AdvancedSettings struct {
 
 // NewSettingsScreen creates a new settings screen
 func NewSettingsScreen(theme *Theme, keys *Keys, a11y *A11y, perfTracker *PerfTracker) *SettingsScreen {
-	screen := NewScreen(theme, keys, perfTracker)
+	screen := NewScreen(theme, keys, a11y, perfTracker)
 	
 	return &SettingsScreen{
-		Screen:           screen,
+		ScreenBase:           screen,
 		Components:       []Component{},
 		Title:           "CodeAuthorityFirst Settings",
 		General:         GeneralSettings{},
@@ -101,6 +101,7 @@ func NewSettingsScreen(theme *Theme, keys *Keys, a11y *A11y, perfTracker *PerfTr
 				return ResetSettingsMsg{}
 			}
 		}, theme, keys),
+		StatusSpinner:   NewSpinner("spinner", theme, keys),
 		Loading:         false,
 		LastSave:        time.Now(),
 		Error:           nil,
@@ -111,7 +112,7 @@ func NewSettingsScreen(theme *Theme, keys *Keys, a11y *A11y, perfTracker *PerfTr
 // Init initializes the settings screen
 func (s *SettingsScreen) Init() tea.Cmd {
 	// Set up screen reader announcement
-	s.Screen.ScreenReader.Announce(AnnouncementImportant, "Settings screen activated", "Application", false)
+	s.ScreenBase.ScreenReader.Announce(AnnouncementImportant, "Settings screen activated", "Application", false)
 	
 	// Load initial settings
 	return s.loadSettings()
@@ -175,26 +176,26 @@ func (s *SettingsScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		// Handle keyboard shortcuts
-		switch msg.Type {
-		case tea.Key1:
+		switch msg.String() {
+		case "1":
 			// Switch to dashboard
 			return s, func() tea.Msg { return ScreenSwitchMsg{ScreenType: ScreenDashboard} }
-		case tea.Key2:
+		case "2":
 			// Switch to doctor
 			return s, func() tea.Msg { return ScreenSwitchMsg{ScreenType: ScreenDoctor} }
-		case tea.Key3:
+		case "3":
 			// Switch to metrics
 			return s, func() tea.Msg { return ScreenSwitchMsg{ScreenType: ScreenMetrics} }
-		case tea.Key4:
+		case "4":
 			// Switch to cost
 			return s, func() tea.Msg { return ScreenSwitchMsg{ScreenType: ScreenCost} }
-		case tea.Key5:
+		case "5":
 			// Stay on settings
 			return s, nil
-		case tea.KeyS:
+		case "s":
 			// Save settings
 			return s, func() tea.Msg { return SaveSettingsMsg{} }
-		case tea.KeyQuestion:
+		case "?":
 			// Show help
 			return s, s.showHelp()
 		}
@@ -232,12 +233,12 @@ func (s *SettingsScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 		// Handle settings saved
 		s.HasChanges = false
 		s.LastSave = time.Now()
-		s.Screen.ScreenReader.Announce(AnnouncementImportant, "Settings saved successfully", "Settings", false)
+		s.ScreenBase.ScreenReader.Announce(AnnouncementImportant, "Settings saved successfully", "Settings", false)
 		
 	case SettingsResetMsg:
 		// Handle settings reset
 		s.HasChanges = false
-		s.Screen.ScreenReader.Announce(AnnouncementImportant, "Settings reset to defaults", "Settings", false)
+		s.ScreenBase.ScreenReader.Announce(AnnouncementImportant, "Settings reset to defaults", "Settings", false)
 		
 	case ErrorMsg:
 		// Handle error
@@ -432,9 +433,9 @@ func (s *SettingsScreen) IsActive() bool {
 // SetActive sets the active state
 func (s *SettingsScreen) SetActive(active bool) {
 	if active {
-		s.Screen.ScreenReader.Announce(AnnouncementImportant, "Settings screen activated", "Application", false)
+		s.ScreenBase.ScreenReader.Announce(AnnouncementImportant, "Settings screen activated", "Application", false)
 	} else {
-		s.Screen.ScreenReader.Announce(AnnouncementNone, "Settings screen deactivated", "Application", false)
+		s.ScreenBase.ScreenReader.Announce(AnnouncementNone, "Settings screen deactivated", "Application", false)
 	}
 }
 
@@ -457,14 +458,3 @@ type SettingsSavedMsg struct{}
 
 // SettingsResetMsg represents settings reset message
 type SettingsResetMsg struct{}
-
-// ErrorMsg represents an error message
-type ErrorMsg struct {
-	Err error
-}
-
-// HelpMsg represents a help message
-type HelpMsg struct {
-	ScreenID string
-	Message  string
-}

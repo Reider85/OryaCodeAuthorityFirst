@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbletea"
@@ -11,7 +10,7 @@ import (
 // DashboardScreen represents the main dashboard screen
 // FR-TUI-001: Dashboard shows recent sessions, decisions, and agent activity
 type DashboardScreen struct {
-	*Screen
+	*ScreenBase
 	Components []Component
 	Title      string
 	
@@ -64,10 +63,10 @@ type AgentActivityItem struct {
 
 // NewDashboardScreen creates a new dashboard screen
 func NewDashboardScreen(theme *Theme, keys *Keys, a11y *A11y, perfTracker *PerfTracker) *DashboardScreen {
-	screen := NewScreen(theme, keys, perfTracker)
+	screen := NewScreen(theme, keys, a11y, perfTracker)
 	
 	return &DashboardScreen{
-		Screen:        screen,
+		ScreenBase:        screen,
 		Components:    []Component{},
 		Title:         "CodeAuthorityFirst Dashboard",
 		RecentSessions: []SessionItem{},
@@ -90,7 +89,7 @@ func NewDashboardScreen(theme *Theme, keys *Keys, a11y *A11y, perfTracker *PerfT
 // Init initializes the dashboard screen
 func (d *DashboardScreen) Init() tea.Cmd {
 	// Set up screen reader announcement
-	d.Screen.ScreenReader.Announce(AnnouncementImportant, "Dashboard screen activated", "Application", false)
+	d.ScreenBase.ScreenReader.Announce(AnnouncementImportant, "Dashboard screen activated", "Application", false)
 	
 	// Start loading
 	d.Loading = true
@@ -220,26 +219,26 @@ func (d *DashboardScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		// Handle keyboard shortcuts
-		switch msg.Type {
-		case tea.Key1:
+		switch msg.String() {
+		case "1":
 			// Stay on dashboard
 			return d, nil
-		case tea.Key2:
+		case "2":
 			// Switch to doctor
 			return d, func() tea.Msg { return ScreenSwitchMsg{ScreenType: ScreenDoctor} }
-		case tea.Key3:
+		case "3":
 			// Switch to metrics
 			return d, func() tea.Msg { return ScreenSwitchMsg{ScreenType: ScreenMetrics} }
-		case tea.Key4:
+		case "4":
 			// Switch to cost
 			return d, func() tea.Msg { return ScreenSwitchMsg{ScreenType: ScreenCost} }
-		case tea.Key5:
+		case "5":
 			// Switch to settings
 			return d, func() tea.Msg { return ScreenSwitchMsg{ScreenType: ScreenSettings} }
-		case tea.KeyR:
+		case "r":
 			// Refresh dashboard
 			return d, d.refresh()
-		case tea.KeyQuestion:
+		case "?":
 			// Show help
 			return d, d.showHelp()
 		}
@@ -442,9 +441,9 @@ func (d *DashboardScreen) IsActive() bool {
 // SetActive sets the active state
 func (d *DashboardScreen) SetActive(active bool) {
 	if active {
-		d.Screen.ScreenReader.Announce(AnnouncementImportant, "Dashboard screen activated", "Application", false)
+		d.ScreenBase.ScreenReader.Announce(AnnouncementImportant, "Dashboard screen activated", "Application", false)
 	} else {
-		d.Screen.ScreenReader.Announce(AnnouncementNone, "Dashboard screen deactivated", "Application", false)
+		d.ScreenBase.ScreenReader.Announce(AnnouncementNone, "Dashboard screen deactivated", "Application", false)
 	}
 }
 
@@ -453,20 +452,4 @@ type DashboardDataLoaded struct {
 	Sessions  []SessionItem
 	Decisions []DecisionItem
 	Activity  []AgentActivityItem
-}
-
-// ErrorMsg represents an error message
-type ErrorMsg struct {
-	Err error
-}
-
-// RefreshMsg represents a refresh message
-type RefreshMsg struct {
-	Force bool
-}
-
-// HelpMsg represents a help message
-type HelpMsg struct {
-	ScreenID string
-	Message  string
 }

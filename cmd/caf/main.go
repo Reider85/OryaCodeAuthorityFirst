@@ -5,16 +5,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf"
 	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf/adapters"
-	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf/config"
+	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf/doctor"
 	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf/storage"
 	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf/hooks"
-	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf/lsp"
 )
 
 // AutoDetect represents auto-detection results
@@ -236,6 +234,14 @@ Example:
 		
 		runDoctor(repoRoot)
 	},
+}
+
+// rootCmd represents the base command when called without any subcommands
+var rootCmd = &cobra.Command{
+	Use:   "caf",
+	Short: "CodeAuthorityFirst - AI code authority tracking",
+	Long: `CodeAuthorityFirst (caf) tracks AI coding sessions, provenance,
+and decision trails across repositories.`,
 }
 
 func main() {
@@ -502,12 +508,12 @@ func runAdaptersList() {
 }
 
 func runDoctor(repoRoot string) {
-	fmt.Printf("🔧 Running health checks for %s...\n", repoRoot)
+	fmt.Printf(" Running health checks for %s...\n", repoRoot)
 	
-	doctor := doctor.NewDoctor(repoRoot)
-	report, err := doctor.Run()
+	doc := doctor.NewDoctor(repoRoot)
+	report, err := doc.Run()
 	if err != nil {
-		fmt.Printf("❌ Health check failed: %v\n", err)
+		fmt.Printf(" Health check failed: %v\n", err)
 		os.Exit(1)
 	}
 	

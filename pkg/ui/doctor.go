@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbletea"
@@ -11,7 +10,7 @@ import (
 // DoctorScreen represents the health check screen
 // FR-TUI-002: Doctor shows 5 health checks with detailed diagnostics
 type DoctorScreen struct {
-	*Screen
+	*ScreenBase
 	Components []Component
 	Title      string
 	
@@ -44,10 +43,10 @@ type HealthCheckResult struct {
 
 // NewDoctorScreen creates a new doctor screen
 func NewDoctorScreen(theme *Theme, keys *Keys, a11y *A11y, perfTracker *PerfTracker) *DoctorScreen {
-	screen := NewScreen(theme, keys, perfTracker)
+	screen := NewScreen(theme, keys, a11y, perfTracker)
 	
 	return &DoctorScreen{
-		Screen:        screen,
+		ScreenBase:        screen,
 		Components:    []Component{},
 		Title:         "CodeAuthorityFirst Health Check",
 		Results:       []HealthCheckResult{},
@@ -71,7 +70,7 @@ func NewDoctorScreen(theme *Theme, keys *Keys, a11y *A11y, perfTracker *PerfTrac
 // Init initializes the doctor screen
 func (d *DoctorScreen) Init() tea.Cmd {
 	// Set up screen reader announcement
-	d.Screen.ScreenReader.Announce(AnnouncementImportant, "Doctor screen activated", "Application", false)
+	d.ScreenBase.ScreenReader.Announce(AnnouncementImportant, "Doctor screen activated", "Application", false)
 	
 	// Run initial health checks
 	return d.runHealthChecks()
@@ -166,26 +165,26 @@ func (d *DoctorScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		// Handle keyboard shortcuts
-		switch msg.Type {
-		case tea.Key1:
+		switch msg.String() {
+		case "1":
 			// Switch to dashboard
 			return d, func() tea.Msg { return ScreenSwitchMsg{ScreenType: ScreenDashboard} }
-		case tea.Key2:
+		case "2":
 			// Stay on doctor
 			return d, nil
-		case tea.Key3:
+		case "3":
 			// Switch to metrics
 			return d, func() tea.Msg { return ScreenSwitchMsg{ScreenType: ScreenMetrics} }
-		case tea.Key4:
+		case "4":
 			// Switch to cost
 			return d, func() tea.Msg { return ScreenSwitchMsg{ScreenType: ScreenCost} }
-		case tea.Key5:
+		case "5":
 			// Switch to settings
 			return d, func() tea.Msg { return ScreenSwitchMsg{ScreenType: ScreenSettings} }
-		case tea.KeyR:
+		case "r":
 			// Run health checks
 			return d, d.runHealthChecks()
-		case tea.KeyQuestion:
+		case "?":
 			// Show help
 			return d, d.showHelp()
 		}
@@ -248,7 +247,7 @@ func (d *DoctorScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 func (d *DoctorScreen) updateCheckList() {
 	items := make([]ListItem, len(d.Results))
 	for i, result := range d.Results {
-		statusIcon, statusColor := d.getStatusIconAndColor(result.Status)
+		statusIcon, _ := d.getStatusIconAndColor(result.Status)
 		
 		title := fmt.Sprintf("%s %s", statusIcon, result.Name)
 		subtitle := fmt.Sprintf("%s • %s", result.Message, d.formatDuration(result.Duration))
@@ -295,7 +294,7 @@ func (d *DoctorScreen) showItemDetails(result *HealthCheckResult) {
 	}
 	
 	// Announce to screen reader
-	d.Screen.ScreenReader.Announce(AnnouncementImportant, 
+	d.ScreenBase.ScreenReader.Announce(AnnouncementImportant, 
 		fmt.Sprintf("%s: %s", result.Name, result.Message), "Health Check", false)
 	
 	// In a real implementation, this would show a modal or expand the item
@@ -386,7 +385,7 @@ func (d *DoctorScreen) renderContent() string {
 	// Overall status
 	overallStatus := d.getOverallStatus()
 	statusColor := d.getStatusColor(overallStatus)
-	statusText := fmt.Sprintf("Overall Status: %s", statusColor.Render(overallStatus))
+	statusText := fmt.Sprintf("Overall Status: %s", statusColor)
 	
 	// Create layout
 	layout := fmt.Sprintf("%s\n%s\n%s\n%s",
@@ -464,9 +463,9 @@ func (d *DoctorScreen) IsActive() bool {
 // SetActive sets the active state
 func (d *DoctorScreen) SetActive(active bool) {
 	if active {
-		d.Screen.ScreenReader.Announce(AnnouncementImportant, "Doctor screen activated", "Application", false)
+		d.ScreenBase.ScreenReader.Announce(AnnouncementImportant, "Doctor screen activated", "Application", false)
 	} else {
-		d.Screen.ScreenReader.Announce(AnnouncementNone, "Doctor screen deactivated", "Application", false)
+		d.ScreenBase.ScreenReader.Announce(AnnouncementNone, "Doctor screen deactivated", "Application", false)
 	}
 }
 
@@ -484,20 +483,4 @@ type DoctorRunMsg struct {
 type DoctorItemSelected struct {
 	Item   ListItem
 	Result *HealthCheckResult
-}
-
-// ErrorMsg represents an error message
-type ErrorMsg struct {
-	Err error
-}
-
-// RefreshMsg represents a refresh message
-type RefreshMsg struct {
-	Force bool
-}
-
-// HelpMsg represents a help message
-type HelpMsg struct {
-	ScreenID string
-	Message  string
 }

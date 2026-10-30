@@ -3,7 +3,6 @@ package hooks
 import (
 	"fmt"
 	"log"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -18,8 +17,8 @@ func PreCommitHook(ctx HookContext, commitMessage string) error {
 	log.Printf("🔧 Pre-commit hook for session %s", ctx.SessionID)
 
 	// Load config
-	configManager := config.NewManager(storage.GetConfigPath(ctx.RepoRoot))
-	cfg, err := configManager.LoadConfig()
+	configManager := config.NewManager(config.GetConfigPath(ctx.RepoRoot))
+	_, err := configManager.LoadConfig()
 	if err != nil {
 		log.Printf("⚠ Failed to load config: %v", err)
 		// Continue anyway

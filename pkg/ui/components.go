@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -51,6 +52,18 @@ func (bc *BaseComponent) SetFocused(focused bool) {
 	bc.Focused = focused
 }
 
+// Focus focuses the component (INV-PROMPT-MVP-007: visible focus)
+func (bc *BaseComponent) Focus() tea.Cmd {
+	bc.Focused = true
+	return nil
+}
+
+// Blur removes focus from the component
+func (bc *BaseComponent) Blur() tea.Cmd {
+	bc.Focused = false
+	return nil
+}
+
 // Button represents a button component
 type Button struct {
 	BaseComponent
@@ -77,7 +90,7 @@ func (b *Button) Init() tea.Cmd {
 }
 
 // Update updates the button
-func (b *Button) Update(msg tea.Msg) (Component, tea.Msg) {
+func (b *Button) Update(msg tea.Msg) (Component, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if !b.Focused || b.Disabled {
@@ -492,8 +505,8 @@ func (s *Spinner) Tick() tea.Cmd {
 }
 
 // Update updates the spinner
-func (s *Spinner) Update(msg tea.Msg) (Component, tea.Msg) {
-	switch msg := msg.(type) {
+func (s *Spinner) Update(msg tea.Msg) (Component, tea.Cmd) {
+	switch msg.(type) {
 	case TickMsg:
 		if s.Animating {
 			return s, s.Tick()

@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"strings"
 	"unicode"
 )
 
@@ -105,6 +104,7 @@ type AnnouncementLevel int
 const (
 	AnnouncementNone AnnouncementLevel = iota
 	AnnouncementImportant
+	AnnouncementWarning
 	AnnouncementCritical
 )
 
@@ -119,6 +119,8 @@ func (a *A11y) Announce(level AnnouncementLevel, text string) {
 	switch level {
 	case AnnouncementImportant:
 		fmt.Printf("\n[IMPORTANT] %s\n", text)
+	case AnnouncementWarning:
+		fmt.Printf("\n[WARNING] %s\n", text)
 	case AnnouncementCritical:
 		fmt.Printf("\n[CRITICAL] %s\n", text)
 	default:
@@ -288,6 +290,11 @@ func (srm *ScreenReaderManager) AddAnnouncement(id, message string, level Announ
 	srm.a11y.Announce(level, message)
 }
 
+// Announce добавляет объявление с короткой сигнатурой (level, text, context, persistent)
+func (srm *ScreenReaderManager) Announce(level AnnouncementLevel, message, context string, persistent bool) {
+	srm.AddAnnouncement(message, message, level, context, persistent)
+}
+
 // GetAnnouncements returns all announcements
 func (srm *ScreenReaderManager) GetAnnouncements() []ScreenReaderAnnouncement {
 	return srm.announcements
@@ -311,15 +318,15 @@ func (a *A11y) ValidateAccessibility(theme *Theme) []string {
 	errors := []string{}
 	
 	// Check color contrast
-	if !a.ValidateColorContrast(theme.Primary.GetForeground(), theme.Background.GetBackground()) {
+	if !a.ValidateColorContrast(fmt.Sprintf("%v", theme.Primary.GetForeground()), fmt.Sprintf("%v", theme.Background.GetBackground())) {
 		errors = append(errors, "Primary color contrast ratio too low")
 	}
 	
-	if !a.ValidateColorContrast(theme.Secondary.GetForeground(), theme.Background.GetBackground()) {
+	if !a.ValidateColorContrast(fmt.Sprintf("%v", theme.Secondary.GetForeground()), fmt.Sprintf("%v", theme.Background.GetBackground())) {
 		errors = append(errors, "Secondary color contrast ratio too low")
 	}
 	
-	if !a.ValidateColorContrast(theme.Error.GetForeground(), theme.Background.GetBackground()) {
+	if !a.ValidateColorContrast(fmt.Sprintf("%v", theme.Error.GetForeground()), fmt.Sprintf("%v", theme.Background.GetBackground())) {
 		errors = append(errors, "Error color contrast ratio too low")
 	}
 	

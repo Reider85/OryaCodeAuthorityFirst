@@ -11,7 +11,7 @@ import (
 // MetricsScreen represents the metrics screen
 // FR-TUI-003: Metrics shows usage statistics, session counts, performance data
 type MetricsScreen struct {
-	*Screen
+	*ScreenBase
 	Components []Component
 	Title      string
 	
@@ -26,6 +26,7 @@ type MetricsScreen struct {
 	PerformanceCard   *Card
 	RefreshButton     *Button
 	ExportButton      *Button
+	StatusSpinner     *Spinner
 	
 	// State
 	Loading          bool
@@ -125,10 +126,10 @@ func (c *Card) SetContent(content string) {
 
 // NewMetricsScreen creates a new metrics screen
 func NewMetricsScreen(theme *Theme, keys *Keys, a11y *A11y, perfTracker *PerfTracker) *MetricsScreen {
-	screen := NewScreen(theme, keys, perfTracker)
+	screen := NewScreen(theme, keys, a11y, perfTracker)
 	
 	return &MetricsScreen{
-		Screen:           screen,
+		ScreenBase:           screen,
 		Components:       []Component{},
 		Title:           "CodeAuthorityFirst Metrics",
 		SessionStats:   SessionStatistics{},
@@ -147,6 +148,7 @@ func NewMetricsScreen(theme *Theme, keys *Keys, a11y *A11y, perfTracker *PerfTra
 				return ExportMetricsMsg{}
 			}
 		}, theme, keys),
+		StatusSpinner:   NewSpinner("spinner", theme, keys),
 		Loading:         false,
 		LastRefresh:     time.Now(),
 		Error:           nil,
@@ -157,7 +159,7 @@ func NewMetricsScreen(theme *Theme, keys *Keys, a11y *A11y, perfTracker *PerfTra
 // Init initializes the metrics screen
 func (m *MetricsScreen) Init() tea.Cmd {
 	// Set up screen reader announcement
-	m.Screen.ScreenReader.Announce(AnnouncementImportant, "Metrics screen activated", "Application", false)
+	m.ScreenBase.ScreenReader.Announce(AnnouncementImportant, "Metrics screen activated", "Application", false)
 	
 	// Load initial data
 	return m.loadMetrics()
@@ -239,29 +241,29 @@ func (m *MetricsScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		// Handle keyboard shortcuts
-		switch msg.Type {
-		case tea.Key1:
+		switch msg.String() {
+		case "1":
 			// Switch to dashboard
 			return m, func() tea.Msg { return ScreenSwitchMsg{ScreenType: ScreenDashboard} }
-		case tea.Key2:
+		case "2":
 			// Switch to doctor
 			return m, func() tea.Msg { return ScreenSwitchMsg{ScreenType: ScreenDoctor} }
-		case tea.Key3:
+		case "3":
 			// Stay on metrics
 			return m, nil
-		case tea.Key4:
+		case "4":
 			// Switch to cost
 			return m, func() tea.Msg { return ScreenSwitchMsg{ScreenType: ScreenCost} }
-		case tea.Key5:
+		case "5":
 			// Switch to settings
 			return m, func() tea.Msg { return ScreenSwitchMsg{ScreenType: ScreenSettings} }
-		case tea.KeyR:
+		case "r":
 			// Refresh metrics
 			return m, m.loadMetrics()
-		case tea.KeyE:
+		case "e":
 			// Export metrics
 			return m, func() tea.Msg { return ExportMetricsMsg{} }
-		case tea.KeyQuestion:
+		case "?":
 			// Show help
 			return m, m.showHelp()
 		}
@@ -382,7 +384,7 @@ func (m *MetricsScreen) formatDuration(duration time.Duration) string {
 func (m *MetricsScreen) exportMetrics() {
 	// In a real implementation, this would write to a CSV file
 	// For now, we'll just announce it
-	m.Screen.ScreenReader.Announce(AnnouncementImportant, "Metrics exported to CSV", "Export", false)
+	m.ScreenBase.ScreenReader.Announce(AnnouncementImportant, "Metrics exported to CSV", "Export", false)
 	fmt.Println("Metrics exported to metrics.csv")
 }
 
@@ -485,9 +487,9 @@ func (m *MetricsScreen) IsActive() bool {
 // SetActive sets the active state
 func (m *MetricsScreen) SetActive(active bool) {
 	if active {
-		m.Screen.ScreenReader.Announce(AnnouncementImportant, "Metrics screen activated", "Application", false)
+		m.ScreenBase.ScreenReader.Announce(AnnouncementImportant, "Metrics screen activated", "Application", false)
 	} else {
-		m.Screen.ScreenReader.Announce(AnnouncementNone, "Metrics screen deactivated", "Application", false)
+		m.ScreenBase.ScreenReader.Announce(AnnouncementNone, "Metrics screen deactivated", "Application", false)
 	}
 }
 
@@ -500,19 +502,3 @@ type MetricsDataLoaded struct {
 
 // ExportMetricsMsg represents an export metrics message
 type ExportMetricsMsg struct{}
-
-// ErrorMsg represents an error message
-type ErrorMsg struct {
-	Err error
-}
-
-// RefreshMsg represents a refresh message
-type RefreshMsg struct {
-	Force bool
-}
-
-// HelpMsg represents a help message
-type HelpMsg struct {
-	ScreenID string
-	Message  string
-}

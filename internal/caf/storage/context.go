@@ -6,8 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"gopkg.in/yaml.v3"
 )
 
 // ContextGenerator generates context.md from recent sessions

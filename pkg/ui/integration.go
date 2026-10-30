@@ -14,7 +14,7 @@ import (
 // FR-TUI-006: TUI integrates all screens with smooth transitions and shared state
 type TUI struct {
 	model       *AppModel
-	program     *bubbletea.Program
+	program     *tea.Program
 	integration *IntegrationLayer
 }
 
@@ -151,7 +151,7 @@ func (il *IntegrationLayer) startAutoRefresh() {
 
 // refreshAllScreens refreshes all screens
 func (il *IntegrationLayer) refreshAllScreens() {
-	for screenType, screen := range il.ScreenManager.Screens {
+	for screenType := range il.ScreenManager.Screens {
 		// Send refresh event to screen
 		event := Event{
 			Type:      "refresh",
@@ -285,7 +285,7 @@ func (t *TUI) Initialize() error {
 	t.model.ActiveScreen = t.integration.ScreenManager.Screens[t.integration.ScreenManager.CurrentScreen]
 	
 	// Create bubble tea program
-	t.program = bubbletea.NewProgram(t.model, bubbletea.WithAltScreen(), bubbletea.WithMouseCellMotion())
+	t.program = tea.NewProgram(t.model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	
 	return nil
 }

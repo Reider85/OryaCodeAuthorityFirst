@@ -195,8 +195,8 @@ func SafeParseYAML(data []byte, out interface{}) error {
 
 	// Reject any YAML tag that starts with "!" (custom tags)
 	// This prevents potential code execution through custom tags
-	for i, line := range string(data) {
-		if len(line) > 0 && line[0] == '!' {
+	for i, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, "!") {
 			return fmt.Errorf("custom YAML tags are not allowed at line %d", i+1)
 		}
 	}

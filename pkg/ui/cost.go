@@ -11,7 +11,7 @@ import (
 // CostScreen represents the cost screen
 // FR-TUI-004: Cost shows cost tracking, usage costs, budget information
 type CostScreen struct {
-	*Screen
+	*ScreenBase
 	Components []Component
 	Title      string
 	
@@ -32,6 +32,7 @@ type CostScreen struct {
 	TrendCard        *Card
 	RefreshButton    *Button
 	ResetButton      *Button
+	StatusSpinner    *Spinner
 	
 	// State
 	Loading          bool
@@ -66,10 +67,10 @@ type CostAlert struct {
 
 // NewCostScreen creates a new cost screen
 func NewCostScreen(theme *Theme, keys *Keys, a11y *A11y, perfTracker *PerfTracker) *CostScreen {
-	screen := NewScreen(theme, keys, perfTracker)
+	screen := NewScreen(theme, keys, a11y, perfTracker)
 	
 	return &CostScreen{
-		Screen:           screen,
+		ScreenBase:           screen,
 		Components:       []Component{},
 		Title:           "CodeAuthorityFirst Cost Tracking",
 		TotalCost:       0.0,
@@ -94,6 +95,7 @@ func NewCostScreen(theme *Theme, keys *Keys, a11y *A11y, perfTracker *PerfTracke
 				return ResetBudgetMsg{}
 			}
 		}, theme, keys),
+		StatusSpinner:   NewSpinner("spinner", theme, keys),
 		Loading:         false,
 		LastRefresh:     time.Now(),
 		Error:           nil,
@@ -105,7 +107,7 @@ func NewCostScreen(theme *Theme, keys *Keys, a11y *A11y, perfTracker *PerfTracke
 // Init initializes the cost screen
 func (c *CostScreen) Init() tea.Cmd {
 	// Set up screen reader announcement
-	c.Screen.ScreenReader.Announce(AnnouncementImportant, "Cost screen activated", "Application", false)
+	c.ScreenBase.ScreenReader.Announce(AnnouncementImportant, "Cost screen activated", "Application", false)
 	
 	// Load initial data
 	return c.loadCostData()
@@ -242,26 +244,26 @@ func (c *CostScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		// Handle keyboard shortcuts
-		switch msg.Type {
-		case tea.Key1:
+		switch msg.String() {
+		case "1":
 			// Switch to dashboard
 			return c, func() tea.Msg { return ScreenSwitchMsg{ScreenType: ScreenDashboard} }
-		case tea.Key2:
+		case "2":
 			// Switch to doctor
 			return c, func() tea.Msg { return ScreenSwitchMsg{ScreenType: ScreenDoctor} }
-		case tea.Key3:
+		case "3":
 			// Switch to metrics
 			return c, func() tea.Msg { return ScreenSwitchMsg{ScreenType: ScreenMetrics} }
-		case tea.Key4:
+		case "4":
 			// Stay on cost
 			return c, nil
-		case tea.Key5:
+		case "5":
 			// Switch to settings
 			return c, func() tea.Msg { return ScreenSwitchMsg{ScreenType: ScreenSettings} }
-		case tea.KeyR:
+		case "r":
 			// Refresh cost data
 			return c, c.loadCostData()
-		case tea.KeyQuestion:
+		case "?":
 			// Show help
 			return c, c.showHelp()
 		}
@@ -295,7 +297,7 @@ func (c *CostScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 		// Handle budget reset
 		c.MonthlyBudget = 100.0
 		c.RemainingBudget = 100.0 - c.TotalCost
-		c.Screen.ScreenReader.Announce(AnnouncementImportant, "Budget reset to $100.00", "Budget", false)
+		c.ScreenBase.ScreenReader.Announce(AnnouncementImportant, "Budget reset to $100.00", "Budget", false)
 		
 	case ErrorMsg:
 		// Handle error
@@ -521,9 +523,9 @@ func (c *CostScreen) IsActive() bool {
 // SetActive sets the active state
 func (c *CostScreen) SetActive(active bool) {
 	if active {
-		c.Screen.ScreenReader.Announce(AnnouncementImportant, "Cost screen activated", "Application", false)
+		c.ScreenBase.ScreenReader.Announce(AnnouncementImportant, "Cost screen activated", "Application", false)
 	} else {
-		c.Screen.ScreenReader.Announce(AnnouncementNone, "Cost screen deactivated", "Application", false)
+		c.ScreenBase.ScreenReader.Announce(AnnouncementNone, "Cost screen deactivated", "Application", false)
 	}
 }
 
@@ -541,19 +543,3 @@ type CostDataLoaded struct {
 
 // ResetBudgetMsg represents a reset budget message
 type ResetBudgetMsg struct{}
-
-// ErrorMsg represents an error message
-type ErrorMsg struct {
-	Err error
-}
-
-// RefreshMsg represents a refresh message
-type RefreshMsg struct {
-	Force bool
-}
-
-// HelpMsg represents a help message
-type HelpMsg struct {
-	ScreenID string
-	Message  string
-}

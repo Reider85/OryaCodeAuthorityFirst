@@ -47,7 +47,7 @@ func NewTheme() *Theme {
 		StatusBar:   lipgloss.NewStyle().Background(lipgloss.Color("#1C1F26")).Faint(true),
 		Title:       lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#61AFEF")),
 		Border:      lipgloss.NewStyle().Border(lipgloss.NormalBorder(), false),
-		FocusBorder: lipgloss.NewStyle().Border(lipgloss.BorderDouble(), false).Foreground(lipgloss.Color("#61AFEF")),
+		FocusBorder: lipgloss.NewStyle().Border(lipgloss.DoubleBorder(), false).Foreground(lipgloss.Color("#61AFEF")),
 		
 		// Component styles
 		Button:     lipgloss.NewStyle().Background(lipgloss.Color("#61AFEF")).Foreground(lipgloss.Color("#000000")).Padding(0, 2),
@@ -76,7 +76,7 @@ func (t *Theme) HighContrast() *Theme {
 		StatusBar:   lipgloss.NewStyle().Background(lipgloss.Color("#000000")).Faint(true).Foreground(lipgloss.Color("#CCCCCC")),
 		Title:       lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF")),
 		Border:      lipgloss.NewStyle().Border(lipgloss.NormalBorder(), false).Foreground(lipgloss.Color("#CCCCCC")),
-		FocusBorder: lipgloss.NewStyle().Border(lipgloss.BorderDouble(), false).Foreground(lipgloss.Color("#FFFFFF")),
+		FocusBorder: lipgloss.NewStyle().Border(lipgloss.DoubleBorder(), false).Foreground(lipgloss.Color("#FFFFFF")),
 		
 		// Component styles
 		Button:     lipgloss.NewStyle().Background(lipgloss.Color("#FFFFFF")).Foreground(lipgloss.Color("#000000")).Padding(0, 2),

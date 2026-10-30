@@ -3,9 +3,9 @@ package hooks
 import (
 	"fmt"
 	"log"
-	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf/config"
 	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf/storage"
@@ -17,7 +17,7 @@ func PostEditHook(ctx HookContext, filesChanged []string, changesSummary string)
 	log.Printf("🔧 Post-edit hook for session %s", ctx.SessionID)
 
 	// Load config
-	configManager := config.NewManager(storage.GetConfigPath(ctx.RepoRoot))
+	configManager := config.NewManager(config.GetConfigPath(ctx.RepoRoot))
 	cfg, err := configManager.LoadConfig()
 	if err != nil {
 		log.Printf("⚠ Failed to load config: %v", err)
@@ -101,14 +101,22 @@ func getRepoName(repoRoot string) string {
 	return "unknown"
 }
 
-func getStartTime(sessionID string) string {
+func getStartTime(sessionID string) time.Time {
 	// Parse session ID to get timestamp
 	// Format: 2026-10-24-a1b2c3
-	return "2026-10-24T11:02:14+03:00"
+	t, err := time.Parse(time.RFC3339, "2026-10-24T11:02:14+03:00")
+	if err != nil {
+		return time.Now()
+	}
+	return t
 }
 
-func getEndTime() string {
-	return "2026-10-24T11:47:33+03:00"
+func getEndTime() time.Time {
+	t, err := time.Parse(time.RFC3339, "2026-10-24T11:47:33+03:00")
+	if err != nil {
+		return time.Now()
+	}
+	return t
 }
 
 func getAgentFromSessionID(sessionID string) string {

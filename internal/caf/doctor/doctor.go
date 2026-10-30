@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf"
 	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf/config"
 	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf/hooks"
 	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf/storage"
@@ -165,7 +164,7 @@ func (d *Doctor) checkCAFValidity() HealthCheck {
 
 // checkConfigSchema checks if the config schema is valid
 func (d *Doctor) checkConfigSchema() HealthCheck {
-	configFile := storage.GetConfigPath(d.repoRoot)
+	configFile := config.GetConfigPath(d.repoRoot)
 	
 	// Check if config file exists
 	if _, err := os.Stat(configFile); err != nil {
@@ -339,13 +338,13 @@ func (d *Doctor) checkLSPResponds() HealthCheck {
 func (d *Doctor) updateStatusCount(status string, healthy, warnings, errors, unknown *int) {
 	switch status {
 	case "healthy":
-		*healthy++
+		(*healthy)++
 	case "warning":
-		warnings++
+		(*warnings)++
 	case "error":
 		*errors++
 	case "unknown":
-		unknown++
+		(*unknown)++
 	}
 }
 
