@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
-
-	"gopkg.in/yaml.v3"
 )
 
 // Session represents a single AI agent session
@@ -14,15 +13,15 @@ type Session struct {
 	SessionID     string                 `yaml:"session_id"`
 	Repo          string                 `yaml:"repo"`
 	StartedAt     time.Time              `yaml:"started_at"`
-	EndedAt       time.Time              `yaml:"ended_at"`
+	EndedAt       time.Time              `yaml:"ended_at,omitempty"`
 	Agent         string                 `yaml:"agent"`
 	Model         string                 `yaml:"model"`
 	ToolCall      string                 `yaml:"tool_call"`
 	InitialPrompt string                 `yaml:"initial_prompt"`
 	Iterations    []Iteration            `yaml:"iterations"`
 	FilesTouched  []string               `yaml:"files_touched"`
-	CommitSHA     string                 `yaml:"commit_sha"`
-	DecisionsMade []Decision             `yaml:"decisions_made"`
+	CommitSHA     string                 `yaml:"commit_sha,omitempty"`
+	DecisionsMade []Decision             `yaml:"decisions_made,omitempty"`
 	VoiceSignature string                `yaml:"voice_signature"`
 }
 
@@ -54,101 +53,104 @@ func NewManager(sessionsDir string) *Manager {
 	}
 }
 
+// validateSessionID validates a session ID to prevent path traversal
+func validateSessionID(sessionID string) error {
+	if sessionID == "" {
+		return fmt.Errorf("session ID cannot be empty")
+	}
+	if sessionID == "." || sessionID == ".." {
+		return fmt.Errorf("invalid session ID: %q", sessionID)
+	}
+	if strings.Contains(sessionID, "/") || strings.Contains(sessionID, "\\") {
+		return fmt.Errorf("invalid session ID: contains path separators")
+	}
+	return nil
+}
+
 // SaveSession saves a session to disk
 func (m *Manager) SaveSession(session *Session) error {
+	// Validate session ID
+	if err := validateSessionID(session.SessionID); err != nil {
+		return fmt.Errorf("invalid session ID: %w", err)
+	}
+
 	// Ensure sessions directory exists
-	if err := os.MkdirAll(m.sessionsDir, 0755); err != nil {
+	if err := EnsureDir(m.sessionsDir); err != nil {
 		return fmt.Errorf("failed to create sessions directory: %w", err)
 	}
 
-	// Create session file path
-	sessionFile := filepath.Join(m.sessionsDir, fmt.Sprintf("%s.yml", session.SessionID))
-	
-	// Marshal to YAML
-	data, err := yaml.Marshal(session)
-	if err != nil {
-		return fmt.Errorf("failed to marshal session: %w", err)
-	}
-
-	// Write to file (atomic write via temp file)
-	tempFile := sessionFile + ".tmp"
-	if err := os.WriteFile(tempFile, data, 0644); err != nil {
-		return fmt.Errorf("failed to write session temp file: %w", err)
-	}
-	
-	// Atomic rename
-	if err := os.Rename(tempFile, sessionFile); err != nil {
-		return fmt.Errorf("failed to rename session file: %w", err)
-	}
-
-	return nil
+	// Use shared save function
+	return saveSessionFile(filepath.Join(m.sessionsDir, session.SessionID), session)
 }
 
 // LoadSession loads a session from disk
 func (m *Manager) LoadSession(sessionID string) (*Session, error) {
-	sessionFile := filepath.Join(m.sessionsDir, fmt.Sprintf("%s.yml", sessionID))
-	
-	data, err := os.ReadFile(sessionFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read session file: %w", err)
+	// Validate session ID
+	if err := validateSessionID(sessionID); err != nil {
+		return nil, fmt.Errorf("invalid session ID: %w", err)
 	}
 
-	var session Session
-	if err := yaml.Unmarshal(data, &session); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal session: %w", err)
-	}
-
-	return &session, nil
+	// Use shared load function
+	return loadSessionFile(filepath.Join(m.sessionsDir, sessionID))
 }
 
 // ListSessions returns all session IDs
 func (m *Manager) ListSessions() ([]string, error) {
-	var sessionIDs []string
-	
-	entries, err := os.ReadDir(m.sessionsDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return sessionIDs, nil
-		}
-		return nil, fmt.Errorf("failed to read sessions directory: %w", err)
-	}
-
-	for _, entry := range entries {
-		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".yml" {
-			sessionIDs = append(sessionIDs, entry.Name()[:len(entry.Name())-4])
-		}
-	}
-
-	return sessionIDs, nil
+	return ListSessions(m.sessionsDir)
 }
 
 // DeleteSession deletes a session file
 func (m *Manager) DeleteSession(sessionID string) error {
-	sessionFile := filepath.Join(m.sessionsDir, fmt.Sprintf("%s.yml", sessionID))
-	return os.Remove(sessionFile)
+	// Validate session ID
+	if err := validateSessionID(sessionID); err != nil {
+		return fmt.Errorf("invalid session ID: %w", err)
+	}
+
+	// Use shared delete function
+	return deleteSessionFile(filepath.Join(m.sessionsDir, sessionID))
 }
 
 // LoadSession загружает сессию по пути без расширения .yml
 // (пакетная функция для ContextGenerator).
 func LoadSession(path string) (*Session, error) {
-	data, err := os.ReadFile(path + ".yml")
-	if err != nil {
-		return nil, fmt.Errorf("failed to read session file: %w", err)
-	}
-
-	var session Session
-	if err := yaml.Unmarshal(data, &session); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal session: %w", err)
-	}
-
-	return &session, nil
+	return loadSessionFile(path)
 }
 
 // ListSessions возвращает ID всех сессий в каталоге (пакетная функция
 // для ContextGenerator).
 func ListSessions(dir string) ([]string, error) {
-	var sessionIDs []string
+	return listYMLFiles(dir)
+}
 
+// Internal helper functions
+
+// loadSessionFile loads a session from a file path (without .yml extension)
+func loadSessionFile(path string) (*Session, error) {
+	sessionFile := path + ".yml"
+	
+	var session Session
+	if err := ReadYAML(sessionFile, &session); err != nil {
+		return nil, fmt.Errorf("failed to read session file: %w", err)
+	}
+
+	return &session, nil
+}
+
+// saveSessionFile saves a session to a file path (without .yml extension)
+func saveSessionFile(path string, session *Session) error {
+	return WriteYAML(path+".yml", session)
+}
+
+// deleteSessionFile deletes a session file (without .yml extension)
+func deleteSessionFile(path string) error {
+	sessionFile := path + ".yml"
+	return os.Remove(sessionFile)
+}
+
+// listYMLFiles returns all .yml files in a directory (without extension)
+func listYMLFiles(dir string) ([]string, error) {
+	var sessionIDs []string
+	
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {

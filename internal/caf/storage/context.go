@@ -102,7 +102,7 @@ func (g *ContextGenerator) GenerateContext(repoRoot string) error {
 
 	// Write context file
 	contextFile := filepath.Join(repoRoot, ".caf", "context.md")
-	if err := WriteYAML(contextFile, context.String()); err != nil {
+	if err := os.WriteFile(contextFile, []byte(context.String()), 0644); err != nil {
 		return fmt.Errorf("failed to write context file: %w", err)
 	}
 
