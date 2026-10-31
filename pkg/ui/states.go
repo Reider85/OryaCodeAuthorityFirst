@@ -66,50 +66,49 @@ func (sm *StateMachine) PartialMessages() []string {
 	return sm.partialMsgs
 }
 
-// Transition transitions to a new state based on a message
-// INV-PROMPT-MVP-006: Loading → {Success, Error, Empty, Partial}. Never Loading → Loading.
-// INV-PROMPT-MVP-006: Success → {Loading (on refresh), Error (on refresh failure), Partial (on partial refresh failure)}.
-// INV-PROMPT-MVP-006: Error → {Loading (on retry), Error (on retry failure)}.
-// INV-PROMPT-MVP-006: Empty → {Loading (on refresh), Success (on data arrival)}.
-// INV-PROMPT-MVP-006: Partial → {Loading (on retry), Success (on full refresh), Partial (on retry of failed widget only)}.
+// Transition transitions to a new state based on a message.
+// INV-PROMPT-MVP-006 §16.4: transitions are validated against the transition rules.
+// Invalid transitions are silently ignored (current state is kept).
 func (sm *StateMachine) Transition(msg interface{}) {
-	switch msg := msg.(type) {
+	var target State
+	switch m := msg.(type) {
 	case LoadingMsg:
-		sm.current = StateLoading
+		target = StateLoading
 	case DataLoadedMsg:
-		if msg.Empty {
-			sm.current = StateEmpty
+		if m.Empty {
+			target = StateEmpty
 		} else {
-			sm.current = StateSuccess
+			target = StateSuccess
 		}
 	case DataErrorMsg:
-		sm.current = StateError
-		sm.errMsg = msg.Err.Error()
+		target = StateError
 	case PartialDataMsg:
-		sm.current = StatePartial
-		sm.partialMsgs = msg.Missing
+		target = StatePartial
 	case RetryMsg:
-		// Retry transitions depend on current state
-		switch sm.current {
-		case StateError:
-			sm.current = StateLoading
-		case StatePartial:
-			sm.current = StateLoading
-		case StateEmpty:
-			sm.current = StateLoading
-		}
+		target = StateLoading
 	case RefreshMsg:
-		// Refresh transitions
-		switch sm.current {
-		case StateSuccess:
-			sm.current = StateLoading
-		case StateError:
-			sm.current = StateLoading
-		case StatePartial:
-			sm.current = StateLoading
-		case StateEmpty:
-			sm.current = StateLoading
-		}
+		target = StateLoading
+	default:
+		return // неизвестное сообщение — игнорируем
+	}
+
+	// INV-PROMPT-MVP-006 §16.4: валидируем переход перед применением
+	if err := ValidateTransition(sm.current, target); err != nil {
+		return // невалидный переход — сохраняем текущее состояние
+	}
+
+	sm.current = target
+
+	// Обновляем связанные данные состояния
+	switch m := msg.(type) {
+	case DataErrorMsg:
+		sm.errMsg = m.Err.Error()
+	case PartialDataMsg:
+		sm.partialMsgs = m.Missing
+	case LoadingMsg, RetryMsg, RefreshMsg:
+		// При входе в Loading очищаем предыдущие ошибки/частичные данные
+		sm.errMsg = ""
+		sm.partialMsgs = []string{}
 	}
 }
 
@@ -136,16 +135,6 @@ func (sm *StateMachine) IsEmpty() bool {
 // IsPartial returns true if the current state is partial
 func (sm *StateMachine) IsPartial() bool {
 	return sm.current == StatePartial
-}
-
-// StateMessages represents messages that can trigger state transitions
-type StateMessages interface {
-	LoadingMsg() LoadingMsg
-	DataLoadedMsg(DataLoadedMsg) 
-	DataErrorMsg(DataErrorMsg)
-	PartialDataMsg(PartialDataMsg)
-	RetryMsg() RetryMsg
-	RefreshMsg() RefreshMsg
 }
 
 // LoadingMsg represents a loading message
@@ -252,18 +241,22 @@ func (e *StateTransitionError) Error() string {
 	return fmt.Sprintf("invalid transition from %s to %s: %s", e.FromState, e.ToState, e.Message)
 }
 
-// ValidateTransition validates a state transition
+// ValidateTransition validates a state transition per INV-PROMPT-MVP-006 §16.4.
+// Valid transitions:
+//   Loading  → {Success, Error, Empty, Partial}   (never Loading → Loading)
+//   Success  → {Loading, Error, Partial}           (never Success → Empty)
+//   Error    → {Loading, Error}                    (Error → Error = retry failure)
+//   Empty    → {Loading, Success, Empty}           (Empty → Empty = still no data)
+//   Partial  → {Loading, Success, Partial}         (never Partial → Error)
 func ValidateTransition(from, to State) error {
-	// Define valid transitions
 	validTransitions := map[State][]State{
 		StateLoading:  {StateSuccess, StateError, StateEmpty, StatePartial},
-		StateSuccess: {StateLoading, StateError, StatePartial},
-		StateError:   {StateLoading},
-		StateEmpty:   {StateLoading, StateSuccess},
-		StatePartial: {StateLoading, StateSuccess, StatePartial},
+		StateSuccess:  {StateLoading, StateError, StatePartial},
+		StateError:    {StateLoading, StateError},
+		StateEmpty:    {StateLoading, StateSuccess, StateEmpty},
+		StatePartial:  {StateLoading, StateSuccess, StatePartial},
 	}
-	
-	// Check if transition is valid
+
 	validToStates, exists := validTransitions[from]
 	if !exists {
 		return &StateTransitionError{
@@ -272,13 +265,13 @@ func ValidateTransition(from, to State) error {
 			Message:   "unknown from state",
 		}
 	}
-	
+
 	for _, validTo := range validToStates {
 		if to == validTo {
 			return nil
 		}
 	}
-	
+
 	return &StateTransitionError{
 		FromState: from,
 		ToState:   to,
