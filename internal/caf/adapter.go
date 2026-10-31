@@ -43,6 +43,16 @@ type Adapter interface {
 	Detect() bool
 }
 
+// Configured — опциональное расширение адаптера, НЕ входящее в ядро
+// интерфейса Adapter: INV-ADR-009 замораживает ровно 5 методов в пределах
+// major-версии. Адаптер, который умеет ответить «прописан ли caf в конфиге
+// агента», реализует Configured() отдельно — `caf adapters list` показывает
+// hooks wired / hooks not wired, не меняя контракт (FR-ADP-001, ADR-009).
+type Configured interface {
+	// Configured возвращает true, если конфигурация агента содержит caf-хуки.
+	Configured() bool
+}
+
 // LanguageAdapter is the interface for language-specific adapters
 type LanguageAdapter interface {
 	// ID returns the language identifier

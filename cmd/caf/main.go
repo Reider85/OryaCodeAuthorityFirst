@@ -71,7 +71,8 @@ Events: pre-session, post-edit, pre-commit
 Example:
   caf hook pre-session --session 2026-10-24-a1b2c3
   caf hook post-edit --session 2026-10-24-a1b2c3 --files "main.go" --message "added middleware"
-  caf hook pre-commit --repo "$(pwd)"`,
+  caf hook pre-commit --repo "$(pwd)"
+  echo '{"tool_name":"Bash","tool_input":{"command":"git commit -m x"}}' | caf hook pre-commit --from-agent`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		event := args[0]
@@ -82,7 +83,8 @@ Example:
 		sessionID := flagString(cmd, "session")
 		files := flagStrings(cmd, "files")
 		message := flagString(cmd, "message")
-		os.Exit(runHookEvent(event, repoRoot, sessionID, files, message))
+		fromAgent := flagBool(cmd, "from-agent")
+		os.Exit(runHookEvent(event, repoRoot, sessionID, files, message, fromAgent))
 	},
 }
 
@@ -244,6 +246,8 @@ func main() {
 	hookCmd.Flags().String("session", "", "Session ID")
 	hookCmd.Flags().StringSlice("files", nil, "Files changed (comma-separated or repeated)")
 	hookCmd.Flags().String("message", "", "Commit message / change summary")
+	hookCmd.Flags().Bool("from-agent", false,
+		"Read agent hook JSON on stdin (Claude Code PreToolUse) and run pre-commit only for git commit")
 
 	whoCmd.Flags().StringP("repo", "r", "", "Repository path (default: current directory)")
 
@@ -365,6 +369,14 @@ func runInit(repoRoot string, autoDetect bool, adaptersFlag string) error {
 }
 
 // installAdapter ставит один адаптер по ID; ошибки — предупреждение, не фатал.
+//
+// Я убрал пропуск по Detect() (шаг 7): раньше `caf init --adapters opencode`
+// ничего не делал, если агент уже был установлен — а настройка хуков
+// существующего агента и есть задача адаптера. Install() идемпотентен
+// (ARCHITECT.md §3.1), поэтому вызывать его можно сколько угодно раз.
+// Проверку Getenv("HOME") убрал тоже: на Windows она пуста и блокировала
+// установку, а домашний каталог адаптеры резолвят сами через
+// os.UserHomeDir() (USERPROFILE на Windows).
 func installAdapter(id string) {
 	adapter, ok := caf.GetAdapter(id)
 	if !ok {
@@ -375,21 +387,14 @@ func installAdapter(id string) {
 		fmt.Printf("WARN: %q is a language adapter, not an event adapter; skipped\n", id)
 		return
 	}
-	if adapter.Detect() {
-		// Contract Install() отказывается ставить поверх детектированного агента;
-		// настройка хуков существующего агента — зона адаптера (step 7/8).
-		fmt.Printf("SKIP: %s already present on this machine; hook wiring is adapter scope\n", id)
-		return
-	}
-	if os.Getenv("HOME") == "" {
-		fmt.Printf("WARN: HOME is not set; cannot write %s agent config (adapter scope)\n", id)
-		return
-	}
 	if err := adapter.Install(); err != nil {
 		fmt.Printf("WARN: install %s: %v\n", id, err)
 		return
 	}
-	fmt.Printf("OK: adapter %s installed\n", id)
+	fmt.Printf("OK: adapter %s installed (hooks wired)\n", id)
+	if !adapter.Detect() {
+		fmt.Printf("NOTE: %s binary not found in $PATH — hooks activate once you install the agent\n", id)
+	}
 }
 
 func knownAdapterIDs() string {
@@ -403,8 +408,9 @@ func knownAdapterIDs() string {
 // runHookEvent: диспетчер событий. Вызывает *Hook напрямую (не *Command — те
 // рекурсивно перезапускали caf через ExecuteHook; баг исправлен на шаге 6,
 // см. PreCommitCommand/PreSessionCommand).
+// fromAgent=true — pre-commit со stdin-вводом агента (шаг 7, см. hooks.PreCommitFromAgent).
 // Возвращает exit-код: 0 всегда, кроме неизвестного события (usage error).
-func runHookEvent(event, repoRoot, sessionID string, files []string, message string) int {
+func runHookEvent(event, repoRoot, sessionID string, files []string, message string, fromAgent bool) int {
 	ctx := hooks.HookContext{
 		RepoRoot:  repoRoot,
 		SessionID: sessionID,
@@ -418,6 +424,12 @@ func runHookEvent(event, repoRoot, sessionID string, files []string, message str
 	case "post-edit":
 		err = hooks.PostEditHook(ctx, files, message)
 	case "pre-commit":
+		if fromAgent {
+			// stdin читается ТОЛЬКО здесь (по флагу): git-путь хука никогда
+			// не трогает stdin и не может заблокироваться (INV-ARCH-004).
+			err = hooks.PreCommitFromAgent(ctx, os.Stdin)
+			break
+		}
 		if message == "" {
 			message = readCommitEditMsg(repoRoot)
 		}
@@ -604,10 +616,7 @@ func runAdaptersList() error {
 	fmt.Fprintln(w, "ID\tTIER\tpre-session\tpost-edit\tpre-commit\tMCP\tSTATUS")
 	for _, a := range list {
 		m := a.Capabilities()
-		status := "not detected"
-		if a.Detect() {
-			status = "installed"
-		}
+		status := adapterStatus(a)
 		mcp := "no"
 		if m.MCP {
 			mcp = "yes"
@@ -618,6 +627,36 @@ func runAdaptersList() error {
 			mcp, status)
 	}
 	return w.Flush()
+}
+
+// adapterStatus — статус адаптера в `caf adapters list` (UI.md §7).
+//
+// Два независимых вопроса (шаг 7): «есть ли агент на машине» — Detect
+// (ARCHITECT.md §3.1) и «прописан ли caf в конфиге агента» — опциональный
+// caf.Configured. Адаптер без проводки (Tier-4 universal-lsp, шаг 8)
+// показывается как раньше: installed / not detected.
+func adapterStatus(a caf.Adapter) string {
+	wiring, hasWiring := a.(caf.Configured)
+	detected := a.Detect()
+
+	if !hasWiring {
+		if detected {
+			return "installed"
+		}
+		return "not detected"
+	}
+
+	wired := wiring.Configured()
+	switch {
+	case wired && detected:
+		return "installed (hooks wired)"
+	case wired:
+		return "hooks wired (agent not in $PATH)"
+	case detected:
+		return "installed (hooks not wired — run caf init --adapters " + a.ID() + ")"
+	default:
+		return "not detected"
+	}
 }
 
 // runDoctor: 5 базовых проверок (FR-OBS-004 partial).
