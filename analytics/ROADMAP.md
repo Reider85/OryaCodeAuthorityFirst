@@ -160,7 +160,7 @@ User-facing features in MVP:
 7. `context.md` auto-generated.
 8. Two Tier 1 explicit adapters (opencode, Claude Code) *(done — PROMPT-MVP §14 step 7)* + Universal LSP fallback *(done — PROMPT-MVP §14 step 8)*.
 9. **Security design document** (NEW v0.4-triz2): threat model draft, sandboxed parser design (not yet implemented, design only).
-10. **`caf doctor` basic** (NEW v0.4-triz2): 5 health checks (`.caf/` validity, config schema, sessions present, hook installed, LSP responds).
+10. **`caf doctor` basic** (NEW v0.4-triz2): 5 health checks (`.caf/` validity, config schema, sessions present, hook installed, LSP responds) *(done — PROMPT-MVP §14 step 9)*.
 
 ### 2.3 Exit criteria
 
