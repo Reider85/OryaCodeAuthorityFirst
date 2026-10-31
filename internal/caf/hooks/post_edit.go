@@ -19,9 +19,11 @@ func PostEditHook(ctx HookContext, filesChanged []string, changesSummary string)
 	// Load config
 	configManager := config.NewManager(config.GetConfigPath(ctx.RepoRoot))
 	cfg, err := configManager.LoadConfig()
-	if err != nil {
+	if err != nil || cfg == nil {
+		// Fail-safe: битый .caf/config.yml не должен ронять хук паникой на
+		// nil-config (INV-ARCH-004) — подставляю дефолтный порог ADR-004 (50 LOC).
 		log.Printf("⚠ Failed to load config: %v", err)
-		// Continue anyway
+		cfg = &config.Config{TrivialityThreshold: 50}
 	}
 
 	// Check if changes are trivial
@@ -32,22 +34,22 @@ func PostEditHook(ctx HookContext, filesChanged []string, changesSummary string)
 
 	// Create or update session
 	sessionManager := storage.NewManager(filepath.Join(ctx.RepoRoot, ".caf", "sessions"))
-	
+
 	// Try to load existing session
 	session, err := sessionManager.LoadSession(ctx.SessionID)
 	if err != nil {
 		// Create new session
 		session = &storage.Session{
-			SessionID:     ctx.SessionID,
-			Repo:          getRepoName(ctx.RepoRoot),
-			StartedAt:     getStartTime(ctx.SessionID),
-			EndedAt:       getEndTime(),
-			Agent:         getAgentFromSessionID(ctx.SessionID),
-			Model:         getModelFromSessionID(ctx.SessionID),
-			ToolCall:      getToolCallFromSessionID(ctx.SessionID),
-			InitialPrompt: getInitialPromptFromSessionID(ctx.SessionID),
+			SessionID:      ctx.SessionID,
+			Repo:           getRepoName(ctx.RepoRoot),
+			StartedAt:      getStartTime(ctx.SessionID),
+			EndedAt:        getEndTime(),
+			Agent:          getAgentFromSessionID(ctx.SessionID),
+			Model:          getModelFromSessionID(ctx.SessionID),
+			ToolCall:       getToolCallFromSessionID(ctx.SessionID),
+			InitialPrompt:  getInitialPromptFromSessionID(ctx.SessionID),
 			VoiceSignature: getVoiceSignatureFromSessionID(ctx.SessionID),
-			FilesTouched:  filesChanged,
+			FilesTouched:   filesChanged,
 		}
 	}
 
@@ -72,7 +74,7 @@ func PostEditHook(ctx HookContext, filesChanged []string, changesSummary string)
 // PostEditCommand handles the caf hook post-edit command
 func PostEditCommand(repoRoot, sessionID string, filesChanged []string, changesSummary string) error {
 	ctx := HookContext{
-		RepoRoot: repoRoot,
+		RepoRoot:  repoRoot,
 		SessionID: sessionID,
 		EventType: "post-edit",
 	}
@@ -86,11 +88,11 @@ func isTrivialChange(filesChanged []string, changesSummary string, threshold int
 	if strings.Contains(strings.ToLower(changesSummary), "trivial") {
 		return true
 	}
-	
+
 	if len(filesChanged) > threshold {
 		return false
 	}
-	
+
 	// Additional heuristics could be added here
 	return false
 }

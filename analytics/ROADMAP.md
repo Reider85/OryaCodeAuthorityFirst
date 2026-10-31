@@ -153,7 +153,7 @@ User-facing features in MVP:
 
 1. `caf` single binary for Linux/macOS/Windows.
 2. `.caf/` folder structure created by `caf init`.
-3. `.git/hooks/pre-commit` universal hook installed.
+3. `.git/hooks/pre-commit` universal hook installed. *(done — PROMPT-MVP §14 step 6)*
 4. TUI dashboard with 5 widgets.
 5. TUI onboarding wizard.
 6. TUI adapters manager with basic health check.

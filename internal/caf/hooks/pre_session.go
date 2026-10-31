@@ -44,13 +44,16 @@ func PreSessionHook(ctx HookContext) error {
 	return nil
 }
 
-// PreSessionCommand handles the caf hook pre-session command
+// PreSessionCommand — точка входа `caf hook pre-session`.
+// Я вызываю PreSessionHook напрямую (не через ExecuteHook): ExecuteHook
+// перезапускает сам caf, из-за чего команда вызывала себя снова и снова —
+// рекурсия, баг которой был отложен на шаг 6 и исправлен здесь.
 func PreSessionCommand(repoRoot, sessionID string) error {
 	ctx := HookContext{
-		RepoRoot: repoRoot,
+		RepoRoot:  repoRoot,
 		SessionID: sessionID,
 		EventType: "pre-session",
 	}
 
-	return ExecuteHook("pre-session", ctx)
+	return PreSessionHook(ctx)
 }

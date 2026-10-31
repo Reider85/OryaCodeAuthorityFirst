@@ -401,7 +401,8 @@ func knownAdapterIDs() string {
 }
 
 // runHookEvent: диспетчер событий. Вызывает *Hook напрямую (не *Command — те
-// рекурсивно перезапускают caf через ExecuteHook; баг отложен к шагу 6).
+// рекурсивно перезапускали caf через ExecuteHook; баг исправлен на шаге 6,
+// см. PreCommitCommand/PreSessionCommand).
 // Возвращает exit-код: 0 всегда, кроме неизвестного события (usage error).
 func runHookEvent(event, repoRoot, sessionID string, files []string, message string) int {
 	ctx := hooks.HookContext{
