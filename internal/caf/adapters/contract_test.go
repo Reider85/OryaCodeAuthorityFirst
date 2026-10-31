@@ -3,6 +3,8 @@ package adapters
 import (
 	"bytes"
 	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf"
@@ -102,8 +104,8 @@ func TestAdapterContract(t *testing.T) {
 // только своё и тоже идемпотентен (ARCHITECT.md §3.1). Выполняется во
 // временном HOME: реальный ~/.config и ~/.claude не трогаются.
 //
-// universal-lsp здесь не участвует: его Install() требует установленного
-// gopls, а lifecycle Tier-4 адаптера — шаг 8 (PROMPT-MVP §14).
+// universal-lsp здесь не участвует: его Install() требует gopls, lifecycle
+// Tier-4 адаптера покрыт TestTier4InstallLifecycle ниже (шаг 8).
 func TestTier1InstallLifecycle(t *testing.T) {
 	Initialize()
 
@@ -186,5 +188,57 @@ func TestNoLanguageAdaptersRegistered(t *testing.T) {
 		if _, ok := caf.GetAdapter(id); ok {
 			t.Errorf("language adapter %q must not be in the registry (removed in step 7)", id)
 		}
+	}
+}
+
+// TestTier4InstallLifecycle — Install()/Uninstall() universal-lsp идемпотентны
+// (ARCHITECT.md §3.1). Install() без gopls в $PATH — ошибка с hint (ADR-026:
+// MVP требует ручной установки); со стабом gopls — nil дважды. Uninstall()
+// без запущенного процесса — nil дважды.
+func TestTier4InstallLifecycle(t *testing.T) {
+	Initialize()
+
+	adapter, ok := caf.GetAdapter("universal-lsp")
+	if !ok {
+		t.Fatal("adapter \"universal-lsp\" not registered")
+	}
+
+	// Без gopls: Install() обязан отказать и объяснить, как поставить.
+	t.Setenv("PATH", "")
+	if err := adapter.Install(); err == nil {
+		t.Error("Install() without gopls must fail")
+	}
+
+	// Со стабом gopls: Install() идемпотентен.
+	dir := t.TempDir()
+	stubGoplsInDir(t, dir)
+	t.Setenv("PATH", dir)
+	if err := adapter.Install(); err != nil {
+		t.Errorf("first Install with stub gopls: %v", err)
+	}
+	if err := adapter.Install(); err != nil {
+		t.Errorf("second Install must be idempotent: %v", err)
+	}
+
+	// Uninstall() идемпотентен при отсутствии запущенного процесса.
+	if err := adapter.Uninstall(); err != nil {
+		t.Errorf("first Uninstall: %v", err)
+	}
+	if err := adapter.Uninstall(); err != nil {
+		t.Errorf("second Uninstall must be nil: %v", err)
+	}
+}
+
+// stubGoplsInDir кладёт стаб gopls в dir (Detect/Install ищут его в $PATH).
+func stubGoplsInDir(t *testing.T, dir string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		if err := os.WriteFile(filepath.Join(dir, "gopls.bat"), []byte("@echo off\r\n"), 0644); err != nil {
+			t.Fatalf("failed to write gopls stub: %v", err)
+		}
+		return
+	}
+	if err := os.WriteFile(filepath.Join(dir, "gopls"), []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
+		t.Fatalf("failed to write gopls stub: %v", err)
 	}
 }
