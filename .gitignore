@@ -1,0 +1,10 @@
+# Binaries
+caf.exe
+*.exe
+
+# Test artifacts
+coverage
+*.test
+*.out
+
+# Dependencies (kept: go.sum is tracked)

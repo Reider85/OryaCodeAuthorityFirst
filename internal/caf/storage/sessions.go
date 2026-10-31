@@ -21,7 +21,7 @@ type Session struct {
 	Iterations    []Iteration            `yaml:"iterations"`
 	FilesTouched  []string               `yaml:"files_touched"`
 	CommitSHA     string                 `yaml:"commit_sha,omitempty"`
-	DecisionsMade []Decision             `yaml:"decisions_made,omitempty"`
+	DecisionsMade []Decision             `yaml:"decisions_made"`
 	VoiceSignature string                `yaml:"voice_signature"`
 }
 

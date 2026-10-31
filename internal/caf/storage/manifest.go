@@ -128,7 +128,9 @@ func getGitRepoName(repoRoot string) string {
 			if strings.Contains(url, "github.com") {
 				parts := strings.Split(url, "/")
 				if len(parts) >= 2 {
-					return parts[len(parts)-2] + "/" + parts[len(parts)-1]
+					repo := parts[len(parts)-1]
+					repo = strings.TrimSuffix(repo, ".git")
+					return parts[len(parts)-2] + "/" + repo
 				}
 			}
 			break

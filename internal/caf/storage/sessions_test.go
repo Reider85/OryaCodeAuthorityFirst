@@ -3,6 +3,7 @@ package storage
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -1007,5 +1008,122 @@ func TestSaveSessionFileError(t *testing.T) {
 	err := saveSessionFile(filepath.Join(readOnlyDir, "test"), session)
 	if err == nil {
 		t.Error("saveSessionFile should fail with read-only directory")
+	}
+}
+
+func TestManagerInvalidSessionIDErrors(t *testing.T) {
+	manager := NewManager(t.TempDir())
+	bad := &Session{SessionID: "../evil", Agent: "opencode"}
+
+	if err := manager.SaveSession(bad); err == nil {
+		t.Error("SaveSession should reject path-traversal session ID")
+	}
+	if _, err := manager.LoadSession("../evil"); err == nil {
+		t.Error("LoadSession should reject path-traversal session ID")
+	}
+	if err := manager.DeleteSession(".."); err == nil {
+		t.Error("DeleteSession should reject path-traversal session ID")
+	}
+}
+
+func TestManagerSaveSessionEnsureDirFails(t *testing.T) {
+	tempDir := t.TempDir()
+	blocker := filepath.Join(tempDir, "blocker")
+	if err := os.WriteFile(blocker, []byte("x"), 0644); err != nil {
+		t.Fatalf("create blocker file: %v", err)
+	}
+
+	manager := NewManager(filepath.Join(blocker, "sessions"))
+	err := manager.SaveSession(&Session{SessionID: "2026-10-24-a1b2c3", Agent: "opencode"})
+	if err == nil {
+		t.Fatal("SaveSession should fail when sessions dir cannot be created")
+	}
+}
+
+func TestSessionYAMLSchemaExample(t *testing.T) {
+	// Сессия в точности как в примере PROMPT-MVP.md §2.1 (FR-PROV-002)
+	tempDir := t.TempDir()
+	session := &Session{
+		SessionID: "2026-10-24-a1b2c3",
+		Repo:      "OryaSecurity",
+		StartedAt: time.Date(2026, 10, 24, 11, 2, 14, 0, time.FixedZone("MSK", 3*3600)),
+		EndedAt:   time.Date(2026, 10, 24, 11, 47, 33, 0, time.FixedZone("MSK", 3*3600)),
+		Agent:     "opencode",
+		Model:     "glm-4.6",
+		ToolCall:  `opencode run "add rate limiter"`,
+		InitialPrompt: "Need to add rate limiter on POST /v1/policies.\n" +
+			"Token bucket, 10/min.\n",
+		Iterations: []Iteration{
+			{ID: "i1", Action: "read", Target: "internal/api/policies.go"},
+			{ID: "i2", Action: "edit", Target: "internal/api/policies.go", Diff: "added middleware RateLimit(token, 10/min)"},
+		},
+		FilesTouched:  []string{"internal/api/policies.go"},
+		CommitSHA:     "9f3e2a1",
+		DecisionsMade: []Decision{},
+		VoiceSignature: "rate limiter needed urgently",
+	}
+
+	manager := NewManager(tempDir)
+	if err := manager.SaveSession(session); err != nil {
+		t.Fatalf("SaveSession: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tempDir, "2026-10-24-a1b2c3.yml"))
+	if err != nil {
+		t.Fatalf("read session file: %v", err)
+	}
+	content := string(data)
+
+	// Порядок ключей должен совпадать с примером §2.1
+	keys := []string{
+		"session_id:", "repo:", "started_at:", "ended_at:", "agent:", "model:",
+		"tool_call:", "initial_prompt:", "iterations:", "files_touched:",
+		"commit_sha:", "decisions_made:", "voice_signature:",
+	}
+	lastIdx := -1
+	for _, key := range keys {
+		idx := strings.Index(content, key)
+		if idx == -1 {
+			t.Errorf("schema key %q missing from YAML:\n%s", key, content)
+			continue
+		}
+		if idx < lastIdx {
+			t.Errorf("schema key %q out of order vs §2.1 example:\n%s", key, content)
+		}
+		lastIdx = idx
+	}
+
+	// Многострочный initial_prompt должен рендериться literal block'ом (|)
+	if !strings.Contains(content, "initial_prompt: |") {
+		t.Errorf("multiline initial_prompt should use literal block scalar:\n%s", content)
+	}
+
+	// decisions_made: [] должен присутствовать даже пустым (пример §2.1)
+	if !strings.Contains(content, "decisions_made: []") {
+		t.Errorf("empty decisions_made should render as [] per §2.1 example:\n%s", content)
+	}
+
+	// Round-trip: загруженная сессия равна исходной
+	loaded, err := manager.LoadSession("2026-10-24-a1b2c3")
+	if err != nil {
+		t.Fatalf("LoadSession: %v", err)
+	}
+	if loaded.SessionID != session.SessionID || loaded.Repo != session.Repo ||
+		loaded.Agent != session.Agent || loaded.Model != session.Model ||
+		loaded.ToolCall != session.ToolCall || loaded.InitialPrompt != session.InitialPrompt ||
+		loaded.VoiceSignature != session.VoiceSignature || loaded.CommitSHA != session.CommitSHA {
+		t.Error("round-trip scalar fields mismatch")
+	}
+	if !loaded.StartedAt.Equal(session.StartedAt) || !loaded.EndedAt.Equal(session.EndedAt) {
+		t.Error("round-trip timestamps mismatch")
+	}
+	if len(loaded.Iterations) != 2 || loaded.Iterations[1].Diff != session.Iterations[1].Diff {
+		t.Error("round-trip iterations mismatch")
+	}
+	if len(loaded.FilesTouched) != 1 || loaded.FilesTouched[0] != session.FilesTouched[0] {
+		t.Error("round-trip files_touched mismatch")
+	}
+	if len(loaded.DecisionsMade) != 0 {
+		t.Error("round-trip decisions_made should be empty")
 	}
 }
