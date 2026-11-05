@@ -72,14 +72,10 @@ func EnsureCAFDir(repoRoot string) (string, error) {
 		return "", fmt.Errorf("failed to create .caf directory: %w", err)
 	}
 
-	// Create subdirectories
+	// Create subdirectories (MVP scope only)
 	subdirs := []string{
 		filepath.Join(cafDir, "sessions"),
-		filepath.Join(cafDir, "decisions"),
-		filepath.Join(cafDir, "mental-model"),
 		filepath.Join(cafDir, "cache"),
-		filepath.Join(cafDir, "metrics"),
-		filepath.Join(cafDir, "reviews"),
 	}
 
 	for _, dir := range subdirs {

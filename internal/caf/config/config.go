@@ -14,28 +14,14 @@ type Config struct {
 	Version              string             `yaml:"version"`
 	TrivialityThreshold  int                `yaml:"triviality_threshold_loc"`
 	UI                   UIConfig          `yaml:"ui"`
-	LLM                  LLMConfig         `yaml:"llm"`
 	LSP                  LSPConfig         `yaml:"lsp"`
-	Telemetry            TelemetryConfig   `yaml:"telemetry"`
-	Observability        ObservabilityConfig `yaml:"observability"`
 	Security             SecurityConfig     `yaml:"security"`
-	Cost                 CostConfig        `yaml:"cost"`
-	Decisions            DecisionsConfig   `yaml:"decisions"`
 }
 
 // UIConfig represents UI settings
 type UIConfig struct {
 	Theme               string `yaml:"theme"`
 	Language            string `yaml:"language"`
-	HeatmapRefreshSeconds int  `yaml:"heatmap_refresh_seconds"`
-	ReviewMaxCards      int    `yaml:"review_max_cards"`
-}
-
-// LLMConfig represents LLM settings
-type LLMConfig struct {
-	Backend   string `yaml:"backend"`
-	Endpoint  string `yaml:"endpoint"`
-	Model     string `yaml:"model"`
 }
 
 // LSPConfig represents LSP settings
@@ -43,37 +29,11 @@ type LSPConfig struct {
 	Strict bool `yaml:"strict"`
 }
 
-// TelemetryConfig represents telemetry settings
-type TelemetryConfig struct {
-	Enabled  bool   `yaml:"enabled"`
-	Endpoint string `yaml:"endpoint"`
-}
-
-// ObservabilityConfig represents observability settings
-type ObservabilityConfig struct {
-	OtelEnabled      bool   `yaml:"otel_enabled"`
-	OtelEndpoint     string `yaml:"otel_endpoint"`
-	MetricsExport    bool   `yaml:"metrics_export"`
-	MetricsPort      int    `yaml:"metrics_port"`
-}
-
 // SecurityConfig represents security settings
 type SecurityConfig struct {
 	SignedAdaptersRequired bool `yaml:"signed_adapters_required"`
 	SandboxParser          bool `yaml:"sandbox_parser"`
 	AuditLog              bool `yaml:"audit_log"`
-}
-
-// CostConfig represents cost tracking settings
-type CostConfig struct {
-	LLMTokenCapDaily    int `yaml:"llm_token_cap_daily"`
-	LLMTokenCapMonthly  int `yaml:"llm_token_cap_monthly"`
-	AlertThresholdPct   int `yaml:"alert_threshold_pct"`
-}
-
-// DecisionsConfig represents decisions settings
-type DecisionsConfig struct {
-	Autocomplete string `yaml:"autocomplete"`
 }
 
 // Manager handles config operations
@@ -119,41 +79,16 @@ func getDefaultConfig() Config {
 		Version:              "0.4.0-triz2",
 		TrivialityThreshold:  50,
 		UI: UIConfig{
-			Theme:               "dark",
-			Language:            "ru",
-			HeatmapRefreshSeconds: 30,
-			ReviewMaxCards:      15,
-		},
-		LLM: LLMConfig{
-			Backend:  "",
-			Endpoint: "",
-			Model:    "",
+			Theme:    "dark",
+			Language: "ru",
 		},
 		LSP: LSPConfig{
 			Strict: true,
-		},
-		Telemetry: TelemetryConfig{
-			Enabled:  false,
-			Endpoint: "",
-		},
-		Observability: ObservabilityConfig{
-			OtelEnabled:      false,
-			OtelEndpoint:     "",
-			MetricsExport:    false,
-			MetricsPort:      9464,
 		},
 		Security: SecurityConfig{
 			SignedAdaptersRequired: false,
 			SandboxParser:          true,
 			AuditLog:              true,
-		},
-		Cost: CostConfig{
-			LLMTokenCapDaily:    100000,
-			LLMTokenCapMonthly:  2000000,
-			AlertThresholdPct:   80,
-		},
-		Decisions: DecisionsConfig{
-			Autocomplete: "aggressive",
 		},
 	}
 }

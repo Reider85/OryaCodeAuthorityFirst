@@ -12,18 +12,14 @@ import (
 // ContextGenerator generates context.md from recent sessions
 type ContextGenerator struct {
 	sessionsDir string
-	decisionsDir string
 	maxSessions int
-	maxDecisions int
 }
 
 // NewContextGenerator creates a new context generator
-func NewContextGenerator(sessionsDir, decisionsDir string, maxSessions, maxDecisions int) *ContextGenerator {
+func NewContextGenerator(sessionsDir string, maxSessions int) *ContextGenerator {
 	return &ContextGenerator{
 		sessionsDir: sessionsDir,
-		decisionsDir: decisionsDir,
 		maxSessions: maxSessions,
-		maxDecisions: maxDecisions,
 	}
 }
 
@@ -74,32 +70,14 @@ func (g *ContextGenerator) GenerateContext(repoRoot string) error {
 			}
 		}
 
-		if len(session.DecisionsMade) > 0 {
-			context.WriteString("- **Decisions made**:\n")
-			for _, decision := range session.DecisionsMade {
-				context.WriteString(fmt.Sprintf("  - %s: %s\n", decision.ID, decision.Title))
-			}
-		}
+
 
 		context.WriteString("\n")
 	}
 
 	// Add recent decisions
 	context.WriteString("## Recent Decisions\n\n")
-	decisions, err := g.listRecentDecisions()
-	if err != nil {
-		return fmt.Errorf("failed to list recent decisions: %w", err)
-	}
 
-	for i, decision := range decisions {
-		if i >= g.maxDecisions {
-			break
-		}
-
-		context.WriteString(fmt.Sprintf("### %s: %s\n", decision.ID, decision.Title))
-		context.WriteString(fmt.Sprintf("- **Timestamp**: %s\n", decision.Timestamp.Format(time.RFC3339)))
-		context.WriteString(fmt.Sprintf("- **Description**: %s\n\n", decision.Description))
-	}
 
 	// Write context file
 	contextFile := filepath.Join(repoRoot, ".caf", "context.md")
@@ -132,48 +110,3 @@ func (g *ContextGenerator) listRecentSessions() ([]string, error) {
 	return sessionIDsSorted, nil
 }
 
-// listRecentDecisions returns recent decisions sorted by timestamp
-func (g *ContextGenerator) listRecentDecisions() ([]Decision, error) {
-	var decisions []Decision
-	
-	// Read decisions index
-	indexFile := filepath.Join(g.decisionsDir, "index.yml")
-	if _, err := os.Stat(indexFile); err != nil {
-		if os.IsNotExist(err) {
-			return decisions, nil // No decisions yet
-		}
-		return nil, err
-	}
-
-	var index struct {
-		DecisionIDs []string `yaml:"decisions"`
-	}
-	if err := ReadYAML(indexFile, &index); err != nil {
-		return nil, err
-	}
-
-	// Load recent decisions
-	for i, decisionID := range index.DecisionIDs {
-		if i >= g.maxDecisions {
-			break
-		}
-
-		decisionFile := filepath.Join(g.decisionsDir, fmt.Sprintf("%s.yml", decisionID))
-		var decision Decision
-		if err := ReadYAML(decisionFile, &decision); err != nil {
-			continue
-		}
-		decisions = append(decisions, decision)
-	}
-
-	// Sort by timestamp (most recent first)
-	for i := 0; i < len(decisions); i++ {
-		for j := i + 1; j < len(decisions); j++ {
-			if decisions[i].Timestamp.Before(decisions[j].Timestamp) {
-				decisions[i], decisions[j] = decisions[j], decisions[i]
-			}
-		}
-	}
-
-	return decisions, nil
-}

@@ -114,22 +114,7 @@ Example:
 	},
 }
 
-// whenCmd — caf when --pattern: ALPHA scope; в MVP честно сообщает об отложении (§2.1).
-var whenCmd = &cobra.Command{
-	Use:   "when --pattern <glob>",
-	Short: "Find when a code pattern first appeared (ALPHA scope)",
-	Long: `Find when a specific code pattern first appeared in the repository.
 
-This command is deferred to ALPHA per PROMPT-MVP.md §2.1 and ROADMAP.md.
-MVP acknowledges the request and exits without fabricated data.
-
-Example:
-  caf when --pattern "func main"`,
-	Args: cobra.NoArgs,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return runWhen(flagString(cmd, "pattern"))
-	},
-}
 
 // contextCmd — caf context [--refresh]: генерация .caf/context.md из сессий (§2.1).
 var contextCmd = &cobra.Command{
@@ -287,7 +272,6 @@ func setupCommands() {
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(hookCmd)
 	rootCmd.AddCommand(whoCmd)
-	rootCmd.AddCommand(whenCmd)
 	rootCmd.AddCommand(contextCmd)
 	rootCmd.AddCommand(dashboardCmd)
 	rootCmd.AddCommand(doctorCmd)
@@ -309,8 +293,7 @@ func setupCommands() {
 
 	whoCmd.Flags().StringP("repo", "r", "", "Repository path (default: current directory)")
 
-	whenCmd.Flags().String("pattern", "", "Pattern to search for (required)")
-	_ = whenCmd.MarkFlagRequired("pattern")
+
 
 	contextCmd.Flags().Bool("refresh", false, "Regenerate context.md from sessions")
 }
@@ -611,13 +594,7 @@ func firstLine(s string) string {
 	return s
 }
 
-// runWhen: ALPHA scope — честное сообщение, без выдуманных данных (§2.1, §3).
-func runWhen(pattern string) error {
-	fmt.Printf("Pattern %q acknowledged.\n", pattern)
-	fmt.Println("`caf when` is ALPHA scope (ROADMAP.md, BACKLOG.md) — deferred from MVP.")
-	fmt.Println("No history search is performed in MVP; nothing to report.")
-	return nil
-}
+
 
 // runContext: --refresh генерирует context.md; без флага — статус файла (§2.1).
 func runContext(repoRoot string, refresh bool) error {
@@ -636,9 +613,7 @@ func runContext(repoRoot string, refresh bool) error {
 
 	gen := storage.NewContextGenerator(
 		filepath.Join(repoRoot, ".caf", "sessions"),
-		filepath.Join(repoRoot, ".caf", "decisions"),
 		20, // max sessions
-		10, // max decisions
 	)
 	if err := gen.GenerateContext(repoRoot); err != nil {
 		return fmt.Errorf("failed to generate context: %w", err)

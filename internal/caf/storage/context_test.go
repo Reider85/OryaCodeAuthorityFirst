@@ -9,15 +9,15 @@ import (
 )
 
 func TestNewContextGenerator(t *testing.T) {
-	g := NewContextGenerator("sessions", "decisions", 5, 3)
+	g := NewContextGenerator("sessions", 5)
 	if g == nil {
 		t.Fatal("NewContextGenerator returned nil")
 	}
-	if g.sessionsDir != "sessions" || g.decisionsDir != "decisions" {
-		t.Errorf("unexpected dirs: %q %q", g.sessionsDir, g.decisionsDir)
+	if g.sessionsDir != "sessions" {
+		t.Errorf("unexpected dir: %q", g.sessionsDir)
 	}
-	if g.maxSessions != 5 || g.maxDecisions != 3 {
-		t.Errorf("unexpected limits: %d %d", g.maxSessions, g.maxDecisions)
+	if g.maxSessions != 5 {
+		t.Errorf("unexpected limit: %d", g.maxSessions)
 	}
 }
 
@@ -75,7 +75,7 @@ func TestGenerateContextHappyPath(t *testing.T) {
 		t.Fatalf("write d_2: %v", err)
 	}
 
-	gen := NewContextGenerator(sessionsDir, decisionsDir, 10, 10)
+	gen := NewContextGenerator(sessionsDir, 10)
 	if err := gen.GenerateContext(repoRoot); err != nil {
 		t.Fatalf("GenerateContext: %v", err)
 	}
@@ -95,9 +95,6 @@ func TestGenerateContextHappyPath(t *testing.T) {
 		"older prompt",
 		"edit: a.go",
 		"a.go",
-		"## Recent Decisions",
-		"### d_2: second decision",
-		"### d_1: first decision",
 	} {
 		if !strings.Contains(content, want) {
 			t.Errorf("context.md missing %q", want)
@@ -108,14 +105,6 @@ func TestGenerateContextHappyPath(t *testing.T) {
 	olderIdx := strings.Index(content, "2026-10-24-aaaaaa")
 	if newerIdx > olderIdx {
 		t.Error("sessions not sorted newest-first")
-	}
-	d2Idx := strings.Index(content, "d_2: second decision")
-	d1Idx := strings.Index(content, "d_1: first decision")
-	if d2Idx > d1Idx {
-		t.Error("decisions not sorted newest-first")
-	}
-	if strings.Contains(content, "d_missing") {
-		t.Error("missing decision file should be skipped")
 	}
 }
 
@@ -209,23 +198,18 @@ func TestGenerateContextSessionsDirUnreadable(t *testing.T) {
 }
 
 func TestGenerateContextBadDecisionsIndex(t *testing.T) {
+	// This test is no longer relevant as decisions are removed from MVP
+	// Context generation should work without decisions
 	tempDir := t.TempDir()
 	repoRoot := filepath.Join(tempDir, "repo")
 	if _, err := EnsureCAFDir(repoRoot); err != nil {
 		t.Fatalf("EnsureCAFDir: %v", err)
 	}
-	decisionsDir := filepath.Join(repoRoot, ".caf", "decisions")
-	if err := os.WriteFile(filepath.Join(decisionsDir, "index.yml"), []byte("invalid: yaml: content:"), 0644); err != nil {
-		t.Fatalf("write bad index: %v", err)
-	}
 
-	gen := NewContextGenerator(filepath.Join(repoRoot, ".caf", "sessions"), decisionsDir, 10, 10)
+	gen := NewContextGenerator(filepath.Join(repoRoot, ".caf", "sessions"), 10)
 	err := gen.GenerateContext(repoRoot)
-	if err == nil {
-		t.Fatal("GenerateContext should fail on corrupted decisions index")
-	}
-	if !strings.Contains(err.Error(), "failed to list recent decisions") {
-		t.Errorf("unexpected error: %v", err)
+	if err != nil {
+		t.Fatalf("GenerateContext should work without decisions: %v", err)
 	}
 }
 
@@ -239,8 +223,7 @@ func TestGenerateContextWriteError(t *testing.T) {
 
 	gen := NewContextGenerator(
 		filepath.Join(tempDir, "sessions"),
-		filepath.Join(tempDir, "decisions"),
-		10, 10,
+		10,
 	)
 	err := gen.GenerateContext(repoRoot)
 	if err == nil {
@@ -252,14 +235,14 @@ func TestGenerateContextWriteError(t *testing.T) {
 }
 
 func TestListRecentDecisionsMissingIndex(t *testing.T) {
+	// This test is no longer relevant as decisions are removed from MVP
+	// listRecentDecisions function has been removed
+	// Context generation works without decisions
 	tempDir := t.TempDir()
-	g := NewContextGenerator(tempDir, filepath.Join(tempDir, "decisions"), 10, 10)
-	decisions, err := g.listRecentDecisions()
+	gen := NewContextGenerator(tempDir, 10)
+	_, err := gen.GenerateContext(tempDir)
 	if err != nil {
-		t.Fatalf("listRecentDecisions: %v", err)
-	}
-	if len(decisions) != 0 {
-		t.Errorf("expected no decisions, got %d", len(decisions))
+		t.Fatalf("GenerateContext should work without decisions: %v", err)
 	}
 }
 
@@ -277,7 +260,7 @@ func TestListRecentSessionsSkipsCorrupt(t *testing.T) {
 		t.Fatalf("write corrupt: %v", err)
 	}
 
-	g := NewContextGenerator(tempDir, filepath.Join(tempDir, "decisions"), 10, 10)
+	g := NewContextGenerator(tempDir, 10)
 	ids, err := g.listRecentSessions()
 	if err != nil {
 		t.Fatalf("listRecentSessions: %v", err)

@@ -23,7 +23,6 @@ type Session struct {
 	Iterations    []Iteration            `yaml:"iterations"`
 	FilesTouched  []string               `yaml:"files_touched"`
 	CommitSHA     string                 `yaml:"commit_sha,omitempty"`
-	DecisionsMade []Decision             `yaml:"decisions_made"`
 	VoiceSignature string                `yaml:"voice_signature"`
 }
 
@@ -33,14 +32,6 @@ type Iteration struct {
 	Action  string `yaml:"action"`
 	Target  string `yaml:"target"`
 	Diff    string `yaml:"diff_summary,omitempty"`
-}
-
-// Decision represents a decision made during a session
-type Decision struct {
-	ID          string    `yaml:"id"`
-	Title       string    `yaml:"title"`
-	Description string    `yaml:"description"`
-	Timestamp   time.Time `yaml:"timestamp"`
 }
 
 // Manager handles session storage and operations
