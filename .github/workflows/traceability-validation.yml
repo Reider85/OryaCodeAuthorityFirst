@@ -1,0 +1,129 @@
+name: Traceability Validation (INV-PROMPT-MVP-005)
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  traceability:
+    name: Traceability Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for traceability validation
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Install dependencies
+      run: go mod download
+
+    - name: Build CAF binary
+      run: go build -o caf ./cmd/caf
+
+    - name: Configure git
+      run: |
+        git config --global user.email "ci@github.com"
+        git config --global user.name "CI Bot"
+
+    - name: Run traceability validation
+      run: |
+        echo "🔍 Running traceability validation..."
+        ./caf traceability check --repo .
+        
+        echo "📋 Generating traceability report..."
+        ./caf traceability report --format json --repo . > traceability-report.json
+        
+        echo "📊 Report generated:"
+        cat traceability-report.json
+
+    - name: Upload traceability report
+      uses: actions/upload-artifact@v3
+      with:
+        name: traceability-report
+        path: traceability-report.json
+
+    - name: Check traceability compliance
+      run: |
+        # Parse JSON report to check compliance
+        python3 -c "
+        import json
+        import sys
+        
+        try:
+            with open('traceability-report.json', 'r') as f:
+                report = json.load(f)
+            
+            total_files = report['summary']['total_files']
+            failed_files = report['summary']['failed']
+            
+            print(f'Total files: {total_files}')
+            print(f'Files with traceability issues: {failed_files}')
+            
+            # Calculate compliance percentage
+            if total_files > 0:
+                compliance = ((total_files - failed_files) / total_files) * 100
+                print(f'Traceability compliance: {compliance:.1f}%')
+                
+                # Check if compliance meets threshold (80%)
+                if compliance < 80:
+                    print(f'❌ Traceability compliance ({compliance:.1f}%) is below threshold (80%)')
+                    sys.exit(1)
+                else:
+                    print(f'✅ Traceability compliance ({compliance:.1f}%) meets threshold (80%)')
+            else:
+                print('⚠ No files to validate')
+                
+        except FileNotFoundError:
+            print('❌ Traceability report not found')
+            sys.exit(1)
+        except json.JSONDecodeError:
+            print('❌ Invalid JSON in traceability report')
+            sys.exit(1)
+        except KeyError as e:
+            print(f'❌ Missing key in traceability report: {e}')
+            sys.exit(1)
+        "
+
+    - name: Comment on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const report = JSON.parse(fs.readFileSync('traceability-report.json', 'utf8'));
+          
+          const totalFiles = report.summary.total_files;
+          const failedFiles = report.summary.failed;
+          const compliance = totalFiles > 0 ? ((totalFiles - failedFiles) / totalFiles * 100).toFixed(1) : 0;
+          
+          let comment = `## Traceability Validation Report 📋\n\n`;
+          comment += `**Total Files**: ${totalFiles}\n`;
+          comment += `**Passed**: ${totalFiles - failedFiles}\n`;
+          comment += `**Failed**: ${failedFiles}\n`;
+          comment += `**Compliance**: ${compliance}%\n\n`;
+          
+          if (failedFiles > 0) {
+            comment += `### Files with Issues:\n\n`;
+            report.results.forEach(result => {
+              if (!result.has_traceability && result.traceability_issues.length > 0) {
+                comment += `- **${result.file}**: ${result.traceability_issues.join(', ')}\n`;
+              }
+            });
+          }
+          
+          comment += `\n🔍 [Full Report](https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})`;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });

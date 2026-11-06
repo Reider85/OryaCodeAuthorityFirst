@@ -364,8 +364,47 @@ func (d *DashboardScreen) handleLoadError(msg DashboardLoadError) {
 	d.StateMachine.SetState(ui.StateError)
 }
 
-// updateWidgets updates all widgets with current data
+// updateWidgets updates all widgets with current data (cached version)
 func (d *DashboardScreen) updateWidgets() {
+	// Check if we need to recompute widget data
+	currentSessionsHash := d.computeDataHash(d.Sessions)
+	currentManifestHash := d.computeDataHash(d.Manifest)
+	currentAdaptersHash := d.computeDataHash(d.Adapters)
+	
+	if d.widgetCacheValid && 
+	   currentSessionsHash == d.lastSessionsHash && 
+	   currentManifestHash == d.lastManifestHash && 
+	   currentAdaptersHash == d.lastAdaptersHash {
+		return // Cache is valid, skip recomputation
+	}
+	
+	// Recompute widget data
+	d.computeWidgetData(currentSessionsHash, currentManifestHash, currentAdaptersHash)
+	d.widgetCacheValid = true
+	d.lastSessionsHash = currentSessionsHash
+	d.lastManifestHash = currentManifestHash
+	d.lastAdaptersHash = currentAdaptersHash
+}
+
+// computeDataHash creates a simple hash for data comparison
+func (d *DashboardScreen) computeDataHash(data interface{}) string {
+	switch v := data.(type) {
+	case []*storage.Session:
+		return fmt.Sprintf("%d", len(v))
+	case *storage.Manifest:
+		if v == nil {
+			return "nil"
+		}
+		return fmt.Sprintf("%v", v.LastSync)
+	case []caf.Adapter:
+		return fmt.Sprintf("%d", len(v))
+	default:
+		return "unknown"
+	}
+}
+
+// computeWidgetData computes all widget data and updates cache
+func (d *DashboardScreen) computeWidgetData(sessionsHash, manifestHash, adaptersHash string) {
 	// Update Today Widget
 	today := time.Now()
 	var cardsDue, pendingDecisions, newBlindspots int
@@ -380,9 +419,13 @@ func (d *DashboardScreen) updateWidgets() {
 			}
 		}
 	}
-	d.TodayWidget.CardsDue = cardsDue
-	d.TodayWidget.PendingDecisions = pendingDecisions
-	d.TodayWidget.NewBlindspots = newBlindspots
+	
+	// Update cache
+	d.widgetDataCache.TodayData = TodayWidgetData{
+		CardsDue:        cardsDue,
+		PendingDecisions: pendingDecisions,
+		NewBlindspots:   newBlindspots,
+	}
 	
 	// Update Authorship Widget - honest empty/partial for MVP
 	if len(d.Sessions) > 0 {
@@ -391,26 +434,30 @@ func (d *DashboardScreen) updateWidgets() {
 		for _, session := range d.Sessions {
 			totalFiles += len(session.FilesTouched)
 		}
-		d.AuthorshipWidget.ACS = float64(totalFiles) / float64(len(d.Sessions)) * 0.1 // Very naive proxy
-		d.AuthorshipWidget.Recall = 0.0 // Not tracked in MVP
-		d.AuthorshipWidget.Coverage = 0.0 // Not tracked in MVP
-		d.AuthorshipWidget.Trend = "→" // No trend calculation in MVP
+		d.widgetDataCache.AuthorshipData = AuthorshipWidgetData{
+			ACS:       float64(totalFiles) / float64(len(d.Sessions)) * 0.1, // Very naive proxy
+			Recall:    0.0, // Not tracked in MVP
+			Coverage:  0.0, // Not tracked in MVP
+			Trend:     "→", // No trend calculation in MVP
+		}
 	}
 	
 	// Update Agents Widget
+	var agents []AgentStatus
 	for _, adapter := range d.Adapters {
 		status := "unknown"
 		// Simple health check: if adapter has methods, assume healthy
 		if adapter.ID() != "" {
 			status = "healthy"
 		}
-		d.AgentsWidget.Agents = append(d.AgentsWidget.Agents, AgentStatus{
+		agents = append(agents, AgentStatus{
 			Name:   adapter.ID(),
 			ID:     adapter.ID(),
 			Active: true,
 			Health: status,
 		})
 	}
+	d.widgetDataCache.AgentsData = AgentsWidgetData{Agents: agents}
 	
 	// Update Decisions Widget
 	var recentDecisions []storage.Decision
@@ -428,14 +475,43 @@ func (d *DashboardScreen) updateWidgets() {
 	if len(recentDecisions) > d.DecisionsWidget.Limit {
 		recentDecisions = recentDecisions[:d.DecisionsWidget.Limit]
 	}
-	d.DecisionsWidget.Decisions = recentDecisions
+	d.widgetDataCache.DecisionsData = DecisionsWidgetData{
+		Decisions: recentDecisions,
+		Limit:     d.DecisionsWidget.Limit,
+	}
 	
 	// Update Cross Repo Widget
 	if d.Manifest != nil {
-		d.CrossRepoWidget.Enabled = d.Manifest.CrossRepo.Enabled
-		d.CrossRepoWidget.Repos = d.Manifest.CrossRepo.Repos
-		d.CrossRepoWidget.LastSync = d.Manifest.LastSync
-		d.CrossRepoWidget.Stale = time.Since(d.Manifest.LastSync) > 30*time.Minute
+		d.widgetDataCache.CrossRepoData = CrossRepoWidgetData{
+			Enabled:   d.Manifest.CrossRepo.Enabled,
+			Repos:     d.Manifest.CrossRepo.Repos,
+			LastSync:  d.Manifest.LastSync,
+			Stale:     time.Since(d.Manifest.LastSync) > 30*time.Minute,
+		}
+	}
+	
+	// Update layout cache
+	d.updateGridLayoutCache()
+}
+
+// updateGridLayoutCache updates cached layout calculations
+func (d *DashboardScreen) updateGridLayoutCache() {
+	width := 80 // Default width
+	height := 24 // Default height
+	
+	widgetWidth := width / 4
+	widgetHeight := height / 3
+	
+	d.widgetDataCache.GridLayout = GridLayoutData{
+		WidgetWidth: widgetWidth,
+		WidgetHeight: widgetHeight,
+		WidgetPositions: map[string][2]int{
+			"Today":          {0, 0},
+			"Authorship":     {0, 1},
+			"Agents":         {0, 2},
+			"Recent Decisions": {1, 0},
+			"Cross-repo":    {1, 1},
+		},
 	}
 }
 

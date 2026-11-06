@@ -1,0 +1,100 @@
+name: Manual Traceability Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo_path:
+        description: 'Repository path to validate'
+        required: false
+        default: '.'
+      format:
+        description: 'Output format'
+        required: false
+        default: 'cli'
+        type: choice
+        options:
+          - cli
+          - json
+          - markdown
+      verbose:
+        description: 'Enable verbose logging'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  validate:
+    name: Manual Traceability Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for traceability validation
+        path: ${{ inputs.repo_path }}
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Install dependencies
+      run: |
+        cd ${{ inputs.repo_path }}
+        go mod download
+
+    - name: Build CAF binary
+      run: |
+        cd ${{ inputs.repo_path }}
+        go build -o caf ./cmd/caf
+
+    - name: Configure git
+      run: |
+        cd ${{ inputs.repo_path }}
+        git config --global user.email "ci@github.com"
+        git config --global user.name "CI Bot"
+
+    - name: Run traceability validation
+      run: |
+        cd ${{ inputs.repo_path }}
+        echo "🔍 Running traceability validation..."
+        ./caf traceability check --repo . ${{ inputs.verbose == 'true' && '--verbose' || '' }}
+        
+        echo "📋 Generating traceability report (${{ inputs.format }} format)..."
+        ./caf traceability report --format ${{ inputs.format }} --repo . ${{ inputs.verbose == 'true' && '--verbose' || '' }} > traceability-report.${{ inputs.format }}
+
+    - name: Display results
+      run: |
+        cd ${{ inputs.repo_path }}
+        echo "📊 Traceability Validation Results:"
+        echo "================================"
+        cat traceability-report.${{ inputs.format }}
+
+    - name: Upload traceability report
+      uses: actions/upload-artifact@v3
+      with:
+        name: traceability-report-${{ github.run_number }}
+        path: ${{ inputs.repo_path }}/traceability-report.${{ inputs.format }}
+
+    - name: Comment on workflow
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const path = '${{ inputs.repo_path }}/traceability-report.${{ inputs.format }}';
+          const report = fs.readFileSync(path, 'utf8');
+          
+          let comment = `## Manual Traceability Validation Results 📋\n\n`;
+          comment += `**Repository**: `${{ github.repository }}`\n`;
+          comment += `**Path**: `${{ inputs.repo_path }}`\n`;
+          comment += `**Format**: `${{ inputs.format }}`\n`;
+          comment += `**Timestamp**: `${new Date().toISOString()}`\n\n`;
+          comment += `<details>\n<summary>Full Report</summary>\n\n\`\`\`\n${report}\n\`\`\`\n</details>`;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
