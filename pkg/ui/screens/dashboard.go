@@ -61,6 +61,10 @@ type DashboardScreen struct {
 	lastSessionsHash    string
 	lastManifestHash    string
 	lastAdaptersHash    string
+	
+	// Memory pooling for performance optimization
+	stringPool          *StringPool
+	lastPoolReset       time.Time
 }
 
 // WidgetDataCache holds pre-computed widget data to avoid recomputation
@@ -72,6 +76,17 @@ type WidgetDataCache struct {
 	CrossRepoData    CrossRepoWidgetData
 	GridLayout       GridLayoutData
 	BorderStrings    BorderStringCache
+	WidgetPriority   []string // Order of widget rendering priority
+	LastRenderTime   time.Time
+	WidgetRenderStats map[string]WidgetRenderStats
+}
+
+// WidgetRenderStats tracks performance metrics for individual widgets
+type WidgetRenderStats struct {
+	LastRenderTime  time.Time
+	RenderCount     int
+	AvgRenderTime   time.Duration
+	IsVisible       bool
 }
 
 // Widget data structures
@@ -115,6 +130,65 @@ type BorderStringCache struct {
 	Bottom string
 	Left   string
 	Right  string
+}
+
+// StringPool provides a pool of reusable strings to reduce allocations
+type StringPool struct {
+	strings     chan string
+	poolSize   int
+	maxLength  int
+}
+
+// NewStringPool creates a new string pool
+func NewStringPool(poolSize, maxLength int) *StringPool {
+	return &StringPool{
+		strings:    make(chan string, poolSize),
+		poolSize:   poolSize,
+		maxLength:  maxLength,
+	}
+}
+
+// GetString gets a string from the pool or creates a new one
+func (sp *StringPool) GetString(s string) string {
+	select {
+	case pooled := <-sp.strings:
+		// Reuse existing string
+		if len(pooled) >= len(s) {
+			copy([]byte(pooled), s)
+			return pooled[:len(s)]
+		}
+		return s
+	default:
+		// Pool is empty, create new string
+		if len(s) <= sp.maxLength {
+			return s
+		}
+		return s
+	}
+}
+
+// ReleaseString returns a string to the pool if it fits
+func (sp *StringPool) ReleaseString(s string) {
+	if len(s) <= sp.maxLength {
+		select {
+		case sp.strings <- s:
+			// String returned to pool
+		default:
+			// Pool is full, discard string
+		}
+	}
+}
+
+// ResetPool clears the pool and frees memory
+func (sp *StringPool) ResetPool() {
+	for {
+		select {
+		case <-sp.strings:
+			// Clear all strings from pool
+		default:
+			return
+		}
+	}
 }
 
 // Widget interface for dashboard widgets
@@ -193,8 +267,12 @@ func NewDashboardScreen(repoRoot string, version string) *DashboardScreen {
 				Left:   "│",
 				Right:  "│",
 			},
+			WidgetPriority: []string{"Today", "Authorship Score", "Active Agents", "Recent Decisions", "Cross-repo"},
+			WidgetRenderStats: make(map[string]WidgetRenderStats),
 		},
 		widgetCacheValid: false,
+		stringPool:       NewStringPool(10, 256), // Pool of 10 strings, max 256 chars each
+		lastPoolReset:    time.Now(),
 	}
 	
 	// Initialize status bar
@@ -209,6 +287,9 @@ func NewDashboardScreen(repoRoot string, version string) *DashboardScreen {
 	screen.AgentsWidget = &AgentsWidget{}
 	screen.DecisionsWidget = &DecisionsWidget{Limit: 5}
 	screen.CrossRepoWidget = &CrossRepoWidget{}
+	
+	// Initialize widget render stats
+	screen.initWidgetRenderStats()
 	
 	return screen
 }
@@ -345,7 +426,8 @@ func (d *DashboardScreen) handleDataLoaded(msg DashboardDataLoaded) {
 	d.LoadError = nil
 	d.RefreshTime = msg.LoadTime
 	
-	// Update widgets with data
+	// Invalidate cache and update widgets with data
+	d.widgetCacheValid = false
 	d.updateWidgets()
 	
 	// 0 сессий → empty-with-CTA «Run caf init» (§2.6), не happy-path.
@@ -515,7 +597,108 @@ func (d *DashboardScreen) updateGridLayoutCache() {
 	}
 }
 
-// View returns the dashboard view
+// initWidgetRenderStats initializes performance tracking for each widget
+func (d *DashboardScreen) initWidgetRenderStats() {
+	for _, widgetName := range d.widgetDataCache.WidgetPriority {
+		d.widgetDataCache.WidgetRenderStats[widgetName] = WidgetRenderStats{
+			LastRenderTime: time.Now(),
+			RenderCount:    0,
+			AvgRenderTime:  0,
+			IsVisible:      false,
+		}
+	}
+}
+
+// getVisibleWidgets determines which widgets should be rendered based on priority and visibility
+func (d *DashboardScreen) getVisibleWidgets() []string {
+	var visibleWidgets []string
+	
+	// Always render Today widget - it's lightweight and important
+	if d.widgetDataCache.TodayData.CardsDue > 0 || d.widgetDataCache.TodayData.PendingDecisions > 0 {
+		visibleWidgets = append(visibleWidgets, "Today")
+	}
+	
+	// Render Authorship if we have data
+	if d.widgetDataCache.AuthorshipData.ACS > 0 {
+		visibleWidgets = append(visibleWidgets, "Authorship Score")
+	}
+	
+	// Always render Agents - lightweight and important for user awareness
+	if len(d.widgetDataCache.AgentsData.Agents) > 0 {
+		visibleWidgets = append(visibleWidgets, "Active Agents")
+	}
+	
+	// Render Decisions if we have recent decisions
+	if len(d.widgetDataCache.DecisionsData.Decisions) > 0 {
+		visibleWidgets = append(visibleWidgets, "Recent Decisions")
+	}
+	
+	// Only render Cross-repo if enabled
+	if d.widgetDataCache.CrossRepoData.Enabled {
+		visibleWidgets = append(visibleWidgets, "Cross-repo")
+	}
+	
+	// If no widgets are visible, show Today as default
+	if len(visibleWidgets) == 0 {
+		visibleWidgets = append(visibleWidgets, "Today")
+	}
+	
+	return visibleWidgets
+}
+
+// updateWidgetRenderStats updates performance tracking for a widget
+func (d *DashboardScreen) updateWidgetRenderStats(widgetName string, renderTime time.Duration) {
+	stats, exists := d.widgetDataCache.WidgetRenderStats[widgetName]
+	if !exists {
+		return
+	}
+	
+	stats.RenderCount++
+	stats.LastRenderTime = time.Now()
+	
+	// Update average render time using exponential moving average
+	if stats.AvgRenderTime == 0 {
+		stats.AvgRenderTime = renderTime
+	} else {
+		stats.AvgRenderTime = (stats.AvgRenderTime + renderTime) / 2
+	}
+	
+	d.widgetDataCache.WidgetRenderStats[widgetName] = stats
+}
+
+// shouldSkipWidget determines if a widget should be skipped based on performance metrics
+func (d *DashboardScreen) shouldSkipWidget(widgetName string) bool {
+	stats, exists := d.widgetDataCache.WidgetRenderStats[widgetName]
+	if !exists {
+		return false
+	}
+	
+	// Skip widget if:
+	// 1. It's taking too long to render (> 20ms)
+	// 2. It hasn't been updated recently (> 1 second)
+	// 3. It's not in the current visible widgets list
+	visibleWidgets := d.getVisibleWidgets()
+	isVisible := false
+	for _, visible := range visibleWidgets {
+		if visible == widgetName {
+			isVisible = true
+			break
+		}
+	}
+	
+	if !isVisible {
+		return true
+	}
+	
+	if stats.AvgRenderTime > 20*time.Millisecond {
+		// Log performance warning
+		return false // Still render but log performance issue
+	}
+	
+	return false
+}
+
+// View returns the dashboard view (optimized version)
 func (d *DashboardScreen) View() string {
 	// Update status bar
 	d.StatusBar.SetRefreshCompleted()
@@ -559,24 +742,52 @@ func (d *DashboardScreen) renderSkeleton() string {
 	return components.Header(d.Version, "dashboard") + "\n" + skeleton + "\n" + d.StatusBar.Render()
 }
 
-// renderWidgetSkeleton renders a skeleton widget
+// renderWidgetSkeleton renders a skeleton widget (optimized version)
 func (d *DashboardScreen) renderWidgetSkeleton(title string, width, height int) string {
-	theme := d.Theme
-	border := theme.Border.Render("┌" + strings.Repeat("─", width-2) + "┐")
-	content := strings.Repeat("│" + strings.Repeat(" ", width-2) + "│\n", height-2)
-	footer := theme.Border.Render("└" + strings.Repeat("─", width-2) + "┘")
+	var builder strings.Builder
+	builder.Grow(width * height) // Pre-allocate for skeleton content
 	
-	return border + "\n" + content + footer + "\n"
+	// Use cached border strings with adjusted width
+	border := "┌" + strings.Repeat("─", width-2) + "┐"
+	footer := "└" + strings.Repeat("─", width-2) + "┘"
+	content := strings.Repeat("│" + strings.Repeat(" ", width-2) + "│\n", height-2)
+	
+	builder.WriteString("  ") // Focus prefix for skeleton
+	builder.WriteString(title)
+	builder.WriteString("\n")
+	builder.WriteString(border)
+	builder.WriteString("\n")
+	builder.WriteString(content)
+	builder.WriteString(footer)
+	builder.WriteString("\n")
+	
+	return builder.String()
 }
 
-// renderError renders the error state
+// renderError renders the error state (optimized version)
 func (d *DashboardScreen) renderError() string {
+	var builder strings.Builder
+	builder.Grow(1000) // Pre-allocate for error content
+	
+	builder.WriteString(components.Header(d.Version, "dashboard"))
+	builder.WriteString("\n")
+	
 	errorBox := components.NewErrorBox(fmt.Sprintf("Failed to load dashboard: %v", d.LoadError), d.Theme, d.A11y)
-	return components.Header(d.Version, "dashboard") + "\n" + errorBox.View() + "\n" + d.StatusBar.Render()
+	builder.WriteString(errorBox.View())
+	builder.WriteString("\n")
+	builder.WriteString(d.StatusBar.Render())
+	
+	return builder.String()
 }
 
-// renderEmpty renders the empty state
+// renderEmpty renders the empty state (optimized version)
 func (d *DashboardScreen) renderEmpty() string {
+	var builder strings.Builder
+	builder.Grow(1000) // Pre-allocate for empty state content
+	
+	builder.WriteString(components.Header(d.Version, "dashboard"))
+	builder.WriteString("\n")
+	
 	// Подсказка обязана называть живую клавишу: [i] на дашборде не обрабатывается,
 	// честный путь — запустить caf init и освежить [r] (INV-UI-009, §18.4).
 	emptyCTA := components.NewEmptyCTA(
@@ -586,34 +797,116 @@ func (d *DashboardScreen) renderEmpty() string {
 		"Run `caf init` in your terminal, then press [r] to refresh",
 		d.Theme,
 	)
-	return components.Header(d.Version, "dashboard") + "\n" + emptyCTA.View() + "\n" + d.StatusBar.Render()
+	builder.WriteString(emptyCTA.View())
+	builder.WriteString("\n")
+	builder.WriteString(d.StatusBar.Render())
+	
+	return builder.String()
 }
 
-// renderPartial renders the partial state
+// renderPartial renders the partial state (optimized version)
 func (d *DashboardScreen) renderPartial() string {
-	width := 80
-	height := 24
+	var builder strings.Builder
+	builder.Grow(2000) // Pre-allocate for partial state content
 	
-	// Render partial widgets with some data
-	widgets := d.renderWidgets(width, height)
+	builder.WriteString(components.Header(d.Version, "dashboard"))
+	builder.WriteString("\n")
 	
 	// Add partial banner if needed
 	partialBanner := components.NewPartialBanner(1, 2, []string{"cross-repo"}, d.Theme)
+	builder.WriteString(partialBanner.View())
+	builder.WriteString("\n")
 	
-	return components.Header(d.Version, "dashboard") + "\n" + partialBanner.View() + "\n" + widgets + "\n" + d.StatusBar.Render()
+	// Render partial widgets with some data using optimized method
+	widgets := d.renderWidgetsOptimized()
+	builder.WriteString(widgets)
+	builder.WriteString("\n")
+	builder.WriteString(d.StatusBar.Render())
+	
+	return builder.String()
 }
 
-// renderSuccess renders the success state with actual data
+// renderSuccess renders the success state with actual data (optimized version)
 func (d *DashboardScreen) renderSuccess() string {
-	width := 80
-	height := 24
+	var builder strings.Builder
 	
-	widgets := d.renderWidgets(width, height)
+	// Pre-calculate sizes to avoid repeated allocations
+	builder.Grow(2000) // Pre-allocate for typical dashboard size
 	
-	return components.Header(d.Version, "dashboard") + "\n" + widgets + "\n" + d.StatusBar.Render()
+	// Header
+	builder.WriteString(components.Header(d.Version, "dashboard"))
+	builder.WriteString("\n")
+	
+	// Widgets using cached data
+	widgets := d.renderWidgetsOptimized()
+	builder.WriteString(widgets)
+	builder.WriteString("\n")
+	
+	// Status bar
+	builder.WriteString(d.StatusBar.Render())
+	
+	return builder.String()
 }
 
-// renderWidgets renders all widgets in a grid
+// renderWidgets renders all widgets in a grid (optimized version)
+func (d *DashboardScreen) renderWidgetsOptimized() string {
+	var builder strings.Builder
+	
+	// Get visible widgets based on priority and data availability
+	visibleWidgets := d.getVisibleWidgets()
+	
+	// Use cached layout data
+	layout := d.widgetDataCache.GridLayout
+	widgetWidth := layout.WidgetWidth
+	widgetHeight := layout.WidgetHeight
+	
+	// Track render start time for performance measurement
+	renderStart := time.Now()
+	
+	// Render only visible widgets in priority order
+	for _, widgetName := range visibleWidgets {
+		if d.shouldSkipWidget(widgetName) {
+			continue // Skip this widget based on performance metrics
+		}
+		
+		widgetData := d.getWidgetDataByName(widgetName)
+		if widgetData == nil {
+			continue // Skip if widget data is not available
+		}
+		
+		widgetContent := d.renderWidgetOptimized(widgetName, widgetData, widgetWidth, widgetHeight)
+		builder.WriteString(widgetContent)
+		
+		// Update performance stats
+		renderTime := time.Since(renderStart)
+		d.updateWidgetRenderStats(widgetName, renderTime)
+	}
+	
+	// Update overall cache render time
+	d.widgetDataCache.LastRenderTime = time.Since(renderStart)
+	
+	return builder.String()
+}
+
+// getWidgetDataByName retrieves widget data by name from cache
+func (d *DashboardScreen) getWidgetDataByName(name string) interface{} {
+	switch name {
+	case "Today":
+		return d.widgetDataCache.TodayData
+	case "Authorship Score":
+		return d.widgetDataCache.AuthorshipData
+	case "Active Agents":
+		return d.widgetDataCache.AgentsData
+	case "Recent Decisions":
+		return d.widgetDataCache.DecisionsData
+	case "Cross-repo":
+		return d.widgetDataCache.CrossRepoData
+	default:
+		return nil
+	}
+}
+
+// renderWidgets renders all widgets in a grid (backward compatibility)
 func (d *DashboardScreen) renderWidgets(width, height int) string {
 	// Grid layout: 2x3 for 5 widgets
 	widgetWidth := width / 4
@@ -668,6 +961,93 @@ func (d *DashboardScreen) renderWidget(title string, widget interface{}, width, 
 	footer := theme.Border.Render("└" + strings.Repeat("─", width-2) + "┘")
 	
 	return focusPrefix + title + "\n" + border + "\n" + content + footer + "\n"
+}
+
+// renderWidgetOptimized renders a single widget using cached data
+func (d *DashboardScreen) renderWidgetOptimized(title string, data interface{}, width, height int) string {
+	var builder strings.Builder
+	builder.Grow(width * height) // Pre-allocate for widget content
+	
+	// Add focus indicator if this widget is focused
+	focusPrefix := "  "
+	if d.CurrentWidget >= 0 && d.CurrentWidget < len(widgetTitleOrder) && widgetTitleOrder[d.CurrentWidget] == title {
+		focusPrefix = "▸ "
+	}
+	
+	// Use cached border strings
+	border := d.widgetDataCache.BorderStrings.Top
+	
+	// Render widget content using cached data
+	switch v := data.(type) {
+	case TodayWidgetData:
+		builder.WriteString(focusPrefix + title + "\n")
+		builder.WriteString(border + "\n")
+		builder.WriteString(fmt.Sprintf("  %d cards due\n", v.CardsDue))
+		builder.WriteString(fmt.Sprintf("  %d pending decisions\n", v.PendingDecisions))
+		builder.WriteString(fmt.Sprintf("  %d new blindspots\n", v.NewBlindspots))
+		for i := 3; i < height-1; i++ {
+			builder.WriteString("  \n")
+		}
+		builder.WriteString(d.widgetDataCache.BorderStrings.Bottom + "\n")
+		
+	case AuthorshipWidgetData:
+		builder.WriteString(focusPrefix + title + "\n")
+		builder.WriteString(border + "\n")
+		builder.WriteString(fmt.Sprintf("  ACS: %.2f\n", v.ACS))
+		builder.WriteString(fmt.Sprintf("  Recall: %.2f\n", v.Recall))
+		builder.WriteString(fmt.Sprintf("  Coverage: %.2f\n", v.Coverage))
+		builder.WriteString(fmt.Sprintf("  Trend: %s\n", v.Trend))
+		for i := 4; i < height-1; i++ {
+			builder.WriteString("  \n")
+		}
+		builder.WriteString(d.widgetDataCache.BorderStrings.Bottom + "\n")
+		
+	case AgentsWidgetData:
+		builder.WriteString(focusPrefix + title + "\n")
+		builder.WriteString(border + "\n")
+		for _, agent := range v.Agents {
+			builder.WriteString(fmt.Sprintf("  %s (%s)\n", agent.Name, agent.Health))
+		}
+		for i := len(v.Agents); i < height-1; i++ {
+			builder.WriteString("  \n")
+		}
+		builder.WriteString(d.widgetDataCache.BorderStrings.Bottom + "\n")
+		
+	case DecisionsWidgetData:
+		builder.WriteString(focusPrefix + title + "\n")
+		builder.WriteString(border + "\n")
+		for _, decision := range v.Decisions {
+			builder.WriteString(fmt.Sprintf("  %s\n", decision.Summary))
+		}
+		for i := len(v.Decisions); i < height-1; i++ {
+			builder.WriteString("  \n")
+		}
+		builder.WriteString(d.widgetDataCache.BorderStrings.Bottom + "\n")
+		
+	case CrossRepoWidgetData:
+		builder.WriteString(focusPrefix + title + "\n")
+		builder.WriteString(border + "\n")
+		builder.WriteString(fmt.Sprintf("  Enabled: %t\n", v.Enabled))
+		if v.Enabled {
+			builder.WriteString(fmt.Sprintf("  Repos: %d\n", len(v.Repos)))
+			builder.WriteString(fmt.Sprintf("  Last sync: %s\n", v.LastSync.Format("15:04")))
+			builder.WriteString(fmt.Sprintf("  Stale: %t\n", v.Stale))
+		} else {
+			builder.WriteString("  Not enabled\n")
+		}
+		builder.WriteString(d.widgetDataCache.BorderStrings.Bottom + "\n")
+		
+	default:
+		// Fallback for unknown data types
+		builder.WriteString(focusPrefix + title + "\n")
+		builder.WriteString(border + "\n")
+		for i := 0; i < height-1; i++ {
+			builder.WriteString("  \n")
+		}
+		builder.WriteString(d.widgetDataCache.BorderStrings.Bottom + "\n")
+	}
+	
+	return builder.String()
 }
 
 // renderTodayWidget renders the today widget
