@@ -54,6 +54,13 @@ func PreCommitHook(ctx HookContext, commitMessage string) error {
 	}
 
 	log.Printf("✓ pre-commit: CAF-Session %s verified (advisory; MVP never blocks a commit)", sessionID)
+
+	// NEW: Traceability validation (INV-PROMPT-MVP-005)
+	if err := PreCommitHookWithTraceability(ctx, commitMessage); err != nil {
+		// Advisory only - never blocks commits in MVP
+		log.Printf("⚠ pre-commit: traceability validation completed with issues (advisory only)")
+	}
+
 	return nil
 }
 
@@ -101,6 +108,40 @@ func AddCAFSessionTrailer(commitMessage, sessionID string) string {
 		return commitMessage
 	}
 	return strings.TrimSpace(commitMessage) + "\n\nCAF-Session: " + sessionID
+}
+
+// PreCommitHookWithTraceability extends PreCommitHook with traceability validation.
+// Validates that all staged files have proper traceability in their commit history.
+// Advisory only in MVP - never blocks commits (INV-PROMPT-MVP-005).
+func PreCommitHookWithTraceability(ctx HookContext, commitMessage string) error {
+	log.Printf("🔍 Starting traceability validation for staged files")
+
+	// Initialize traceability validator
+	validator := NewTraceabilityValidator()
+
+	// Validate all staged files
+	results := validator.ValidateStagedFiles(ctx.RepoRoot)
+
+	// Generate and report results
+	report := validator.GenerateReport(results)
+	log.Printf("📋 Traceability validation report:\n%s", report)
+
+	// Advisory logging for issues
+	var hasIssues bool
+	for _, result := range results {
+		if !result.HasTraceability && len(result.TraceabilityIssues) > 0 {
+			hasIssues = true
+			break
+		}
+	}
+
+	if hasIssues {
+		log.Printf("⚠ Traceability validation completed with issues - advisory only, commit not blocked")
+	} else {
+		log.Printf("✅ Traceability validation passed")
+	}
+
+	return nil // Advisory only - never blocks commits
 }
 
 // AddCAFTrivialTrailer добавляет CAF-Trivial: true trailer (идемпотентно).
