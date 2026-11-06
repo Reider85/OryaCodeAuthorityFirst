@@ -8,24 +8,13 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf/config"
 )
 
-// TraceabilityConfig contains configuration for traceability validation.
-type TraceabilityConfig struct {
-	// File patterns to include in validation
-	IncludePatterns []string `yaml:"include_patterns"`
-	// File patterns to exclude from validation
-	ExcludePatterns []string `yaml:"exclude_patterns"`
-	// Requirement prefixes to validate
-	RequirementPrefixes []string `yaml:"requirement_prefixes"`
-	// Number of commits to look back for traceability validation
-	LookbackCommits int `yaml:"lookback_commits"`
-	// Grace commits for new files (before requiring traceability)
-	NewFileGraceCommits int `yaml:"new_file_grace_commits"`
-	// Reporting level: advisory, warning, error
-	ReportingLevel string `yaml:"reporting_level"`
-	// Output format: cli, json, markdown
-	OutputFormat string `yaml:"output_format"`
+// TraceabilityValidator handles traceability validation for files.
+type TraceabilityValidator struct {
+	config *config.TraceabilityConfig
 }
 
 // TraceabilityResult contains the results of traceability validation.
@@ -51,18 +40,27 @@ type TraceabilityValidator struct {
 	config TraceabilityConfig
 }
 
-// NewTraceabilityValidator creates a new traceability validator with default config.
-func NewTraceabilityValidator() *TraceabilityValidator {
+// NewTraceabilityValidator creates a new traceability validator.
+func NewTraceabilityValidator(repoRoot string) (*TraceabilityValidator, error) {
+	configPath := config.GetTraceabilityConfigPath(repoRoot)
+	traceabilityConfig, err := config.LoadTraceabilityConfig(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load traceability config: %w", err)
+	}
+	
+	if err := traceabilityConfig.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid traceability config: %w", err)
+	}
+	
 	return &TraceabilityValidator{
-		config: TraceabilityConfig{
-			IncludePatterns:     []string{"**/*.go", "**/*.md", "**/*.yaml", "**/*.yml"},
-			ExcludePatterns:     []string{"**/vendor/**", "**/node_modules/**", "**/*.test.go"},
-			RequirementPrefixes: []string{"FR-", "ADR-", "INV-"},
-			LookbackCommits:     10,
-			NewFileGraceCommits: 5,
-			ReportingLevel:      "advisory",
-			OutputFormat:        "cli",
-		},
+		config: traceabilityConfig,
+	}, nil
+}
+
+// NewTraceabilityValidatorWithConfig creates a new traceability validator with custom config.
+func NewTraceabilityValidatorWithConfig(config *config.TraceabilityConfig) *TraceabilityValidator {
+	return &TraceabilityValidator{
+		config: config,
 	}
 }
 
@@ -193,7 +191,7 @@ func (v *TraceabilityValidator) getFileCommitHistory(repoRoot, filePath string) 
 	cmd := fmt.Sprintf("git log --format=\"%%H|%%s|%%an|%%ad\" --date=short -n %d %s", 
 		v.config.LookbackCommits, filePath)
 	
-	output, err := bashCommand(repoRoot, cmd)
+	output, err := BashCommand(repoRoot, cmd)
 	if err != nil {
 		log.Printf("⚠️  Failed to get commit history for %s: %v", filePath, err)
 		return []Commit{}
@@ -273,7 +271,7 @@ func (v *TraceabilityValidator) isNewFile(repoRoot, filePath string, commits []C
 	if len(commits) <= v.config.NewFileGraceCommits {
 		// Check if this is the first commit for this file
 		cmd := fmt.Sprintf("git log --format=%%H --follow -n 1 %s", filePath)
-		firstCommit, err := bashCommand(repoRoot, cmd)
+		firstCommit, err := BashCommand(repoRoot, cmd)
 		if err != nil {
 			return false
 		}
@@ -288,7 +286,7 @@ func (v *TraceabilityValidator) isNewFile(repoRoot, filePath string, commits []C
 func (v *TraceabilityValidator) ValidateStagedFiles(repoRoot string) []TraceabilityResult {
 	// Get staged files
 	cmd := "git diff --cached --name-only"
-	output, err := bashCommand(repoRoot, cmd)
+	output, err := BashCommand(repoRoot, cmd)
 	if err != nil {
 		log.Printf("⚠️  Failed to get staged files: %v", err)
 		return []TraceabilityResult{}
@@ -362,8 +360,8 @@ func (v *TraceabilityValidator) GenerateReport(results []TraceabilityResult) str
 	return report.String()
 }
 
-// bashCommand executes a bash command in the specified directory.
-func bashCommand(workDir, command string) (string, error) {
+// BashCommand executes a bash command in the specified directory.
+func BashCommand(workDir, command string) (string, error) {
 	cmd := exec.Command("bash", "-c", fmt.Sprintf("cd %s && %s", workDir, command))
 	output, err := cmd.Output()
 	if err != nil {

@@ -54,6 +54,67 @@ type DashboardScreen struct {
 
 	// Help overlay (§18.4: ? показывает help на каждом экране)
 	ShowHelp bool
+	
+	// Widget data caching for performance optimization
+	widgetDataCache     *WidgetDataCache
+	widgetCacheValid    bool
+	lastSessionsHash    string
+	lastManifestHash    string
+	lastAdaptersHash    string
+}
+
+// WidgetDataCache holds pre-computed widget data to avoid recomputation
+type WidgetDataCache struct {
+	TodayData        TodayWidgetData
+	AuthorshipData   AuthorshipWidgetData
+	AgentsData       AgentsWidgetData
+	DecisionsData    DecisionsWidgetData
+	CrossRepoData    CrossRepoWidgetData
+	GridLayout       GridLayoutData
+	BorderStrings    BorderStringCache
+}
+
+// Widget data structures
+type TodayWidgetData struct {
+	CardsDue        int
+	PendingDecisions int
+	NewBlindspots   int
+}
+
+type AuthorshipWidgetData struct {
+	ACS       float64
+	Recall    float64
+	Coverage  float64
+	Trend     string
+}
+
+type AgentsWidgetData struct {
+	Agents []AgentStatus
+}
+
+type DecisionsWidgetData struct {
+	Decisions []storage.Decision
+	Limit     int
+}
+
+type CrossRepoWidgetData struct {
+	Enabled   bool
+	Repos     []string
+	LastSync  time.Time
+	Stale     bool
+}
+
+type GridLayoutData struct {
+	WidgetWidth  int
+	WidgetHeight int
+	WidgetPositions map[string][2]int // widget name -> [row, col]
+}
+
+type BorderStringCache struct {
+	Top    string
+	Bottom string
+	Left   string
+	Right  string
 }
 
 // Widget interface for dashboard widgets
@@ -122,6 +183,18 @@ func NewDashboardScreen(repoRoot string, version string) *DashboardScreen {
 		Loading:      true,
 		CurrentWidget: 0,
 		WidgetIDs:     []string{"today", "authorship", "agents", "decisions", "crossrepo"},
+		widgetDataCache: &WidgetDataCache{
+			GridLayout: GridLayoutData{
+				WidgetPositions: make(map[string][2]int),
+			},
+			BorderStrings: BorderStringCache{
+				Top:    "┌" + strings.Repeat("─", 19) + "┐",
+				Bottom: "└" + strings.Repeat("─", 19) + "┘",
+				Left:   "│",
+				Right:  "│",
+			},
+		},
+		widgetCacheValid: false,
 	}
 	
 	// Initialize status bar

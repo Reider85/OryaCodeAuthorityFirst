@@ -1,0 +1,46 @@
+# Traceability Configuration
+# This file configures the traceability validation system for CAF
+
+# File patterns to include in traceability validation
+include_patterns:
+  - "**/*.go"
+  - "**/*.md"
+  - "**/*.yaml"
+  - "**/*.yml"
+  - "**/*.json"
+
+# File patterns to exclude from traceability validation
+exclude_patterns:
+  - "**/vendor/**"
+  - "**/node_modules/**"
+  - "**/*.test.go"
+  - "**/test/**"
+  - "**/tests/**"
+  - "**/_test/**"
+  - "**/mocks/**"
+  - "**/fixtures/**"
+
+# Requirement prefixes to validate (must match existing requirement formats)
+requirement_prefixes:
+  - "FR-"
+  - "ADR-"
+  - "INV-"
+
+# Number of commits to look back for traceability validation
+lookback_commits: 10
+
+# Grace commits for new files (before requiring traceability)
+new_file_grace_commits: 5
+
+# Reporting level: advisory (logs warnings, never blocks), warning (logs warnings), error (logs errors)
+# In MVP, this will always be advisory to never block commits
+reporting_level: "advisory"
+
+# Output format: cli (command line), json (machine-readable), markdown (documentation)
+output_format: "cli"
+
+# Enable traceability validation (can be disabled for debugging)
+enabled: true
+
+# Log level: debug, info, warn, error
+log_level: "info"

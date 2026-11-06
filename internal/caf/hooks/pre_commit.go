@@ -117,7 +117,17 @@ func PreCommitHookWithTraceability(ctx HookContext, commitMessage string) error 
 	log.Printf("🔍 Starting traceability validation for staged files")
 
 	// Initialize traceability validator
-	validator := NewTraceabilityValidator()
+	validator, err := NewTraceabilityValidator(ctx.RepoRoot)
+	if err != nil {
+		log.Printf("⚠ Failed to initialize traceability validator: %v (advisory only)", err)
+		return nil // Advisory only - never blocks commits
+	}
+
+	// Skip validation if disabled in config
+	if !validator.config.Enabled {
+		log.Printf("ℹ Traceability validation disabled in configuration")
+		return nil
+	}
 
 	// Validate all staged files
 	results := validator.ValidateStagedFiles(ctx.RepoRoot)
