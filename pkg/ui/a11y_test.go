@@ -558,6 +558,367 @@ func TestA11yGetAccessibilityReportWithErrors(t *testing.T) {
 
 // --- Легаси-совместимость (tui.go, шаги 12-13) ------------------------------
 
+// --- High-Contrast Mode Comprehensive Testing ---------------------------------
+
+func TestA11yHighContrastThemeWCAGAAACompliance(t *testing.T) {
+	// Test all color combinations in high-contrast mode for WCAG AAA compliance
+	a := newTestA11y()
+	a.Config.HighContrast = true
+	hcTheme := a.GetTheme()
+
+	// Test primary colors (white on black)
+	contrast := ContrastRatio("#000000", "#FFFFFF")
+	if contrast < 7.0 || contrast > 21.0 {
+		t.Errorf("Primary contrast ratio: %f (should be ~21:1 for WCAG AAA)", contrast)
+	}
+
+	// Test warning/error colors (yellow on black)
+	contrast = ContrastRatio("#000000", "#FFFF00")
+	if contrast < 7.0 || contrast > 21.0 {
+		t.Errorf("Warning/Error contrast ratio: %f (should be ~21:1 for WCAG AAA)", contrast)
+	}
+
+	// Test muted colors (light gray on black)
+	contrast = ContrastRatio("#000000", "#CCCCCC")
+	if contrast < 7.0 || contrast > 21.0 {
+		t.Errorf("Muted contrast ratio: %f (should be ~21:1 for WCAG AAA)", contrast)
+	}
+
+	// Test component styles in high-contrast mode
+	buttonStyle := hcTheme.Button.Render("Button")
+	if !strings.Contains(buttonStyle, "#FFFFFF") || !strings.Contains(buttonStyle, "#000000") {
+		t.Errorf("Button style not using high-contrast colors: %s", buttonStyle)
+	}
+
+	inputStyle := hcTheme.Input.Render("Input")
+	if !strings.Contains(inputStyle, "#000000") || !strings.Contains(inputStyle, "#FFFFFF") {
+		t.Errorf("Input style not using high-contrast colors: %s", inputStyle)
+	}
+
+	errorBoxStyle := hcTheme.ErrorBox.Render("Error")
+	if !strings.Contains(errorBoxStyle, "#FFFF00") || !strings.Contains(errorBoxStyle, "#000000") {
+		t.Errorf("ErrorBox style not using high-contrast colors: %s", errorBoxStyle)
+	}
+}
+
+func TestA11yHighContrastFocusIndicators(t *testing.T) {
+	a := newTestA11y()
+	a.Config.HighContrast = true
+
+	// Test focus indicators in high-contrast mode across different terminal profiles
+	profiles := []termenv.Profile{termenv.TrueColor, termenv.ANSI256, termenv.ANSI, termenv.Ascii}
+	
+	for _, profile := range profiles {
+		a.SetOutputProfile(profile)
+		focusBorder := FocusBorderStyle(profile)
+		
+		// High-contrast mode should always use visible focus borders
+		if profile == termenv.TrueColor {
+			if focusBorder != lipgloss.DoubleBorder() {
+				t.Errorf("TrueColor focus border should be DoubleBorder in high-contrast mode")
+			}
+		} else if profile == termenv.ANSI256 {
+			if focusBorder != lipgloss.ThickBorder() {
+				t.Errorf("ANSI256 focus border should be ThickBorder in high-contrast mode")
+			}
+		}
+		
+		// Test focus title rendering
+		focusTitle := FocusTitle("Dashboard", true)
+		if !strings.Contains(focusTitle, "▸") {
+			t.Errorf("Focus title should contain marker: %s", focusTitle)
+		}
+	}
+}
+
+func TestA11yHighContrastStatusIndicators(t *testing.T) {
+	a := newTestA11y()
+	a.Config.HighContrast = true
+
+	// Test status prefixes in high-contrast mode
+	statusTests := []struct {
+		status string
+		prefix string
+	}{
+		{"healthy", "+"},
+		{"ok", "+"},
+		{"degraded", "!"},
+		{"warning", "!"},
+		{"unhealthy", "X"},
+		{"error", "X"},
+		{"failed", "X"},
+		{"passed", "+"},
+		{"native", "+"},
+		{"partial", "!"},
+		{"mystery", "?"},
+		{"", "?"},
+	}
+
+	for _, test := range statusTests {
+		got := a.StatusPrefix(test.status)
+		want := test.prefix
+		if got != want {
+			t.Errorf("StatusPrefix(%q) = %q, want %q in high-contrast mode", test.status, got, want)
+		}
+	}
+
+	// Test status pairs with prefixes
+	healthyPair := a.StatusPair("healthy", "healthy service")
+	if !strings.Contains(healthyPair, "+") || !strings.Contains(healthyPair, "✓") || !strings.Contains(healthyPair, "healthy service") {
+		t.Errorf("Healthy status pair should contain prefix+symbol+text: %s", healthyPair)
+	}
+
+	errorPair := a.StatusPair("error", "failed service")
+	if !strings.Contains(errorPair, "X") || !strings.Contains(errorPair, "✗") || !strings.Contains(errorPair, "failed service") {
+		t.Errorf("Error status pair should contain prefix+symbol+text: %s", errorPair)
+	}
+}
+
+func TestA11yHighContrastComponentRendering(t *testing.T) {
+	a := newTestA11y()
+	a.Config.HighContrast = true
+	hcTheme := a.GetTheme()
+
+	// Test header rendering in high-contrast mode
+	header := hcTheme.Header.Render("Header")
+	if !strings.Contains(header, "#FFFFFF") || !strings.Contains(header, "#000000") {
+		t.Errorf("Header should use high-contrast colors: %s", header)
+	}
+
+	// Test status bar rendering
+	statusBar := hcTheme.StatusBar.Render("Status")
+	if !strings.Contains(statusBar, "#CCCCCC") || !strings.Contains(statusBar, "#000000") {
+		t.Errorf("StatusBar should use high-contrast colors: %s", statusBar)
+	}
+
+	// Test empty box rendering
+	emptyBox := hcTheme.EmptyBox.Render("Empty")
+	if !strings.Contains(emptyBox, "#CCCCCC") || !strings.Contains(emptyBox, "#000000") {
+		t.Errorf("EmptyBox should use high-contrast colors: %s", emptyBox)
+	}
+
+	// Test help text rendering
+	helpText := hcTheme.Help.Render("Help")
+	if !strings.Contains(helpText, "#CCCCCC") || !strings.Contains(helpText, "#000000") {
+		t.Errorf("Help text should use high-contrast colors: %s", helpText)
+	}
+}
+
+func TestA11yHighContrastTerminalProfileAdaptation(t *testing.T) {
+	a := newTestA11y()
+	a.Config.HighContrast = true
+
+	// Test high-contrast rendering across different terminal profiles
+	profiles := []struct {
+		name   string
+		profile termenv.Profile
+		border lipgloss.Border
+	}{
+		{"TrueColor", termenv.TrueColor, lipgloss.DoubleBorder()},
+		{"ANSI256", termenv.ANSI256, lipgloss.ThickBorder()},
+		{"ANSI", termenv.ANSI, lipgloss.NormalBorder()},
+		{"Ascii", termenv.Ascii, lipgloss.NormalBorder()},
+	}
+
+	for _, p := range profiles {
+		a.SetOutputProfile(p.profile)
+		
+		// Test focus border adaptation
+		focusBorder := FocusBorderStyle(p.profile)
+		if focusBorder != p.border {
+			t.Errorf("Profile %s focus border mismatch: got %v, want %v", p.name, focusBorder, p.border)
+		}
+
+		// Test focus box rendering
+		focusBox := RenderFocusBox("widget", true, a.Theme, p.profile)
+		if !HasFocusMarker(focusBox) {
+			t.Errorf("Profile %s focus box should have focus marker", p.name)
+		}
+	}
+}
+
+func TestA11yHighContrastErrorStates(t *testing.T) {
+	a := newTestA11y()
+	a.Config.HighContrast = true
+
+	// Test error rendering in high-contrast mode
+	errorBox := a.Theme.ErrorBox.Render("Error Message")
+	if !strings.Contains(errorBox, "#FFFF00") || !strings.Contains(errorBox, "#000000") {
+		t.Errorf("ErrorBox should use yellow on black in high-contrast mode: %s", errorBox)
+	}
+
+	// Test status error with prefix
+	errorStatus := a.StatusPair("error", "connection failed")
+	if !strings.Contains(errorStatus, "X") || !strings.Contains(errorStatus, "✗") {
+		t.Errorf("Error status should contain X prefix and ✗ symbol: %s", errorStatus)
+	}
+
+	// Test warning status with prefix
+	warningStatus := a.StatusPair("warning", "degraded performance")
+	if !strings.Contains(warningStatus, "!") || !strings.Contains(warningStatus, "⚠") {
+		t.Errorf("Warning status should contain ! prefix and ⚠ symbol: %s", warningStatus)
+	}
+}
+
+func TestA11yHighContrastScreenReaderSupport(t *testing.T) {
+	a := newTestA11y()
+	a.Config.HighContrast = true
+	a.Config.ScreenReader = true
+
+	// Test alt-text rendering in high-contrast mode
+	visual := "▁▂▃"
+	altText := "30-day trend: rising"
+	
+	// In visual mode, should return visual content
+	a.SetOutputProfile(termenv.TrueColor)
+	got := a.RenderAlt(visual, altText)
+	if got != visual {
+		t.Errorf("Visual mode should return visual content, got %q", got)
+	}
+
+	// In ASCII/screen reader mode, should return alt-text
+	a.SetOutputProfile(termenv.Ascii)
+	got = a.RenderAlt(visual, altText)
+	if got != altText {
+		t.Errorf("ASCII mode should return alt-text, got %q", got)
+	}
+
+	// Test announcement text with status-first
+	announcement := a.GetAnnouncementText("WARNING", "high-contrast mode enabled")
+	if announcement != "WARNING: high-contrast mode enabled" {
+		t.Errorf("Announcement should be status-first: %q", announcement)
+	}
+}
+
+func TestA11yHighContrastKeyboardNavigation(t *testing.T) {
+	a := newTestA11y()
+	a.Config.HighContrast = true
+	a.Config.KeyboardOnly = true
+	a.Config.TabNavigation = true
+
+	// Test focus manager with high-contrast mode
+	fm := NewFocusManager(a)
+	fm.AddFocusableElement("dashboard")
+	fm.AddFocusableElement("adapters")
+	fm.AddFocusableElement("onboarding")
+
+	// Test focus movement
+	if fm.MoveForward() != "adapters" {
+		t.Errorf("First forward should land on adapters")
+	}
+	if fm.MoveForward() != "onboarding" {
+		t.Errorf("Second forward should land on onboarding")
+	}
+	if fm.MoveForward() != "dashboard" {
+		t.Errorf("Forward should wrap to dashboard")
+	}
+
+	// Test focus indicator
+	if !fm.SetFocus("adapters") {
+		t.Errorf("SetFocus should succeed for adapters")
+	}
+	if fm.GetFocusedElement() != "adapters" {
+		t.Errorf("Focused element should be adapters")
+	}
+
+	// Test tab navigation
+	tabOrder := a.GetTabOrder()
+	if len(tabOrder) == 0 {
+		t.Errorf("Tab order should not be empty")
+	}
+	if tabOrder[0] != "dashboard" {
+		t.Errorf("First tab item should be dashboard")
+	}
+}
+
+func TestA11yHighContrastTransitionTesting(t *testing.T) {
+	a := newTestA11y()
+
+	// Test transition from normal to high-contrast mode
+	normalTheme := a.GetTheme()
+	if normalTheme == nil {
+		t.Fatal("Normal theme should not be nil")
+	}
+
+	// Enable high-contrast mode
+	a.Config.HighContrast = true
+	hcTheme := a.GetTheme()
+
+	// Verify themes are different
+	if hcTheme == normalTheme {
+		t.Fatal("High-contrast theme should be different from normal theme")
+	}
+
+	// Test specific color differences
+	if normalTheme.Primary.Render("x") == hcTheme.Primary.Render("x") {
+		t.Error("Primary colors should differ between normal and high-contrast modes")
+	}
+
+	if normalTheme.Warning.Render("x") == hcTheme.Warning.Render("x") {
+		t.Error("Warning colors should differ between normal and high-contrast modes")
+	}
+
+	// Test status prefix behavior change
+	a.Config.HighContrast = false
+	normalPrefix := a.StatusPrefix("healthy")
+	if normalPrefix != "" {
+		t.Errorf("Normal mode should not have status prefixes, got %q", normalPrefix)
+	}
+
+	a.Config.HighContrast = true
+	hcPrefix := a.StatusPrefix("healthy")
+	if hcPrefix != "+" {
+		t.Errorf("High-contrast mode should have + prefix for healthy, got %q", hcPrefix)
+	}
+}
+
+func TestA11yHighContrastValidation(t *testing.T) {
+	a := newTestA11y()
+
+	// Test validation with high-contrast mode enabled
+	a.Config.HighContrast = true
+	errs := a.ValidateAccessibility(a.Theme)
+	if len(errs) != 0 {
+		t.Errorf("High-contrast mode should pass validation, got errors: %v", errs)
+	}
+
+	// Test validation with missing focus indicators
+	a.Config.HighContrast = true
+	brokenTheme := a.Theme.Clone()
+	brokenTheme.FocusBorder = lipgloss.NewStyle() // Remove focus border
+	errs = a.ValidateAccessibility(brokenTheme)
+	found := false
+	for _, e := range errs {
+		if strings.Contains(e, "focus indicators") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("Validation should detect missing focus indicators in high-contrast mode")
+	}
+}
+
+func TestA11yHighContrastReport(t *testing.T) {
+	a := newTestA11y()
+	a.Config.HighContrast = true
+	a.Config.ReducedMotion = true
+	a.Config.ScreenReader = true
+
+	report := a.GetAccessibilityReport()
+	if !strings.Contains(report, "High contrast mode enabled") {
+		t.Errorf("Report should mention high-contrast mode")
+	}
+	if !strings.Contains(report, "WCAG AAA compliance") {
+		t.Errorf("Report should mention WCAG AAA compliance")
+	}
+	if !strings.Contains(report, "Enhanced focus indicators") {
+		t.Errorf("Report should mention enhanced focus indicators")
+	}
+	if !strings.Contains(report, "Status prefixes (+, !, X)") {
+		t.Errorf("Report should mention status prefixes")
+	}
+}
+
 func TestA11yLegacyHelpers(t *testing.T) {
 	a := newTestA11y()
 	if a.GetFontSize() != "14px" {
