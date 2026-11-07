@@ -18,10 +18,8 @@ import (
 	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf/doctor"
 	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf/hooks"
 	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf/storage"
+	"github.com/Reider85/OryaCodeAuthorityFirst/internal/version"
 )
-
-// version — релизная версия MVP-сборки (тег v0.4.1-mvp.1, PROMPT-MVP §14 step 18).
-const version = "0.4.1-mvp.1"
 
 // rootCmd — базовая команда при вызове без подкоманд.
 var rootCmd = &cobra.Command{

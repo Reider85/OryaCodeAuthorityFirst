@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/bubbletea"
 	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf/storage"
+	"github.com/Reider85/OryaCodeAuthorityFirst/internal/version"
 	"github.com/Reider85/OryaCodeAuthorityFirst/pkg/ui"
 	"github.com/Reider85/OryaCodeAuthorityFirst/pkg/ui/components"
 	"github.com/Reider85/OryaCodeAuthorityFirst/pkg/ui/screens"
@@ -91,7 +92,7 @@ func (m *DashboardModel) View() string {
 
 // runDashboardDirect runs the dashboard directly (avoiding AppModel cycle issue)
 func runDashboardDirect(repoRoot string) error {
-	version := "0.4.1" // TODO: get from build info
+	version := version.GetVersion()
 	model := NewDashboardModel(repoRoot, version)
 	if _, err := runTUI(model); err != nil {
 		return fmt.Errorf("dashboard failed: %w", err)
@@ -165,7 +166,7 @@ func (m *AdaptersModel) View() string {
 
 // runAdaptersTUI runs the adapters TUI directly (avoiding AppModel cycle issue)
 func runAdaptersTUI(repoRoot string) error {
-	version := "0.4.1" // TODO: get from build info
+	version := version.GetVersion()
 	model := NewAdaptersModel(repoRoot, version)
 	if _, err := runTUI(model, tea.WithAltScreen()); err != nil {
 		return fmt.Errorf("adapters TUI failed: %w", err)
@@ -239,7 +240,7 @@ func (m *OnboardingModel) View() string {
 
 // runInitTUI runs the onboarding TUI directly (avoiding AppModel cycle issue)
 func runInitTUI(repoRoot string) error {
-	version := "0.4.1" // TODO: get from build info
+	version := version.GetVersion()
 	
 	// First initialize the repository structure
 	if err := storage.InitializeCAF(repoRoot); err != nil {

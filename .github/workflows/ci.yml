@@ -57,7 +57,11 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Build
-        run: go build -o caf ./cmd/caf
+      - name: Build with version embedding
+        run: |
+          # Get version from git
+          GIT_VERSION=$(git describe --tags --dirty --always 2>/dev/null || echo "unknown")
+          # Build with ldflags
+          go build -ldflags="-X 'github.com/Reider85/OryaCodeAuthorityFirst/cmd/caf.version=$GIT_VERSION'" -o caf ./cmd/caf
       - name: Smoke test
         run: ./caf --version
