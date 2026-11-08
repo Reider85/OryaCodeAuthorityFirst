@@ -69,7 +69,7 @@ jobs:
         run: |
           ./perf-test --report --output=performance-report.json
       - name: Upload performance report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: performance-report
           path: performance-report.json
@@ -117,7 +117,7 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Download performance history
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: performance-report
       - name: Analyze performance trends
@@ -127,7 +127,7 @@ jobs:
         run: |
           go run ./scripts/analyze-performance-trend --input=performance-report.json --output=trend-report.json
       - name: Upload trend report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: trend-report
           path: trend-report.json
@@ -146,11 +146,11 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Download performance reports
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: performance-report
       - name: Download trend reports
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: trend-report
       - name: Generate alert message
@@ -202,7 +202,7 @@ jobs:
         run: |
           go run ./scripts/generate-dashboard --input=performance-report.json --output=dashboard.html
       - name: Upload dashboard
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: performance-dashboard
           path: dashboard.html
