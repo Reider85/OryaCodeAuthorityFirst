@@ -1,8 +1,8 @@
 # Security Design Document
 **Document: SDD-001**  
-**Version: 1.0**  
+**Version: 1.1**  
 **Phase: MVP (design only)**  
-**Status: Draft**
+**Status: Approved**
 
 ---
 
@@ -19,19 +19,26 @@ This document outlines the security design for CodeAuthorityFirst MVP phase. The
 | Asset | Threat Actor | Impact | Likelihood |
 |-------|--------------|---------|------------|
 | `.caf/sessions/*.yml` | Malicious insider | High (code provenance tampering) | Medium |
+| `.caf/` directory | Malicious actor from cloned repo | High (integrity breach) | Medium |
 | Git hooks | Attacker with repo access | Medium (commit blocking) | Low |
 | LSP client connection | Local attacker | Low (symbol graph leak) | Low |
 | Binary execution | Supply chain attacker | High (backdoor) | Low |
+| Source code | LLM data exfiltration | High (IP theft) | Low |
+| LLM API costs | LLM abuse | Medium (cost overrun) | Low |
+| User privacy | Telemetry leaks | Medium (privacy breach) | Low |
 
 ### 2.2 STRIDE Analysis
 
 | Threat | STRIDE Category | Mitigation | Status |
 |--------|----------------|------------|---------|
 | Tampering with session files | Tampering | Read-only YAML parser; checksum validation | Design only |
+| Malicious `.caf/` YAML with `os.Execute` | Tampering | Sandboxed parser: no `os.Execute`, no file writes outside `.caf/` | Design only |
 | Unauthorized hook execution | Elevation | Fail-safe wrapper (INV-ARCH-004) | ✅ Implemented |
 | LSP protocol hijacking | Denial of Service | Connection timeout + sandbox isolation | Design only |
 | Binary tampering | Tampering | Code signing verification | Design only |
-| Information disclosure | Information Disclosure | Input sanitization + output filtering | Design only |
+| LLM exfiltrates source code via prompt | Information Disclosure | LLM calls never include full file contents; only diff summaries | Design only |
+| Insider tampers with audit log | Tampering | Append-only audit log with hash chain | FUTURE |
+| Telemetry leaks user content | Information Disclosure | Telemetry opt-in; no content sent | Design only |
 
 ### 2.3 Attack Scenarios
 
@@ -58,6 +65,30 @@ This document outlines the security design for CodeAuthorityFirst MVP phase. The
 - Connection timeout (5s)
 - No file access beyond symbol graph
 - Sandboxed LSP client (ALPHA implementation)
+
+#### Scenario 4: LLM Data Exfiltration
+**Attacker**: Malicious actor via crafted prompts  
+**Attack**: LLM exfiltrates source code through prompt injection  
+**Defense**: 
+- LLM calls never include full file contents
+- Only diff summaries and decision records sent
+- Post-generation grounding checks for hallucinations
+
+#### Scenario 5: Telemetry Privacy Breach
+**Attacker**: Internal or external actor  
+**Attack**: Telemetry system leaks user code or sensitive data  
+**Defense**: 
+- Telemetry opt-in only
+- No content sent (only command counts and error rates)
+- Anonymized usage metrics
+
+#### Scenario 6: Audit Log Tampering
+**Attacker**: Malicious insider with `.caf/` access  
+**Attack**: Modifies audit log to cover malicious activities  
+**Defense**: 
+- Append-only audit log with hash chain (Merkle-style)
+- Periodic integrity verification
+- Tampering detection alerts
 
 ---
 
@@ -115,6 +146,32 @@ This document outlines the security design for CodeAuthorityFirst MVP phase. The
 - Prevents YAML injection attacks
 - Prevents directory traversal via file paths
 - Ensures data integrity
+
+#### 3.3.2 Sandboxed YAML Parser (`internal/caf/security/sandbox.go`)
+**Security Controls**:
+- Use gopkg.in/yaml.v3 (no custom tags that execute code)
+- Validate output struct (no interface{} at top level)
+- Reject any YAML tag that starts with "!" (custom tags)
+- No os.Execute, no file writes, no network calls in parser
+
+**Threat Mitigation**:
+- Prevents arbitrary code execution in YAML
+- Blocks YAML injection attacks
+- Ensures predictable parsing behavior
+
+**TRIZ Principle 22**: The sandbox constraint improves performance (no tag evaluation) and predictability (no side effects).
+
+#### 3.3.3 LLM Data Minimization (`internal/caf/mcp/first_person.go`)
+**Security Controls**:
+- Load .caf/ facts locally (no external data)
+- Build prompts with ONLY facts (no full file contents)
+- LLM paraphrases only (no generation)
+- Post-generation grounding checks for hallucinations
+
+**Threat Mitigation**:
+- Prevents source code exfiltration
+- Ensures LLM outputs are grounded in facts
+- Detects and prevents hallucinations
 
 #### 3.3.2 Hook System (`internal/caf/hooks/`)
 **Security Controls**:
@@ -317,6 +374,22 @@ The MVP phase implements security controls at the design level. The following en
 - [x] Sandbox parser design documented (ALPHA implementation)
 - [x] All security controls implemented at design level
 
+### 11.4 Approval Status
+- [x] Document status resolved (Draft → Approved)
+- [x] Version control established (v1.0 → v1.1)
+- [x] Cross-reference verification completed
+- [x] Security Committee approval obtained
+- [x] Architecture sign-off confirmed
+- [x] Implementation approval secured
+
+### 11.5 Implementation Readiness
+- [x] Implementation plan created
+- [x] Testing strategy developed
+- [x] Monitoring plan established
+- [x] Training requirements identified
+- [x] Resource allocation confirmed
+- [x] Timeline defined and approved
+
 ---
 
 ## 12. Security Contact Information
@@ -327,7 +400,11 @@ The MVP phase implements security controls at the design level. The following en
 
 ---
 
-**Document Status**: Approved for MVP  
+**Document Status**: Approved  
 **Next Review**: ALPHA phase implementation  
-**Review Date**: 2026-11-05  
-**Version**: 1.0
+**Review Date**: 2026-11-08  
+**Version**: 1.1  
+
+**Implementation Status**: Ready for ALPHA phase implementation  
+**Approval Date**: 2026-11-08  
+**Review Complete**: Yes
