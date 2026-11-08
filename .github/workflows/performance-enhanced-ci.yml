@@ -101,7 +101,7 @@ jobs:
         run: |
           ./caf --performance-test --threshold=0.1
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: caf-binary
           path: caf
@@ -158,7 +158,7 @@ jobs:
           echo "Performance regression detected!" > alert.txt
           echo "Check the performance reports for details." >> alert.txt
       - name: Create issue
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
@@ -171,7 +171,7 @@ jobs:
               labels: ['performance', 'regression', 'ci-failure']
             });
       - name: Send alert (Slack)
-        if: success()
+        if: failure() && env.SLACK_WEBHOOK_URL != ''
         uses: 8398a7/action-slack@v3
         with:
           status: failure
@@ -191,11 +191,11 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Download performance reports
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: performance-report
       - name: Download trend reports
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: trend-report
       - name: Generate performance dashboard
