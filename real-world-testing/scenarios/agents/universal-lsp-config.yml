@@ -1,0 +1,457 @@
+# Universal LSP Configuration
+**Tier 4 Fallback Adapter Configuration**
+
+---
+
+## Configuration Overview
+
+This file contains the configuration for Universal LSP integration with CodeAuthorityFirst.
+
+### Basic Configuration
+```yaml
+# universal-lsp-config.yml
+caf:
+  session_tracking: true
+  performance_monitoring: true
+  auto_detect: true
+  fallback_mode: true
+
+lsp:
+  enabled: true
+  binary: "gopls"
+  timeout: 10000
+  retry_count: 3
+  retry_delay: 1000
+  max_memory: 104857600
+  sync_interval: 1800
+  lazy_loading: true
+  symbol_cache: true
+  file_watching: true
+  error_handling: graceful
+
+performance:
+  startup_timeout: 2000
+  sync_timeout: 10000
+  client_timeout: 5000
+  memory_limit: 100000000
+  cpu_limit: 80
+  concurrent_requests: 5
+```
+
+---
+
+## Configuration Parameters
+
+### Global Settings
+- **session_tracking**: Enable/disable session tracking (default: true)
+- **performance_monitoring**: Enable/disable performance monitoring (default: true)
+- **auto_detect**: Enable/disable automatic agent detection (default: true)
+- **fallback_mode**: Enable/disable fallback mode (default: true)
+
+### LSP Configuration
+- **enabled**: Enable/disable LSP functionality (default: true)
+- **binary**: Path to LSP binary (default: "gopls")
+- **timeout**: Request timeout in milliseconds (default: 10000)
+- **retry_count**: Number of retry attempts (default: 3)
+- **retry_delay**: Delay between retries in milliseconds (default: 1000)
+- **max_memory**: Maximum memory usage in bytes (default: 100MB)
+- **sync_interval**: Symbol synchronization interval in seconds (default: 1800)
+- **lazy_loading**: Enable/disable lazy loading (default: true)
+- **symbol_cache**: Enable/disable symbol caching (default: true)
+- **file_watching**: Enable/disable file watching (default: true)
+- **error_handling**: Error handling mode (graceful/strict, default: graceful)
+
+### Performance Configuration
+- **startup_timeout**: LSP startup timeout in milliseconds (default: 2000)
+- **sync_timeout**: Symbol synchronization timeout in milliseconds (default: 10000)
+- **client_timeout**: Client operation timeout in milliseconds (default: 5000)
+- **memory_limit**: Memory limit in bytes (default: 100MB)
+- **cpu_limit**: CPU usage limit in percentage (default: 80)
+- **concurrent_requests**: Maximum concurrent requests (default: 5)
+
+---
+
+## Installation and Setup
+
+### 1. Install gopls
+```bash
+# Install gopls using go install
+go install golang.org/x/tools/gopls@latest
+
+# Verify installation
+gopls version
+
+# Add to PATH if necessary
+echo 'export PATH=$PATH:$HOME/go/bin' >> ~/.bashrc
+source ~/.bashrc
+```
+
+### 2. Configure CodeAuthorityFirst
+```bash
+# Initialize caf in your repository
+caf init --auto-detect
+
+# Verify LSP detection
+caf adapters list
+
+# Configure LSP adapter
+caf init --adapters universal-lsp
+```
+
+### 3. Verify Configuration
+```bash
+# Check caf health
+caf doctor
+
+# List adapters
+caf adapters list
+
+# Test LSP functionality
+caf lsp test
+```
+
+---
+
+## Testing Scenarios
+
+### 1. Basic LSP Testing
+```bash
+# Create a test repository
+mkdir test-repo && cd test-repo
+git init
+caf init --auto-detect
+
+# Create Go files
+echo "package main" > main.go
+echo "func main() { println(\"Hello\") }" >> main.go
+
+# Test symbol generation
+caf lsp generate-symbols
+
+# Verify symbol tracking
+caf lsp symbols
+```
+
+### 2. Large Repository Testing
+```bash
+# Create a large repository (1000+ files)
+# Use the large-go-project repository
+
+# Test symbol generation performance
+time caf lsp generate-symbols
+
+# Verify symbol accuracy
+caf lsp validate-symbols
+
+# Check performance metrics
+caf doctor --performance
+```
+
+### 3. Performance Testing
+```bash
+# Test startup performance
+time caf lsp start
+
+# Test symbol synchronization
+time caf lsp sync
+
+# Test memory usage
+caf lsp memory-usage
+```
+
+### 4. Error Handling Testing
+```bash
+# Test with invalid LSP binary
+mv $(which gopls) $(which gopls).bak
+
+# Attempt to use LSP
+caf lsp start
+
+# Verify error handling
+caf doctor
+
+# Restore binary
+mv $(which gopls).bak $(which gopls)
+```
+
+---
+
+## Monitoring and Validation
+
+### 1. LSP Monitoring
+```bash
+# Monitor LSP status
+caf lsp status
+
+# Check symbol generation
+caf lsp symbols
+
+# Validate LSP health
+caf doctor
+```
+
+### 2. Performance Monitoring
+```bash
+# Monitor LSP performance
+caf lsp performance
+
+# Check memory usage
+caf lsp memory-usage
+
+# Validate performance requirements
+caf doctor --performance
+```
+
+### 3. Error Detection
+```bash
+# Check for errors
+caf doctor --errors
+
+# Validate error handling
+caf lsp test --error-simulation
+
+# Review error logs
+cat ~/.caf/logs/lsp/error.log
+```
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+#### 1. LSP Not Starting
+**Issue**: gopls is not starting or responding
+**Solution**: 
+```bash
+# Check gopls installation
+gopls version
+
+# Verify PATH configuration
+echo $PATH
+
+# Test gopls manually
+gopls serve -rpc.address=localhost:4389
+```
+
+#### 2. Symbol Generation Issues
+**Issue**: Symbols are not being generated correctly
+**Solution**:
+```bash
+# Check LSP configuration
+cat ~/.caf/config.yml
+
+# Verify gopls availability
+which gopls
+
+# Test symbol generation manually
+gopls ls -remote
+```
+
+#### 3. Performance Issues
+**Issue**: Slow symbol generation or high memory usage
+**Solution**:
+```bash
+# Check system resources
+top
+
+# Monitor LSP performance
+caf lsp performance
+
+# Optimize configuration
+echo "lsp.max_memory: 52428800" >> ~/.caf/config.yml
+```
+
+### Debug Commands
+```bash
+# Enable debug logging
+export CAF_LOG_LEVEL=debug
+
+# Check LSP status
+caf lsp status --verbose
+
+# Monitor symbol generation
+CAF_LOG_LEVEL=debug caf lsp generate-symbols
+
+# Validate configuration
+caf config validate
+```
+
+---
+
+## Integration Testing
+
+### 1. Multi-Adapter Testing
+```bash
+# Test with multiple adapters
+caf init --adapters opencode,claude-code,universal-lsp
+
+# Verify all adapters work
+caf adapters list
+
+# Test LSP fallback when primary adapters fail
+# Disable opencode and claude-code, test LSP functionality
+```
+
+### 2. Cross-Platform Testing
+```bash
+# Test on different platforms
+# Windows, macOS, Linux
+
+# Verify consistent behavior
+caf adapters list
+caf doctor
+
+# Test platform-specific LSP features
+gopls version
+```
+
+### 3. Large Repository Testing
+```bash
+# Test with large repositories
+# 1000+ files
+
+# Verify performance
+caf doctor --performance
+
+# Test symbol accuracy
+caf lsp validate-symbols
+```
+
+---
+
+## Success Criteria
+
+### 1. Symbol Generation
+- ✅ 100% success rate for symbol generation
+- ✅ <5 minute generation time for 1000+ files
+- ✅ >95% symbol accuracy
+- ✅ Memory usage <100MB
+
+### 2. Performance
+- ✅ <2 second startup time
+- ✅ <10 second symbol synchronization
+- ✅ <5 second client operations
+- ✅ Memory usage within limits
+
+### 3. Error Handling
+- ✅ Graceful degradation on failures
+- ✅ Proper error logging
+- ✅ Recovery from crashes
+- ✅ No data loss
+
+### 4. Fallback Functionality
+- ✅ Works when primary adapters fail
+- ✅ Maintains session tracking
+- ✅ Provides symbol information
+- ✅ Handles large repositories
+
+---
+
+## Configuration Validation
+
+### 1. Configuration Files
+```bash
+# Validate configuration syntax
+caf config validate
+
+# Check configuration completeness
+caf config check
+
+# Test configuration changes
+caf config test
+```
+
+### 2. Integration Validation
+```bash
+# Test integration with caf
+caf adapters test universal-lsp
+
+# Validate LSP functionality
+caf lsp test
+
+# Test symbol generation
+caf lsp generate-symbols --test
+```
+
+### 3. Performance Validation
+```bash
+# Validate performance requirements
+caf performance validate
+
+# Test performance under load
+caf performance load-test
+
+# Monitor performance metrics
+caf performance monitor
+```
+
+---
+
+## Advanced Features
+
+### 1. Symbol Caching
+```bash
+# Enable symbol caching
+echo "lsp.symbol_cache: true" >> ~/.caf/config.yml
+
+# Test cached symbol generation
+caf lsp generate-symbols --cached
+
+# Clear cache
+caf lsp cache clear
+```
+
+### 2. File Watching
+```bash
+# Enable file watching
+echo "lsp.file_watching: true" >> ~/.caf/config.yml
+
+# Test file watching
+caf lsp watch
+
+# Stop file watching
+caf lsp watch --stop
+```
+
+### 3. Lazy Loading
+```bash
+# Enable lazy loading
+echo "lsp.lazy_loading: true" >> ~/.caf/config.yml
+
+# Test lazy loading
+caf lsp lazy-load
+
+# Disable lazy loading
+echo "lsp.lazy_loading: false" >> ~/.caf/config.yml
+```
+
+---
+
+## Monitoring and Observability
+
+### 1. Metrics Collection
+- LSP startup time
+- Symbol generation time
+- Memory usage
+- CPU usage
+- Error rates
+- Success rates
+
+### 2. Logging and Tracing
+- Structured logging with correlation IDs
+- Performance tracing
+- Error tracking
+- Debug information
+
+### 3. Health Checks
+- LSP connectivity
+- Symbol availability
+- Performance monitoring
+- Resource usage
+
+### 4. Alerting
+- Performance degradation alerts
+- Error rate alerts
+- Memory usage alerts
+- Crash detection alerts

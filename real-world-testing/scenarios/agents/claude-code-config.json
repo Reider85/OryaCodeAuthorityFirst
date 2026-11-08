@@ -1,0 +1,189 @@
+{
+  "claude_code": {
+    "name": "Claude Code Configuration",
+    "version": "1.0.0",
+    "description": "Claude Code integration with CodeAuthorityFirst",
+    "tier": 1,
+    "type": "native",
+    "capabilities": {
+      "pre_session": true,
+      "post_edit": true,
+      "pre_commit": true,
+      "mcp": true
+    }
+  },
+  "configuration": {
+    "hooks": [
+      {
+        "event": "pre-session",
+        "command": "caf hook pre-session",
+        "working_directory": "{{workspace_root}}",
+        "environment": {
+          "CAF_CONFIG": "{{config_path}}",
+          "CLAUDE_CODE_SESSION": "{{session_id}}"
+        }
+      },
+      {
+        "event": "post-edit",
+        "command": "caf hook post-edit --session {{session_id}} --files \"{{files_changed}}\" --message \"{{edit_message}}\"",
+        "working_directory": "{{workspace_root}}",
+        "environment": {
+          "CAF_CONFIG": "{{config_path}}",
+          "CLAUDE_CODE_SESSION": "{{session_id}}",
+          "CLAUDE_CODE_FILES": "{{files_changed}}"
+        }
+      },
+      {
+        "event": "pre-commit",
+        "command": "caf hook pre-commit --session {{session_id}} --repo \"{{workspace_root}}\"",
+        "working_directory": "{{workspace_root}}",
+        "environment": {
+          "CAF_CONFIG": "{{config_path}}",
+          "CLAUDE_CODE_SESSION": "{{session_id}}"
+        }
+      }
+    ],
+    "session_tracking": {
+      "enabled": true,
+      "auto_detect": true,
+      "performance_monitoring": true,
+      "metadata_collection": {
+        "agent": "claude-code",
+        "model": "claude-3-opus",
+        "tool_calls": true,
+        "voice_signature": true,
+        "file_touches": true,
+        "iterations": true
+      }
+    },
+    "performance": {
+      "hook_timeout": 5000,
+      "session_timeout": 30000,
+      "memory_limit": 104857600,
+      "cpu_limit": 80,
+      "concurrent_sessions": 5
+    },
+    "logging": {
+      "level": "info",
+      "format": "json",
+      "output": "stdout",
+      "file": "~/.claude-code/logs/caf-integration.log",
+      "rotate": true,
+      "max_size": "100MB",
+      "max_files": 5
+    }
+  },
+  "paths": {
+    "config_file": "~/.claude-code/config.json",
+    "session_directory": "~/.claude-code/sessions",
+    "cache_directory": "~/.claude-code/cache",
+    "log_directory": "~/.claude-code/logs",
+    "temp_directory": "/tmp/claude-code"
+  },
+  "features": {
+    "auto_save": true,
+    "auto_commit": false,
+    "real_time_collaboration": false,
+    "offline_mode": true,
+    "version_control": true,
+    "branch_management": true,
+    "merge_conflict_resolution": true,
+    "code_review": true,
+    "testing": true,
+    "deployment": false,
+    "monitoring": true
+  },
+  "integrations": {
+    "git": {
+      "enabled": true,
+      "auto_commit": false,
+      "auto_push": false,
+      "branch_prefix": "claude-",
+      "commit_template": "claude: {{description}}",
+      "sign_commits": true,
+      "commit_gpg": false
+    },
+    "caf": {
+      "enabled": true,
+      "auto_detect": true,
+      "session_tracking": true,
+      "performance_monitoring": true,
+      "hook_integration": true,
+      "metadata_collection": true
+    },
+    "ide": {
+      "vscode": {
+        "enabled": true,
+        "extensions": ["github.copilot", "ms-vscode.go"],
+        "settings": {
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": true
+          }
+        }
+      },
+      "intellij": {
+        "enabled": true,
+        "plugins": ["org.jetbrains.go", "GitHub.copilot"],
+        "settings": {
+          "autodetect.indent": true,
+          "go.lintTool": "golint"
+        }
+      },
+      "vim": {
+        "enabled": true,
+        "plugins": ["vim-go", "coc.nvim"],
+        "settings": {
+          "gofmt_command": "gofmt",
+          "go_def_mode": "gopls"
+        }
+      }
+    }
+  },
+  "security": {
+    "api_key": "",
+    "encryption": {
+      "enabled": true,
+      "algorithm": "AES-256-GCM",
+      "key_rotation": 30,
+      "data_at_rest": true,
+      "data_in_transit": true
+    },
+    "access_control": {
+      "enabled": true,
+      "rbac": true,
+      "audit_logging": true,
+      "ip_whitelist": [],
+      "rate_limiting": {
+        "enabled": true,
+        "requests_per_minute": 100,
+        "burst_size": 10
+      }
+    }
+  },
+  "monitoring": {
+    "enabled": true,
+    "metrics": {
+      "session_duration": true,
+      "hook_execution_time": true,
+      "memory_usage": true,
+      "cpu_usage": true,
+      "error_rate": true,
+      "success_rate": true
+    },
+    "alerts": {
+      "enabled": true,
+      "error_threshold": 5,
+      "performance_threshold": 1000,
+      "memory_threshold": 80,
+      "cpu_threshold": 80
+    },
+    "reporting": {
+      "enabled": true,
+      "format": "json",
+      "interval": "daily",
+      "retention": 30
+    }
+  }
+}
+```

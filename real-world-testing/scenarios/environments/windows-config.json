@@ -1,0 +1,106 @@
+{
+  "platform": "windows",
+  "name": "Windows Configuration",
+  "description": "Windows platform configuration for testing CodeAuthorityFirst",
+  "setup": {
+    "version": "1.0.0",
+    "architecture": "x64",
+    "shell": "powershell",
+    "required_tools": [
+      "git",
+      "go",
+      "opencode",
+      "claude-code"
+    ],
+    "optional_tools": [
+      "gopls",
+      "vscode",
+      "intellij",
+      "vim"
+    ]
+  },
+  "environment_variables": {
+    "PATH": [
+      "%USERPROFILE%\\go\\bin",
+      "%USERPROFILE%\\.local\\bin",
+      "%USERPROFILE%\\.config\\opencode",
+      "%USERPROFILE%\\.config\\claude-code"
+    ],
+    "GOPATH": "%USERPROFILE%\\go",
+    "GOBIN": "%USERPROFILE%\\go\\bin",
+    "XDG_CONFIG_HOME": "%USERPROFILE%\\.config"
+  },
+  "path_configuration": {
+    "git": "C:\\Program Files\\Git\\bin",
+    "go": "C:\\Program Files\\Go\\bin",
+    "opencode": "%USERPROFILE%\\.local\\bin",
+    "claude-code": "%USERPROFILE%\\.local\\bin",
+    "gopls": "%USERPROFILE%\\go\\bin"
+  },
+  "git_configuration": {
+    "core.autocrlf": true,
+    "core.editor": "code --wait",
+    "commit.template": "%USERPROFILE%\\.gitcommit.template",
+    "push.default": "simple",
+    "pull.rebase": false
+  },
+  "caf_configuration": {
+    "session_directory": "%USERPROFILE%\\.caf\\sessions",
+    "cache_directory": "%USERPROFILE%\\.caf\\cache",
+    "config_file": "%USERPROFILE%\\.caf\\config.yml",
+    "auto_detect": true,
+    "adapters": ["opencode", "claude-code"],
+    "performance_monitoring": true
+  },
+  "monitoring_directories": {
+    "session_logs": "%USERPROFILE%\\.caf\\logs\\sessions",
+    "hook_logs": "%USERPROFILE%\\.caf\\logs\\hooks",
+    "lsp_logs": "%USERPROFILE%\\.caf\\logs\\lsp",
+    "performance_logs": "%USERPROFILE%\\.caf\\logs\\performance"
+  },
+  "testing_commands": {
+    "check_go": "go version",
+    "check_git": "git --version",
+    "check_opencode": "opencode --version",
+    "check_claude_code": "claude-code --version",
+    "check_gopls": "gopls version",
+    "initialize_caf": "caf init --auto-detect",
+    "start_monitoring": "cd real-world-testing\\scenarios && .\\start-monitoring.ps1",
+    "check_health": "caf doctor",
+    "list_adapters": "caf adapters list",
+    "view_dashboard": "caf dashboard"
+  },
+  "setup_scripts": [
+    "scripts\\setup-windows.ps1",
+    "scripts\\configure-windows-paths.ps1",
+    "scripts\\install-windows-dependencies.ps1"
+  ],
+  "validation_scripts": [
+    "scripts\\validate-windows-hooks.ps1",
+    "scripts\\validate-windows-sessions.ps1",
+    "scripts\\validate-windows-performance.ps1"
+  ],
+  "success_criteria": {
+    "path_resolution": "All tools accessible in PATH",
+    "git_integration": "Git hooks working correctly",
+    "session_tracking": "Complete metadata collection",
+    "performance": "<1 second hook execution",
+    "compatibility": "No Windows-specific errors"
+  },
+  "troubleshooting": {
+    "common_issues": [
+      {
+        "issue": "PATH resolution issues",
+        "solution": "Verify tool installation and PATH configuration"
+      },
+      {
+        "issue": "Git hook problems",
+        "solution": "Check Git configuration and hook permissions"
+      },
+      {
+        "issue": "Session tracking failures",
+        "solution": "Verify caf initialization and directory permissions"
+      }
+    ]
+  }
+}

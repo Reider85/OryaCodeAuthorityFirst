@@ -1,0 +1,14 @@
+# Universal LSP configuration for CodeAuthorityFirst
+caf:
+  session_tracking: true
+  performance_monitoring = true
+  auto_detect = true
+  fallback_mode = true
+
+lsp:
+  enabled = true
+  binary = "gopls"
+  timeout = 10000
+  retry_count = 3
+  max_memory = 104857600
+  sync_interval = 1800

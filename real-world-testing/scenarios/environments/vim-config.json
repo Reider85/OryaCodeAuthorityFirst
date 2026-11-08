@@ -1,0 +1,134 @@
+{
+  "environment": "vim",
+  "name": "Vim Configuration",
+  "description": "Vim development environment configuration for testing CodeAuthorityFirst",
+  "setup": {
+    "version": "1.0.0",
+    "platforms": ["windows", "linux", "macos"],
+    "required_tools": [
+      "vim",
+      "git",
+      "go",
+      "opencode",
+      "claude-code"
+    ],
+    "optional_tools": [
+      "gopls"
+    ]
+  },
+  "plugins": [
+    {
+      "name": "vim-go",
+      "description": "Go development plugin for Vim",
+      "config": {
+        "gopls": {
+          "use_gopls": true,
+          "gopls_path": "gopls",
+          "gopls_options": [
+            "--remote=auto",
+            "--gomod=gomod"
+          ]
+        }
+      }
+    },
+    {
+      "name": "coc.nvim",
+      "description": "Intelligent code completion",
+      "config": {
+        "coc.preferences": {
+          "autoTrigger": true,
+          "triggerCompletionWait": 50
+        }
+      }
+    }
+  ],
+  "vimrc_settings": {
+    "go": {
+      "gofmt_command": "gofmt",
+      "gofmt_options": "-s",
+      "godef_split": "vertical",
+      "godef_vertical": 10,
+      "go_list_autocmd": 0,
+      "go_auto_type_info": 1,
+      "go_def_mode": "gopls",
+      "go_doc_keywordprg": ":GoDoc",
+      "go_fmt_autosave": 1,
+      "go_fmt_fail_silently": 1,
+      "go_fmt_command": "gofmt",
+      "go_imports_autosave": 1,
+      "go_mod_fmt_autosave": 1,
+      "go_play_open": 1,
+      "go_play_browser": "chromium",
+      "go_reuse_gopls": 1,
+      "go_gopls_options": [
+        "-remote=auto",
+        "-gomod=gomod"
+      ]
+    },
+    "git": {
+      "gitgutter_enabled": 1,
+      "signify_enabled": 1
+    },
+    "general": {
+      "expandtab": true,
+      "shiftwidth": 2,
+      "tabstop": 2,
+      "softtabstop": 2,
+      "autoindent": true,
+      "smartindent": true,
+      "number": true,
+      "relativenumber": true,
+      "cursorline": true,
+      "wildmode": "longest,list,full",
+      "encoding": "utf-8"
+    }
+  },
+  "workspace_setup": {
+    "pre_commit_hook": {
+      "enabled": true,
+      "path": ".git/hooks/pre-commit",
+      "command": "caf hook pre-commit --repo \"$(pwd)\""
+    },
+    "caf_configuration": {
+      "auto_detect": true,
+      "adapters": ["opencode", "claude-code"],
+      "session_tracking": true,
+      "performance_monitoring": true
+    }
+  },
+  "testing_commands": {
+    "initialize_caf": "caf init --auto-detect",
+    "start_monitoring": "cd real-world-testing/scenarios && .\\start-monitoring.ps1",
+    "run_session": "vim .",
+    "check_health": "caf doctor",
+    "list_adapters": "caf adapters list",
+    "view_dashboard": "caf dashboard"
+  },
+  "validation_scripts": [
+    "scripts/validate-vim-hooks.ps1",
+    "scripts/validate-vim-sessions.ps1",
+    "scripts/validate-vim-performance.ps1"
+  ],
+  "success_criteria": {
+    "hook_execution": "100% success rate",
+    "session_tracking": "Complete metadata collection",
+    "performance": "<1 second hook execution",
+    "compatibility": "No environment-specific errors"
+  },
+  "troubleshooting": {
+    "common_issues": [
+      {
+        "issue": "Hook not firing",
+        "solution": "Check Vim terminal path and caf binary location"
+      },
+      {
+        "issue": "Session not tracked",
+        "solution": "Verify caf initialization and adapter configuration"
+      },
+      {
+        "issue": "Performance issues",
+        "solution": "Check gopls availability and system resources"
+      }
+    ]
+  }
+}

@@ -1,0 +1,394 @@
+# opencode Configuration
+**Tier 1 Native Adapter Configuration**
+
+---
+
+## Configuration Overview
+
+This file contains the configuration for opencode integration with CodeAuthorityFirst.
+
+### Basic Configuration
+```toml
+# hooks.toml - opencode configuration
+[[hooks]]
+event = "pre-session"
+command = "caf hook pre-session"
+
+[[hooks]]
+event = "post-edit"
+command = "caf hook post-edit"
+
+[[hooks]]
+event = "pre-commit"
+command = "caf hook pre-commit"
+```
+
+### Advanced Configuration
+```toml
+# hooks.toml - advanced opencode configuration
+[caf]
+session_tracking = true
+performance_monitoring = true
+auto_detect = true
+
+[[hooks]]
+event = "pre-session"
+command = "caf hook pre-session --session {{session_id}}"
+working_directory = "{{workspace_root}}"
+env = {"CAF_CONFIG" = "{{config_path}}"}
+
+[[hooks]]
+event = "post-edit"
+command = "caf hook post-edit --session {{session_id}} --files \"{{files_changed}}\" --message \"{{edit_message}}\""
+working_directory = "{{workspace_root}}"
+env = {"CAF_CONFIG" = "{{config_path}}"}
+
+[[hooks]]
+event = "pre-commit"
+command = "caf hook pre-commit --session {{session_id}} --repo \"{{workspace_root}}\""
+working_directory = "{{workspace_root}}"
+env = {"CAF_CONFIG" = "{{config_path}}"}
+```
+
+---
+
+## Configuration Parameters
+
+### Global Settings
+- **session_tracking**: Enable/disable session tracking (default: true)
+- **performance_monitoring**: Enable/disable performance monitoring (default: true)
+- **auto_detect**: Enable/disable automatic agent detection (default: true)
+- **config_path**: Path to caf configuration file (default: ~/.caf/config.yml)
+
+### Hook Configuration
+- **event**: Hook event type (pre-session, post-edit, pre-commit)
+- **command**: Command to execute for the hook
+- **working_directory**: Working directory for hook execution
+- **env**: Environment variables to set for hook execution
+
+### Session Parameters
+- **session_id**: Unique identifier for the session
+- **files_changed**: List of files changed in the session
+- **edit_message**: Message describing the edit
+- **workspace_root**: Root directory of the workspace
+
+---
+
+## Installation and Setup
+
+### 1. Install opencode
+```bash
+# Download and install opencode
+curl -L https://github.com/opencode/opencode/releases/latest/download/opencode-$(uname -s)-$(uname -m).tar.gz -o opencode.tar.gz
+tar -xzf opencode.tar.gz
+sudo mv opencode /usr/local/bin/
+
+# Verify installation
+opencode --version
+```
+
+### 2. Configure CodeAuthorityFirst
+```bash
+# Initialize caf in your repository
+caf init --auto-detect
+
+# Verify opencode detection
+caf adapters list
+
+# Configure opencode hooks
+caf init --adapters opencode
+```
+
+### 3. Verify Configuration
+```bash
+# Check caf health
+caf doctor
+
+# List adapters
+caf adapters list
+
+# Test hook execution
+caf hook pre-session --test
+```
+
+---
+
+## Testing Scenarios
+
+### 1. Basic Session Testing
+```bash
+# Create a test repository
+mkdir test-repo && cd test-repo
+git init
+caf init --auto-detect
+
+# Make changes with opencode
+echo "// Test feature" > main.go
+git add .
+git commit -m "Add test feature"
+
+# Verify session tracking
+caf who main.go
+```
+
+### 2. Multi-File Testing
+```bash
+# Create multiple files
+echo "package main" > main.go
+echo "func main() { println(\"Hello\") }" > main.go
+echo "package utils" > utils.go
+echo "func Helper() { println(\"Helper\") }" > utils.go
+
+# Make changes with opencode
+opencode edit main.go --add "import \"./utils\""
+opencode edit utils.go --add "func Helper() { println(\"Updated Helper\") }"
+
+# Verify session tracking
+caf who main.go
+caf who utils.go
+```
+
+### 3. Performance Testing
+```bash
+# Create a large file for testing
+for i in {1..1000}; do
+    echo "func function$i() { println(\"Function $i\") }" >> large_file.go
+done
+
+# Make changes with opencode
+opencode edit large_file.go --add "package main"
+
+# Measure performance time
+time caf hook pre-commit --repo "$(pwd)"
+
+# Verify performance requirements
+caf doctor
+```
+
+### 4. Error Handling Testing
+```bash
+# Test with invalid configuration
+mv ~/.config/opencode/hooks.toml ~/.config/opencode/hooks.toml.bak
+
+# Attempt to use opencode
+opencode edit main.go --add "// Test"
+
+# Verify error handling
+caf doctor
+
+# Restore configuration
+mv ~/.config/opencode/hooks.toml.bak ~/.config/opencode/hooks.toml
+```
+
+---
+
+## Monitoring and Validation
+
+### 1. Session Monitoring
+```bash
+# Monitor session creation
+caf dashboard
+
+# Check session details
+caf who main.go
+
+# Validate session completeness
+caf doctor
+```
+
+### 2. Hook Performance
+```bash
+# Monitor hook execution
+realtime-monitor --type hooks
+
+# Check performance metrics
+caf doctor --performance
+
+# Validate hook success rate
+caf adapters list --detailed
+```
+
+### 3. Error Detection
+```bash
+# Check for errors
+caf doctor --errors
+
+# Validate error handling
+caf hook pre-commit --test --error-simulation
+
+# Review error logs
+cat ~/.caf/logs/hooks/error.log
+```
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+#### 1. Hook Not Firing
+**Issue**: opencode hooks are not executing
+**Solution**: 
+```bash
+# Check hook configuration
+cat ~/.config/opencode/hooks.toml
+
+# Verify caf binary location
+which caf
+
+# Test hook execution manually
+caf hook pre-session --test
+```
+
+#### 2. Session Not Tracked
+**Issue**: Sessions are not being tracked
+**Solution**:
+```bash
+# Check caf configuration
+cat ~/.caf/config.yml
+
+# Verify adapter detection
+caf adapters list
+
+# Check session directory
+ls -la ~/.caf/sessions/
+```
+
+#### 3. Performance Issues
+**Issue**: Slow hook execution or session tracking
+**Solution**:
+```bash
+# Check system resources
+top
+
+# Monitor performance
+caf doctor --performance
+
+# Optimize configuration
+echo "performance_monitoring: false" >> ~/.caf/config.yml
+```
+
+### Debug Commands
+```bash
+# Enable debug logging
+export CAF_LOG_LEVEL=debug
+
+# Check hook execution details
+caf hook pre-session --verbose
+
+# Monitor session creation
+CAF_LOG_LEVEL=debug caf dashboard
+
+# Validate configuration
+caf config validate
+```
+
+---
+
+## Integration Testing
+
+### 1. Multi-Agent Testing
+```bash
+# Test with multiple agents
+caf init --adapters opencode,claude-code
+
+# Verify both adapters work
+caf adapters list
+
+# Test session tracking with both agents
+opencode edit main.go --add "// opencode change"
+claude-code edit main.go --add "// claude-code change"
+```
+
+### 2. Cross-Platform Testing
+```bash
+# Test on different platforms
+# Windows, macOS, Linux
+
+# Verify consistent behavior
+caf adapters list
+caf doctor
+
+# Test platform-specific features
+opencode --platform-specific-feature
+```
+
+### 3. Large Repository Testing
+```bash
+# Test with large repositories
+# 1000+ files
+
+# Verify performance
+caf doctor --performance
+
+# Test session tracking
+caf who large_file.go
+```
+
+---
+
+## Success Criteria
+
+### 1. Session Tracking
+- ✅ 100% success rate for session creation
+- ✅ Complete metadata collection
+- ✅ Accurate file tracking
+- ✅ Proper iteration counting
+
+### 2. Hook Integration
+- ✅ 100% hook execution success rate
+- ✅ <1 second hook execution time
+- ✅ Proper environment variable passing
+- ✅ Working directory resolution
+
+### 3. Performance
+- ✅ <100ms session creation time
+- ✅ <1s hook execution time
+- ✅ Memory usage within limits
+- ✅ No performance degradation
+
+### 4. Error Handling
+- ✅ Graceful error handling
+- ✅ Proper error logging
+- ✅ Recovery from failures
+- ✅ No data loss
+
+---
+
+## Configuration Validation
+
+### 1. Configuration Files
+```bash
+# Validate configuration syntax
+caf config validate
+
+# Check configuration completeness
+caf config check
+
+# Test configuration changes
+caf config test
+```
+
+### 2. Integration Validation
+```bash
+# Test integration with caf
+caf adapters test opencode
+
+# Validate hook integration
+caf hook test pre-session
+
+# Test session tracking
+caf session test
+```
+
+### 3. Performance Validation
+```bash
+# Validate performance requirements
+caf performance validate
+
+# Test performance under load
+caf performance load-test
+
+# Monitor performance metrics
+caf performance monitor
+```

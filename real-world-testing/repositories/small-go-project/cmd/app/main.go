@@ -1,0 +1,16 @@
+package main
+
+import (
+	"fmt"
+	"log"
+	"small-go-project/internal/config"
+)
+
+func main() {
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+	
+	fmt.Printf("Server starting on port %s\n", cfg.Port)
+}

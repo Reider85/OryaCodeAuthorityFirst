@@ -1,0 +1,109 @@
+{
+  "platform": "macos",
+  "name": "macOS Configuration",
+  "description": "macOS platform configuration for testing CodeAuthorityFirst",
+  "setup": {
+    "version": "1.0.0",
+    "architecture": "x64",
+    "shell": "bash",
+    "required_tools": [
+      "git",
+      "go",
+      "opencode",
+      "claude-code"
+    ],
+    "optional_tools": [
+      "gopls",
+      "code",
+      "intellij-idea",
+      "vim"
+    ]
+  },
+  "environment_variables": {
+    "PATH": [
+      "$HOME/go/bin",
+      "$HOME/.local/bin",
+      "$HOME/.config/opencode",
+      "$HOME/.config/claude-code",
+      "/usr/local/go/bin",
+      "/opt/homebrew/bin"
+    ],
+    "GOPATH": "$HOME/go",
+    "GOBIN": "$HOME/go/bin",
+    "XDG_CONFIG_HOME": "$HOME/.config",
+    "XDG_DATA_HOME": "$HOME/.local/share"
+  },
+  "path_configuration": {
+    "git": "/usr/bin/git",
+    "go": "/usr/local/go/bin",
+    "opencode": "$HOME/.local/bin",
+    "claude-code": "$HOME/.local/bin",
+    "gopls": "$HOME/go/bin"
+  },
+  "git_configuration": {
+    "core.autocrlf": input,
+    "core.editor": "code --wait",
+    "commit.template": "$HOME/.gitcommit.template",
+    "push.default": "simple",
+    "pull.rebase": false
+  },
+  "caf_configuration": {
+    "session_directory": "$HOME/.caf/sessions",
+    "cache_directory": "$HOME/.caf/cache",
+    "config_file": "$HOME/.caf/config.yml",
+    "auto_detect": true,
+    "adapters": ["opencode", "claude-code"],
+    "performance_monitoring": true
+  },
+  "monitoring_directories": {
+    "session_logs": "$HOME/.caf/logs/sessions",
+    "hook_logs": "$HOME/.caf/logs/hooks",
+    "lsp_logs": "$HOME/.caf/logs/lsp",
+    "performance_logs": "$HOME/.caf/logs/performance"
+  },
+  "testing_commands": {
+    "check_go": "go version",
+    "check_git": "git --version",
+    "check_opencode": "opencode --version",
+    "check_claude_code": "claude-code --version",
+    "check_gopls": "gopls version",
+    "initialize_caf": "caf init --auto-detect",
+    "start_monitoring": "cd real-world-testing/scenarios && ./start-monitoring.sh",
+    "check_health": "caf doctor",
+    "list_adapters": "caf adapters list",
+    "view_dashboard": "caf dashboard"
+  },
+  "setup_scripts": [
+    "scripts/setup-macos.sh",
+    "scripts/configure-macos-paths.sh",
+    "scripts/install-macos-dependencies.sh"
+  ],
+  "validation_scripts": [
+    "scripts/validate-macos-hooks.sh",
+    "scripts/validate-macos-sessions.sh",
+    "scripts/validate-macos-performance.sh"
+  ],
+  "success_criteria": {
+    "path_resolution": "All tools accessible in PATH",
+    "git_integration": "Git hooks working correctly",
+    "session_tracking": "Complete metadata collection",
+    "performance": "<1 second hook execution",
+    "compatibility": "No macOS-specific errors"
+  },
+  "troubleshooting": {
+    "common_issues": [
+      {
+        "issue": "PATH resolution issues",
+        "solution": "Verify tool installation and PATH configuration"
+      },
+      {
+        "issue": "Git hook problems",
+        "solution": "Check Git configuration and hook permissions"
+      },
+      {
+        "issue": "Session tracking failures",
+        "solution": "Verify caf initialization and directory permissions"
+      }
+    ]
+  }
+}
