@@ -1,0 +1,33 @@
+run:
+  timeout: 5m
+  issues:
+    exclude:
+      - Useless break
+      - Error return value of .(os|io).Close is not checked
+      - Error return value of .(os|io).Close is not checked
+      - Assign to the blank identifier
+  linters:
+    enable:
+      - govet
+      - errcheck
+      - ineffassign
+      - staticcheck
+      - unused
+      - gosec
+      - misspell
+      - revive
+      - gocritic
+      - gocyclo
+  linters-settings:
+    gocyclo:
+      max-complexity: 15
+    revive:
+      rules:
+        - name: unused-parameter
+          severity: warning
+          arguments:
+            - allow-ignored
+        - name: exported
+          severity: warning
+          arguments:
+            - allow-interface-to-primitive
