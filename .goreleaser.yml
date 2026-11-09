@@ -1,0 +1,55 @@
+project_name: caf
+before:
+  hooks:
+    - go mod tidy
+builds:
+  - id: caf
+    main: ./cmd/caf
+    binary: caf
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X github.com/Reider85/OryaCodeAuthorityFirst/cmd/caf.version={{.Version}}
+      - -X github.com/Reider85/OryaCodeAuthorityFirst/cmd/caf.commit={{.Commit}}
+      - -X github.com/Reider85/OryaCodeAuthorityFirst/cmd/caf.date={{.Date}}
+archives:
+  - id: default
+    builds: [caf]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    format_overrides:
+      - goos: windows
+        format: zip
+checksum:
+  name_template: 'checksums.txt'
+sbom:
+  artifacts: archive
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+  groups:
+    - title: 'New features'
+      regexp: '^feat:'
+      order: 0
+    - title: 'Bug fixes'
+      regexp: '^fix:'
+      order: 1
+    - title: 'Other'
+      order: 999
+release:
+  draft: false
+  prerelease: auto
+  name_template: "{{ .Tag }} — CodeAuthorityFirst"
