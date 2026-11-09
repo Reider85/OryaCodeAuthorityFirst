@@ -1,6 +1,7 @@
 # CodeAuthorityFirst (caf)
 
 [![CI](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/ci.yml/badge.svg)](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/ci.yml)
+[![Release](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/release.yml/badge.svg)](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/release.yml)
 [![golangci-lint](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/quality.yml/badge.svg?branch=main&label=golangci-lint)](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/quality.yml)
 [![govulncheck](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/quality.yml/badge.svg?branch=main&label=govulncheck)](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/quality.yml)
 [![gosec](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/quality.yml/badge.svg?branch=main&label=gosec)](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/quality.yml)
@@ -346,6 +347,24 @@ go test ./...        # unit + contract + TUI snapshot tests (14 packages)
 go vet ./...
 go build ./...       # must stay CGO-free
 ```
+
+## Releases
+
+CodeAuthorityFirst uses automated releases triggered by git tags:
+
+- **Create a release tag**: `git tag v1.0.0 && git push origin v1.0.0`
+- **Automated build**: GitHub Actions builds binaries for 6 platforms (Linux/macOS/Windows × amd64/arm64)
+- **Release artifacts**: Cross-platform binaries, checksums, SBOM, and auto-generated changelog
+- **Prereleases**: Automatic prereleases on every push to main (visible in Releases tab)
+
+Release artifacts include:
+- `caf_<version>_linux_amd64`
+- `caf_<version>_linux_arm64` 
+- `caf_<version>_darwin_amd64`
+- `caf_<version>_darwin_arm64`
+- `caf_<version>_windows_amd64.zip`
+- `checksums.txt`
+- `sbom_<version>.spdx.json`
 
 Test suite includes: adapter contract tests (4 adapters × 3 events), 5-state `teatest` snapshots (3 screens × 5 states), focus-visibility and alt-text presence tests, and performance benchmarks against the §6 budgets.
 
