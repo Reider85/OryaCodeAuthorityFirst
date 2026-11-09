@@ -1,0 +1,55 @@
+name: Auto Prerelease
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+
+jobs:
+  prerelease:
+    name: Create prerelease for push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Compute version
+        id: ver
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          SHA=$(git rev-parse --short HEAD)
+          DATE=$(date -u +%Y%m%d)
+          PRERELEASE_TAG="${LAST_TAG}-pre.${DATE}.${SHA}"
+          echo "tag=$PRERELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "last_tag=$LAST_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Build binary (linux amd64)
+        run: |
+          go build -ldflags="-X 'github.com/Reider85/OryaCodeAuthorityFirst/cmd/caf.version=${{ steps.ver.outputs.tag }}'" -o caf-linux-amd64 ./cmd/caf
+          ./caf-linux-amd64 --version
+
+      - name: Delete previous prerelease
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete "${{ steps.ver.outputs.last_tag }}-pre" --yes --cleanup-tag || true
+
+      - name: Create prerelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.ver.outputs.tag }}" \
+            --title "Prerelease ${{ steps.ver.outputs.tag }}" \
+            --notes "Автоматический prerelease для коммита ${{ github.sha }}.
+Список изменений со времени последнего тега:
+$(git log --oneline ${{ steps.ver.outputs.last_tag }}..HEAD)" \
+            --prerelease \
+            caf-linux-amd64
