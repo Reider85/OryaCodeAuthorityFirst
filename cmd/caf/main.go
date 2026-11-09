@@ -19,6 +19,7 @@ import (
 	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf/hooks"
 	"github.com/Reider85/OryaCodeAuthorityFirst/internal/caf/storage"
 	"github.com/Reider85/OryaCodeAuthorityFirst/internal/version"
+	"github.com/Reider85/OryaCodeAuthorityFirst/pkg/ui"
 )
 
 // rootCmd — базовая команда при вызове без подкоманд.
@@ -202,6 +203,38 @@ func init() {
 	adaptersListCmd.Flags().Bool("tui", false, "Launch TUI adapter manager")
 }
 
+// performanceTestCmd — caf performance-test: run performance validation
+var performanceTestCmd = &cobra.Command{
+	Use:   "performance-test [threshold]",
+	Short: "Run performance validation tests",
+	Long: `Run performance validation tests against predefined budgets.
+Optional threshold parameter overrides default 0.1 threshold.
+
+Example:
+  caf performance-test
+  caf performance-test 0.05`,
+	Args: cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		repoRoot := flagString(cmd, "repo")
+		if repoRoot == "" {
+			repoRoot = "."
+		}
+		abs, err := resolveRepo(repoRoot)
+		if err != nil {
+			return err
+		}
+		
+		threshold := 0.1
+		if len(args) > 0 {
+			if _, err := fmt.Sscanf(args[0], "%f", &threshold); err != nil {
+				return fmt.Errorf("invalid threshold value: %w", err)
+			}
+		}
+		
+		return runPerformanceTest(abs, threshold)
+	},
+}
+
 // doctorCmd — caf doctor: 5 базовых health checks (FR-OBS-004 partial).
 var doctorCmd = &cobra.Command{
 	Use:   "doctor [repo]",
@@ -272,6 +305,7 @@ func setupCommands() {
 	rootCmd.AddCommand(whoCmd)
 	rootCmd.AddCommand(contextCmd)
 	rootCmd.AddCommand(dashboardCmd)
+	rootCmd.AddCommand(performanceTestCmd)
 	rootCmd.AddCommand(doctorCmd)
 	rootCmd.AddCommand(autoDetectCmd)
 	adaptersCmd.AddCommand(adaptersListCmd)
@@ -290,6 +324,8 @@ func setupCommands() {
 		"Read agent hook JSON on stdin (Claude Code PreToolUse) and run pre-commit only for git commit")
 
 	whoCmd.Flags().StringP("repo", "r", "", "Repository path (default: current directory)")
+
+	performanceTestCmd.Flags().StringP("repo", "r", "", "Repository path (default: current directory)")
 
 
 
@@ -743,4 +779,46 @@ func runDashboardTUI(repoRoot string) error {
 	}
 	
 	return nil
+}
+
+// runPerformanceTest: run performance validation tests
+func runPerformanceTest(repoRoot string, threshold float64) error {
+	fmt.Printf("Running performance validation with threshold %.2f...\n", threshold)
+	
+	// Initialize performance monitoring system
+	budgets := ui.NewPerformanceBudget()
+	monitor := ui.NewPerformanceMonitor(budgets)
+	enforcer := ui.NewBudgetEnforcer(monitor, budgets)
+	regression := ui.NewRegressionDetector(monitor, budgets)
+	optimizer := ui.NewPerformanceOptimizer(monitor, enforcer, regression)
+	
+	// Set up global monitor
+	ui.InitializeGlobalMonitor(budgets)
+	
+	// Run comprehensive tests
+	runComprehensiveTests(monitor, enforcer, regression, optimizer)
+	
+	// Check threshold compliance
+	operations := []string{"first_paint", "frame_render", "keystroke"}
+	allPassed := true
+	
+	for _, op := range operations {
+		if compliance, exists := enforcer.GetBudgetCompliance(op); exists {
+			if compliance < threshold {
+				fmt.Printf("❌ %s compliance %.2f%% below threshold %.2f%%\n", 
+					op, compliance*100, threshold*100)
+				allPassed = false
+			} else {
+				fmt.Printf("✅ %s compliance %.2f%% (threshold %.2f%%)\n", 
+					op, compliance*100, threshold*100)
+			}
+		}
+	}
+	
+	if allPassed {
+		fmt.Println("✅ All performance tests passed")
+		return nil
+	}
+	
+	return fmt.Errorf("performance validation failed: some operations below threshold")
 }

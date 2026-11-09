@@ -50,6 +50,37 @@ jobs:
       - name: Run UI benchmarks
         run: go test ./pkg/ui/... -run=^$ -bench=. -benchtime=10x -benchmem
 
+  # TODO: implement performance-gate job and re-enable (see GITHUB.md)
+  # performance-gate:
+  #   name: performance gate
+  #   runs-on: ubuntu-latest
+  #   needs: [vet, test, benchmark]
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-go@v5
+  #       with:
+  #         go-version-file: go.mod
+  #     - name: Build performance test binary
+  #       run: |
+  #         go build -o perf-test ./cmd/perf-test
+  #     - name: Run comprehensive performance tests
+  #       run: |
+  #         ./perf-test --comprehensive --threshold=0.1
+  #     - name: Generate performance report
+  #       run: |
+  #         ./perf-test --report --output=performance-report.json
+  #     - name: Upload performance report
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: performance-report
+  #         path: performance-report.json
+  #     - name: Check performance regression
+  #       run: |
+  #         ./perf-test --check-regression --baseline=main
+  #     - name: Performance quality gate
+  #       run: |
+  #         ./perf-test --quality-gate --max-regression=0.15 --min-budget-compliance=0.9
+
   build:
     name: build single binary
     runs-on: ubuntu-latest
@@ -66,3 +97,120 @@ jobs:
           go build -ldflags="-X 'github.com/Reider85/OryaCodeAuthorityFirst/cmd/caf.version=$GIT_VERSION'" -o caf ./cmd/caf
       - name: Smoke test
         run: ./caf --version
+      # TODO: implement caf --performance-test flag and re-enable (see GITHUB.md)
+      # - name: Performance validation
+      #   run: |
+      #     ./caf --performance-test --threshold=0.1
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: caf-binary
+          path: caf
+
+  # TODO: implement performance-trend job and re-enable (see GITHUB.md)
+  # performance-trend:
+  #   name: performance trend analysis
+  #   runs-on: ubuntu-latest
+  #   needs: [performance-gate]
+  #   if: github.ref == 'refs/heads/main'
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-go@v5
+  #       with:
+  #         go-version-file: go.mod
+  #     - name: Download performance history
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: performance-report
+  #     - name: Analyze performance trends
+  #       run: |
+  #         go run ./scripts/analyze-performance-trend --input=performance-report.json
+  #     - name: Generate trend report
+  #       run: |
+  #         go run ./scripts/analyze-performance-trend --input=performance-report.json --output=trend-report.json
+  #     - name: Upload trend report
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: trend-report
+  #         path: trend-report.json
+  #     - name: Check for performance degradation
+  #       run: |
+  #         go run ./scripts/analyze-performance-trend --input=performance-report.json --check-degradation
+
+  # TODO: implement performance-alert job and re-enable (see GITHUB.md)
+  # performance-alert:
+  #   name: performance alerts
+  #   runs-on: ubuntu-latest
+  #   needs: [performance-gate, performance-trend]
+  #   if: failure()
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-go@v5
+  #       with:
+  #         go-version-file: go.mod
+  #     - name: Download performance reports
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: performance-report
+  #     - name: Download trend reports
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: trend-report
+  #     - name: Generate alert message
+  #       run: |
+  #         echo "Performance regression detected!" > alert.txt
+  #         echo "Check the performance reports for details." >> alert.txt
+  #     - name: Create issue
+  #       uses: actions/github-script@v7
+  #       with:
+  #         script: |
+  #           const fs = require('fs');
+  #           const alertMessage = fs.readFileSync('alert.txt', 'utf8');
+  #           github.rest.issues.create({
+  #             owner: context.repo.owner,
+  #             repo: context.repo.repo,
+  #             title: 'Performance Regression Detected',
+  #             body: alertMessage,
+  #             labels: ['performance', 'regression', 'ci-failure']
+  #           });
+  #     - name: Send alert (Slack)
+  #       if: failure() && env.SLACK_WEBHOOK_URL != ''
+  #       uses: 8398a7/action-slack@v3
+  #       with:
+  #         status: failure
+  #         fields: repo,message,commit,author,action,eventName,ref,workflow
+  #         text: 'Performance regression detected in CI!'
+  #       env:
+  #         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # TODO: implement performance-dashboard job and re-enable (see GITHUB.md)
+  # performance-dashboard:
+  #   name: performance dashboard
+  #   runs-on: ubuntu-latest
+  #   needs: [performance-gate, performance-trend]
+  #   if: github.ref == 'refs/heads/main'
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-go@v5
+  #       with:
+  #         go-version-file: go.mod
+  #     - name: Download performance reports
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: performance-report
+  #     - name: Download trend reports
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: trend-report
+  #     - name: Generate performance dashboard
+  #       run: |
+  #         go run ./scripts/generate-dashboard --input=performance-report.json --output=dashboard.html
+  #     - name: Upload dashboard
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: performance-dashboard
+  #         path: dashboard.html
+  #     - name: Deploy dashboard
+  #       run: |
+  #         # Deploy to GitHub Pages or other hosting
+  #         echo "Dashboard generated and uploaded"
