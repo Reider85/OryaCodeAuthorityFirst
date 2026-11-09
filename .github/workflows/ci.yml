@@ -49,7 +49,7 @@ jobs:
       - name: Run UI benchmarks
         run: go test ./pkg/ui/... -run=^$ -bench=. -benchtime=10x -benchmem
 
-  build:
+   build:
     name: build single binary
     runs-on: ubuntu-latest
     steps:
@@ -65,3 +65,32 @@ jobs:
           go build -ldflags="-X 'github.com/Reider85/OryaCodeAuthorityFirst/cmd/caf.version=$GIT_VERSION'" -o caf ./cmd/caf
       - name: Smoke test
         run: ./caf --version
+
+  build-matrix:
+    name: build (${{ matrix.os }}/${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    needs: [vet, test]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: linux,   arch: amd64, runner: ubuntu-latest }
+          - { os: linux,   arch: arm64, runner: ubuntu-24.04-arm }
+          - { os: darwin,  arch: amd64, runner: macos-13 }
+          - { os: darwin,  arch: arm64, runner: macos-14 }
+          - { os: windows, arch: amd64, runner: windows-latest }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: 0
+        run: |
+          go build -ldflags="-X 'github.com/Reider85/OryaCodeAuthorityFirst/cmd/caf.version=${{ github.sha }}'" -o caf${{ matrix.os == 'windows' && '.exe' || '' }} ./cmd/caf
+      - name: Smoke test
+        run: |
+          ./caf${{ matrix.os == 'windows' && '.exe' || '' }} --version
