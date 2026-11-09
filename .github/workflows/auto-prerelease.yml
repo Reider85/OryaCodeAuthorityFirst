@@ -32,7 +32,7 @@ jobs:
 
       - name: Build binary (linux amd64)
         run: |
-          go build -ldflags="-X 'github.com/Reider85/OryaCodeAuthorityFirst/cmd/caf.version=${{ steps.ver.outputs.tag }}'" -o caf-linux-amd64 ./cmd/caf
+          go build -ldflags="-X 'github.com/Reider85/OryaCodeAuthorityFirst/internal/version.Version=${{ steps.ver.outputs.tag }}'" -o caf-linux-amd64 ./cmd/caf
           ./caf-linux-amd64 --version
 
       - name: Delete previous prerelease
