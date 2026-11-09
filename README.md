@@ -1,5 +1,10 @@
 # CodeAuthorityFirst (caf)
 
+[![CI](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/ci.yml/badge.svg)](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/ci.yml)
+[![golangci-lint](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/quality.yml/badge.svg?branch=main&label=golangci-lint)](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/quality.yml)
+[![govulncheck](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/quality.yml/badge.svg?branch=main&label=govulncheck)](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/quality.yml)
+[![gosec](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/quality.yml/badge.svg?branch=main&label=gosec)](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/quality.yml)
+
 **Track who wrote what, when, and why.** CodeAuthorityFirst records provenance for AI coding sessions — which agent touched which file, from which prompt, through which iterations — and shows it in a TUI dashboard.
 
 - **Single binary** — pure Go, no CGO, no runtime dependencies (Linux / macOS / Windows).
@@ -325,6 +330,13 @@ If you need any of these: that is [ROADMAP.md](analytics/ROADMAP.md) phase scope
 | [analytics/ADR.md](analytics/ADR.md) | Architectural decisions |
 | [analytics/BACKLOG.md](analytics/BACKLOG.md) | Deferred items per phase |
 | [analytics/PROMPT-MVP.md](analytics/PROMPT-MVP.md) | The MVP generation contract this code follows |
+
+## Social
+
+📖 **Docs**: https://reider85.github.io/OryaCodeAuthorityFirst/  
+🐛 **Issues**: [Report bugs](https://github.com/Reider85/OryaCodeAuthorityFirst/issues)  
+💬 **Discussions**: [Join discussions](https://github.com/Reider85/OryaCodeAuthorityFirst/discussions)  
+🌟 **Star**: If this helps your AI coding workflow!
 
 ## Development
 
