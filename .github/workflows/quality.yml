@@ -7,12 +7,41 @@ on:
   pull_request:
     branches: [ main ]
 
+env:
+  RUNNER_THRESHOLD: "80"
+  RUNNER_TYPE: "hybrid"
+
 jobs:
+  select-runner:
+    name: Select Runner Type
+    runs-on: ubuntu-latest
+    outputs:
+      runner-type: ${{ steps.select.outputs.runner-type }}
+      runner-label: ${{ steps.select.outputs.runner-label }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Select Runner Type
+        id: select
+        run: |
+          if [[ "${{ env.RUNNER_TYPE }}" == "hybrid" ]]; then
+            # Use the runner selection utility
+            echo "🔍 Using hybrid runner selection..."
+            echo "::set-output name=runner-type::$(bash ./scripts/select-runner.sh ${{ env.RUNNER_THRESHOLD }} hybrid)"
+            echo "::set-output name=runner-label::$(bash ./scripts/select-runner.sh ${{ env.RUNNER_THRESHOLD }} hybrid | cut -d'=' -f2)"
+          else
+            echo "::set-output name=runner-type::${{ env.RUNNER_TYPE }}"
+            echo "::set-output name=runner-label::${{ env.RUNNER_TYPE }}"
+          fi
+
   golangci-lint:
     name: golangci-lint
-    runs-on: ubuntu-latest
+    runs-on: ${{ needs.select-runner.outputs.runner-label }}
+    needs: select-runner
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -23,9 +52,11 @@ jobs:
 
   govulncheck:
     name: govulncheck
-    runs-on: ubuntu-latest
+    runs-on: ${{ needs.select-runner.outputs.runner-label }}
+    needs: select-runner
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -34,9 +65,11 @@ jobs:
 
   gosec:
     name: gosec
-    runs-on: ubuntu-latest
+    runs-on: ${{ needs.select-runner.outputs.runner-label }}
+    needs: select-runner
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
       - uses: securego/gosec-action@master
         with:
           args: -exclude=G104 ./...

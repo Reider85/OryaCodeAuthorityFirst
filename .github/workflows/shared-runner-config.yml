@@ -1,0 +1,57 @@
+name: Shared Runner Configuration
+
+on:
+  workflow_call:
+    inputs:
+      runner-type:
+        description: 'Type of runner to use'
+        required: true
+        type: string
+      threshold:
+        description: 'Usage threshold percentage for switching to local runners'
+        required: false
+        type: string
+        default: '80'
+
+jobs:
+  select-runner:
+    name: Select Runner Type
+    runs-on: ubuntu-latest
+    outputs:
+      runner-type: ${{ steps.select.outputs.runner-type }}
+      runner-label: ${{ steps.select.outputs.runner-label }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Select Runner Type
+        id: select
+        run: |
+          if [[ "${{ inputs.runner-type }}" == "hybrid" ]]; then
+            # Use the runner selection utility
+            echo "🔍 Using hybrid runner selection..."
+            echo "::set-output name=runner-type::$(bash ./scripts/select-runner.sh 80 hybrid)"
+            echo "::set-output name=runner-label::$(bash ./scripts/select-runner.sh 80 hybrid | cut -d'=' -f2)"
+          else
+            echo "::set-output name=runner-type::${{ inputs.runner-type }}"
+            echo "::set-output name=runner-label::${{ inputs.runner-type }}"
+          fi
+
+  # Generic job template that can be reused by other workflows
+  generic-job:
+    name: Generic Job
+    runs-on: ${{ needs.select-runner.outputs.runner-label }}
+    needs: select-runner
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      
+      - name: Run job
+        run: |
+          echo "Running on ${{ needs.select-runner.outputs.runner-type }} runner"
+          echo "Runner label: ${{ needs.select-runner.outputs.runner-label }}"

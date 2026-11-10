@@ -6,12 +6,41 @@ on:
     tags: ["v*"]
   pull_request:
 
+env:
+  RUNNER_THRESHOLD: "80"
+  RUNNER_TYPE: "hybrid"
+
 jobs:
+  select-runner:
+    name: Select Runner Type
+    runs-on: ubuntu-latest
+    outputs:
+      runner-type: ${{ steps.select.outputs.runner-type }}
+      runner-label: ${{ steps.select.outputs.runner-label }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Select Runner Type
+        id: select
+        run: |
+          if [[ "${{ env.RUNNER_TYPE }}" == "hybrid" ]]; then
+            # Use the runner selection utility
+            echo "🔍 Using hybrid runner selection..."
+            echo "::set-output name=runner-type::$(bash ./scripts/select-runner.sh ${{ env.RUNNER_THRESHOLD }} hybrid)"
+            echo "::set-output name=runner-label::$(bash ./scripts/select-runner.sh ${{ env.RUNNER_THRESHOLD }} hybrid | cut -d'=' -f2)"
+          else
+            echo "::set-output name=runner-type::${{ env.RUNNER_TYPE }}"
+            echo "::set-output name=runner-label::${{ env.RUNNER_TYPE }}"
+          fi
+
   vet:
     name: go vet
-    runs-on: ubuntu-latest
+    runs-on: ${{ needs.select-runner.outputs.runner-label }}
+    needs: select-runner
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -20,9 +49,11 @@ jobs:
 
   test:
     name: test + coverage ≥80%
-    runs-on: ubuntu-latest
+    runs-on: ${{ needs.select-runner.outputs.runner-label }}
+    needs: [select-runner]
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -45,9 +76,11 @@ jobs:
 
   benchmark:
     name: perf budgets (§6)
-    runs-on: ubuntu-latest
+    runs-on: ${{ needs.select-runner.outputs.runner-label }}
+    needs: [select-runner]
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -58,9 +91,11 @@ jobs:
 
    build:
     name: build single binary
-    runs-on: ubuntu-latest
+    runs-on: ${{ needs.select-runner.outputs.runner-label }}
+    needs: [select-runner]
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -76,18 +111,19 @@ jobs:
   build-matrix:
     name: build (${{ matrix.os }}/${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
-    needs: [vet, test]
+    needs: [select-runner]
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { os: linux,   arch: amd64, runner: ubuntu-latest }
-          - { os: linux,   arch: arm64, runner: ubuntu-24.04-arm }
-          - { os: darwin,  arch: amd64, runner: macos-13 }
-          - { os: darwin,  arch: arm64, runner: macos-14 }
-          - { os: windows, arch: amd64, runner: windows-latest }
+          - { os: linux,   arch: amd64, runner: ${{ needs.select-runner.outputs.runner-label }} }
+          - { os: linux,   arch: arm64, runner: ${{ needs.select-runner.outputs.runner-label }} }
+          - { os: darwin,  arch: amd64, runner: ${{ needs.select-runner.outputs.runner-label }} }
+          - { os: darwin,  arch: arm64, runner: ${{ needs.select-runner.outputs.runner-label }} }
+          - { os: windows, arch: amd64, runner: ${{ needs.select-runner.outputs.runner-label }} }
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
