@@ -1,11 +1,13 @@
 # CodeAuthorityFirst (caf)
 
+**Track who wrote what, when, and why.** CodeAuthorityFirst records provenance for AI coding sessions — which agent touched which file, from which prompt, through which iterations — and shows it in a TUI dashboard.
+
 [![CI](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/ci.yml/badge.svg)](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/ci.yml)
 [![Release](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/release.yml/badge.svg)](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/release.yml)
 [![golangci-lint](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/quality.yml/badge.svg?branch=main&label=golangci-lint)](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/quality.yml)
 [![govulncheck](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/quality.yml/badge.svg?branch=main&label=govulncheck)](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/quality.yml)
 [![gosec](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/quality.yml/badge.svg?branch=main&label=gosec)](https://github.com/Reider85/OryaCodeAuthorityFirst/actions/workflows/quality.yml)
-[![coverage](https://codecov.io/gh/Reider85/OryaCodeAuthorityFirst/graph/badge.svg?token=PLACEHOLDER_TOKEN)](https://codecov.io/gh/Reider85/OryaCodeAuthorityFirst)
+[![coverage](https://codecov.io/gh/Reider85/OryaCodeAuthorityFirst/graph/badge.svg)](https://codecov.io/gh/Reider85/OryaCodeAuthorityFirst)
 
 **Track who wrote what, when, and why.** CodeAuthorityFirst records provenance for AI coding sessions — which agent touched which file, from which prompt, through which iterations — and shows it in a TUI dashboard.
 

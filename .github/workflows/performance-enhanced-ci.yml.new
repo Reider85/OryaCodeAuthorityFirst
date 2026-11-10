@@ -1,0 +1,37 @@
+name: Performance Enhanced CI
+
+on:
+  push:
+    branches: [main]
+    tags: [" v*\]
+  pull_request:
+    branches: [main]
+
+jobs:
+  vet:
+    name: go vet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Vet all packages
+        run: go vet ./...
+
+  test:
+    name: test + coverage ?80%
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      # ¬ключает 5-state teatest snapshots, focus-visibility, alt-text,
+      # high-contrast render и budget-тесты (INV-PROMPT-MVP-006..010).
+      - name: Unit + contract + TUI snapshot tests
+        run: go test ./... -coverprofile=coverage.out -covermode=atomic
+      - name: Enforce NFR-MAINT-01 coverage floor (80%)
+        run: |
+          total=
+          echo " total coverage: \%\
